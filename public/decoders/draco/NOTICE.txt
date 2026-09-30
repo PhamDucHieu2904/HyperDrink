@@ -1,0 +1,8 @@
+Draco geometry decoder
+Copyright Google LLC and Draco contributors.
+Licensed under the Apache License, Version 2.0; see LICENSE.txt.
+
+The unmodified JavaScript/WebAssembly decoder files in this directory were
+copied from the glTF decoder distribution bundled with Three.js r180.
+Upstream: https://github.com/google/draco
+Bundled source: node_modules/three/examples/jsm/libs/draco/gltf/

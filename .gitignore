@@ -1,0 +1,29 @@
+# Installed dependencies and package-manager caches
+/node_modules/
+/.pnpm-store/
+
+# Next.js output and local build caches
+/.next/
+/out/
+/build/
+*.tsbuildinfo
+
+# Temporary QA captures and the retired OBJ prototype archive
+/.tmp/
+/docs/screenshots/
+/source-assets/legacy-can/
+
+# Large authoring files stay in the external Blender source library.
+# Optimized GLBs in public/models remain tracked.
+*.blend
+*.blend1
+*.blend2
+
+# Local secrets, logs and OS metadata
+.env*
+!.env.example
+!.env.sample
+*.pem
+*.log
+.DS_Store
+Thumbs.db

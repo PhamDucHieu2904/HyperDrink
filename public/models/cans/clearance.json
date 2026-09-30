@@ -1,0 +1,68 @@
+[
+  {
+    "id": "can-330",
+    "minimumSampledClearanceMeters": 6.80108071091437e-05,
+    "negativeClearances": 0,
+    "nearCoplanarClearances": 0,
+    "samples": 7744,
+    "sampleTypes": [
+      "vertices",
+      "triangle-centroids"
+    ]
+  },
+  {
+    "id": "can-180",
+    "minimumSampledClearanceMeters": 7.637301516729561e-05,
+    "negativeClearances": 0,
+    "nearCoplanarClearances": 0,
+    "samples": 5824,
+    "sampleTypes": [
+      "vertices",
+      "triangle-centroids"
+    ]
+  },
+  {
+    "id": "can-250-short",
+    "minimumSampledClearanceMeters": 7.24400972842848e-05,
+    "negativeClearances": 0,
+    "nearCoplanarClearances": 0,
+    "samples": 5824,
+    "sampleTypes": [
+      "vertices",
+      "triangle-centroids"
+    ]
+  },
+  {
+    "id": "can-250",
+    "minimumSampledClearanceMeters": 7.9578865462622e-05,
+    "negativeClearances": 0,
+    "nearCoplanarClearances": 0,
+    "samples": 5824,
+    "sampleTypes": [
+      "vertices",
+      "triangle-centroids"
+    ]
+  },
+  {
+    "id": "can-320",
+    "minimumSampledClearanceMeters": 4.41696829743439e-05,
+    "negativeClearances": 0,
+    "nearCoplanarClearances": 0,
+    "samples": 10816,
+    "sampleTypes": [
+      "vertices",
+      "triangle-centroids"
+    ]
+  },
+  {
+    "id": "can-500",
+    "minimumSampledClearanceMeters": 9.899558893774682e-05,
+    "negativeClearances": 0,
+    "nearCoplanarClearances": 0,
+    "samples": 8280,
+    "sampleTypes": [
+      "vertices",
+      "triangle-centroids"
+    ]
+  }
+]

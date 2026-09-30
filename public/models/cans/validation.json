@@ -1,0 +1,372 @@
+{
+  "passed": true,
+  "validatedBy": "Blender 5.2.2 LTS glTF+Draco importer",
+  "assets": [
+    {
+      "id": "can-330",
+      "sha256Matches": true,
+      "sourceUnchanged": true,
+      "meshes": [
+        {
+          "role": "body",
+          "name": "body",
+          "triangles": 14616,
+          "maximumPositionErrorMeters": 5.927630354563007e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-body"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 5.221438535810855
+          }
+        },
+        {
+          "role": "label",
+          "name": "label",
+          "triangles": 5120,
+          "maximumPositionErrorMeters": 5.258351393422345e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "printed-label"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 128,
+            "nonManifoldEdges": 128,
+            "signedVolumeBeforeScale": 7.446729970902287,
+            "inwardFacingRadialFaces": 0
+          }
+        },
+        {
+          "role": "tab",
+          "name": "tab",
+          "triangles": 9264,
+          "maximumPositionErrorMeters": 1.3999716657053796e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-tab"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 0.27708531115547486
+          }
+        }
+      ],
+      "triangles": 29000,
+      "triangleCountMatches": true,
+      "maximumPositionErrorMeters": 5.927630354563007e-06,
+      "allMaterialRolesPresent": true,
+      "passed": true
+    },
+    {
+      "id": "can-180",
+      "sha256Matches": true,
+      "sourceUnchanged": true,
+      "meshes": [
+        {
+          "role": "body",
+          "name": "body",
+          "triangles": 12888,
+          "maximumPositionErrorMeters": 5.573893304244848e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-body"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 3.6052280285165894
+          }
+        },
+        {
+          "role": "label",
+          "name": "label",
+          "triangles": 3840,
+          "maximumPositionErrorMeters": 5.425866220321041e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "printed-label"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 128,
+            "nonManifoldEdges": 128,
+            "signedVolumeBeforeScale": 4.240155272571842,
+            "inwardFacingRadialFaces": 0
+          }
+        },
+        {
+          "role": "tab",
+          "name": "tab",
+          "triangles": 9264,
+          "maximumPositionErrorMeters": 1.3988943692311295e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-tab"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 0.27708531115547486
+          }
+        }
+      ],
+      "triangles": 25992,
+      "triangleCountMatches": true,
+      "maximumPositionErrorMeters": 5.573893304244848e-06,
+      "allMaterialRolesPresent": true,
+      "passed": true
+    },
+    {
+      "id": "can-250-short",
+      "sha256Matches": true,
+      "sourceUnchanged": true,
+      "meshes": [
+        {
+          "role": "body",
+          "name": "body",
+          "triangles": 14904,
+          "maximumPositionErrorMeters": 4.675420314015355e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-body"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 4.005965143526255
+          }
+        },
+        {
+          "role": "label",
+          "name": "label",
+          "triangles": 3840,
+          "maximumPositionErrorMeters": 4.056349553138716e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "printed-label"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 128,
+            "nonManifoldEdges": 128,
+            "signedVolumeBeforeScale": 4.458348429159639,
+            "inwardFacingRadialFaces": 0
+          }
+        },
+        {
+          "role": "tab",
+          "name": "tab",
+          "triangles": 9264,
+          "maximumPositionErrorMeters": 1.3998426311445655e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-tab"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 0.27708531115547486
+          }
+        }
+      ],
+      "triangles": 28008,
+      "triangleCountMatches": true,
+      "maximumPositionErrorMeters": 4.675420314015355e-06,
+      "allMaterialRolesPresent": true,
+      "passed": true
+    },
+    {
+      "id": "can-250",
+      "sha256Matches": true,
+      "sourceUnchanged": true,
+      "meshes": [
+        {
+          "role": "body",
+          "name": "body",
+          "triangles": 15936,
+          "maximumPositionErrorMeters": 6.794390628783731e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-body"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 4.5482941313512795
+          }
+        },
+        {
+          "role": "label",
+          "name": "label",
+          "triangles": 3840,
+          "maximumPositionErrorMeters": 6.011987352394499e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "printed-label"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 128,
+            "nonManifoldEdges": 128,
+            "signedVolumeBeforeScale": 4.331429437268373,
+            "inwardFacingRadialFaces": 0
+          }
+        },
+        {
+          "role": "tab",
+          "name": "tab",
+          "triangles": 9264,
+          "maximumPositionErrorMeters": 1.443012479285244e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-tab"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 0.2785920367820971
+          }
+        }
+      ],
+      "triangles": 29040,
+      "triangleCountMatches": true,
+      "maximumPositionErrorMeters": 6.794390628783731e-06,
+      "allMaterialRolesPresent": true,
+      "passed": true
+    },
+    {
+      "id": "can-320",
+      "sha256Matches": true,
+      "sourceUnchanged": true,
+      "meshes": [
+        {
+          "role": "body",
+          "name": "body",
+          "triangles": 14496,
+          "maximumPositionErrorMeters": 7.578465556434821e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-body"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 5.7535869105541835
+          }
+        },
+        {
+          "role": "label",
+          "name": "label",
+          "triangles": 7168,
+          "maximumPositionErrorMeters": 7.008908141870052e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "printed-label"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 128,
+            "nonManifoldEdges": 128,
+            "signedVolumeBeforeScale": 4.483845394883634,
+            "inwardFacingRadialFaces": 0
+          }
+        },
+        {
+          "role": "tab",
+          "name": "tab",
+          "triangles": 9264,
+          "maximumPositionErrorMeters": 1.4806565786784631e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-tab"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 0.2785920367820971
+          }
+        }
+      ],
+      "triangles": 30928,
+      "triangleCountMatches": true,
+      "maximumPositionErrorMeters": 7.578465556434821e-06,
+      "allMaterialRolesPresent": true,
+      "passed": true
+    },
+    {
+      "id": "can-500",
+      "sha256Matches": true,
+      "sourceUnchanged": true,
+      "meshes": [
+        {
+          "role": "body",
+          "name": "body",
+          "triangles": 15480,
+          "maximumPositionErrorMeters": 8.536754648957867e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-body"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 7.912669038335447
+          }
+        },
+        {
+          "role": "label",
+          "name": "label",
+          "triangles": 5472,
+          "maximumPositionErrorMeters": 8.256045475718565e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "printed-label"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 144,
+            "nonManifoldEdges": 144,
+            "signedVolumeBeforeScale": 4.593707476758919,
+            "inwardFacingRadialFaces": 0
+          }
+        },
+        {
+          "role": "tab",
+          "name": "tab",
+          "triangles": 9264,
+          "maximumPositionErrorMeters": 1.396705215483962e-06,
+          "degenerateUvTriangles": 0,
+          "materials": [
+            "aluminum-tab"
+          ],
+          "singleSided": true,
+          "sourceTopology": {
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "signedVolumeBeforeScale": 0.27708531115547486
+          }
+        }
+      ],
+      "triangles": 30216,
+      "triangleCountMatches": true,
+      "maximumPositionErrorMeters": 8.536754648957867e-06,
+      "allMaterialRolesPresent": true,
+      "passed": true
+    }
+  ]
+}

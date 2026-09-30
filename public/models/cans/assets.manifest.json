@@ -1,0 +1,790 @@
+{
+  "schemaVersion": 1,
+  "generator": "Blender 5.2.2 LTS / export-web-cans.py",
+  "upAxis": "Y",
+  "frontAxis": "+Z",
+  "unit": "meter",
+  "centered": true,
+  "assets": [
+    {
+      "id": "can-330",
+      "src": "/models/cans/can-330.glb",
+      "sourceFile": "330ml Can Model.blend",
+      "sourceSha256": "186782c90bc924347a3e75a9557422f07e6a22ac4c9d18600de95d23cbe1b10e",
+      "volumeMl": 330,
+      "label": "330 ml",
+      "kind": "can",
+      "dimensions": {
+        "width": 0.065821,
+        "height": 0.114879,
+        "depth": 0.065821
+      },
+      "triangleCount": 29000,
+      "sourceBaseTriangleCount": 7298,
+      "subdivisionLevel": 1,
+      "bytes": 126500,
+      "materialSlots": {
+        "body": [
+          "aluminum-body"
+        ],
+        "tab": [
+          "aluminum-tab"
+        ],
+        "label": [
+          "printed-label"
+        ]
+      },
+      "materials": [
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "body"
+          },
+          "name": "aluminum-body",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.2199999988079071
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatFactor": 0.3499999940395355,
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "label"
+          },
+          "name": "printed-label",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.8299999833106995,
+              0.8299999833106995,
+              0.8100000023841858,
+              1
+            ],
+            "metallicFactor": 0.18000000715255737,
+            "roughnessFactor": 0.2800000011920929
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "tab"
+          },
+          "name": "aluminum-tab",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.23999999463558197
+          }
+        }
+      ],
+      "meshNames": [
+        "body",
+        "label",
+        "tab"
+      ],
+      "extensionsUsed": [
+        "KHR_draco_mesh_compression",
+        "KHR_materials_clearcoat",
+        "KHR_materials_anisotropy"
+      ],
+      "labelUv": {
+        "frontU": 0.5,
+        "topV": 0,
+        "seam": "rear",
+        "wrapS": "repeat"
+      },
+      "labelOffsetMeters": 8e-05,
+      "sidedness": "single-sided outward surfaces; label is an open wrap over opaque body",
+      "compression": "draco",
+      "uncompressedBytes": 969536,
+      "quantizationBits": {
+        "position": 14,
+        "normal": 10,
+        "texcoord": 12,
+        "generic": 12
+      },
+      "sha256": "34584a3635d8027497e5fe53c911469a36a493951ced72673d84d24bff7c531a",
+      "sourceUnchanged": true
+    },
+    {
+      "id": "can-180",
+      "src": "/models/cans/can-180.glb",
+      "sourceFile": "Can 180ml.blend",
+      "sourceSha256": "511c4b582c0967833c522ca90224d6acb342954cb07937ec04e2600d1717254a",
+      "volumeMl": 180,
+      "label": "180 ml",
+      "kind": "can",
+      "dimensions": {
+        "width": 0.053369,
+        "height": 0.10977,
+        "depth": 0.053369
+      },
+      "triangleCount": 25992,
+      "sourceBaseTriangleCount": 6546,
+      "subdivisionLevel": 1,
+      "bytes": 115308,
+      "materialSlots": {
+        "body": [
+          "aluminum-body"
+        ],
+        "tab": [
+          "aluminum-tab"
+        ],
+        "label": [
+          "printed-label"
+        ]
+      },
+      "materials": [
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "body"
+          },
+          "name": "aluminum-body",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.2199999988079071
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatFactor": 0.3499999940395355,
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "label"
+          },
+          "name": "printed-label",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.8299999833106995,
+              0.8299999833106995,
+              0.8100000023841858,
+              1
+            ],
+            "metallicFactor": 0.18000000715255737,
+            "roughnessFactor": 0.2800000011920929
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "tab"
+          },
+          "name": "aluminum-tab",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.23999999463558197
+          }
+        }
+      ],
+      "meshNames": [
+        "body",
+        "label",
+        "tab"
+      ],
+      "extensionsUsed": [
+        "KHR_draco_mesh_compression",
+        "KHR_materials_clearcoat",
+        "KHR_materials_anisotropy"
+      ],
+      "labelUv": {
+        "frontU": 0.5,
+        "topV": 0,
+        "seam": "rear",
+        "wrapS": "repeat"
+      },
+      "labelOffsetMeters": 8e-05,
+      "sidedness": "single-sided outward surfaces; label is an open wrap over opaque body",
+      "compression": "draco",
+      "uncompressedBytes": 871568,
+      "quantizationBits": {
+        "position": 14,
+        "normal": 10,
+        "texcoord": 12,
+        "generic": 12
+      },
+      "sha256": "9b3bca8715f2f506cb538359a00220f4c41050f313e6ecb25ce4a9295bf6ab4c",
+      "sourceUnchanged": true
+    },
+    {
+      "id": "can-250-short",
+      "src": "/models/cans/can-250-short.glb",
+      "sourceFile": "Can 250ml short Model.blend",
+      "sourceSha256": "9f0b6ba35bd813b0d219a98d5576732ce437a15ddb4a453d49da0b6f36c21d71",
+      "volumeMl": 250,
+      "label": "250 ml · Short",
+      "kind": "can",
+      "dimensions": {
+        "width": 0.065945,
+        "height": 0.090957,
+        "depth": 0.065945
+      },
+      "triangleCount": 28008,
+      "sourceBaseTriangleCount": 7050,
+      "subdivisionLevel": 1,
+      "bytes": 125964,
+      "materialSlots": {
+        "body": [
+          "aluminum-body"
+        ],
+        "tab": [
+          "aluminum-tab"
+        ],
+        "label": [
+          "printed-label"
+        ]
+      },
+      "materials": [
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "body"
+          },
+          "name": "aluminum-body",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.2199999988079071
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatFactor": 0.3499999940395355,
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "label"
+          },
+          "name": "printed-label",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.8299999833106995,
+              0.8299999833106995,
+              0.8100000023841858,
+              1
+            ],
+            "metallicFactor": 0.18000000715255737,
+            "roughnessFactor": 0.2800000011920929
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "tab"
+          },
+          "name": "aluminum-tab",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.23999999463558197
+          }
+        }
+      ],
+      "meshNames": [
+        "body",
+        "label",
+        "tab"
+      ],
+      "extensionsUsed": [
+        "KHR_draco_mesh_compression",
+        "KHR_materials_clearcoat",
+        "KHR_materials_anisotropy"
+      ],
+      "labelUv": {
+        "frontU": 0.5,
+        "topV": 0,
+        "seam": "rear",
+        "wrapS": "repeat"
+      },
+      "labelOffsetMeters": 8e-05,
+      "sidedness": "single-sided outward surfaces; label is an open wrap over opaque body",
+      "compression": "draco",
+      "uncompressedBytes": 939892,
+      "quantizationBits": {
+        "position": 14,
+        "normal": 10,
+        "texcoord": 12,
+        "generic": 12
+      },
+      "sha256": "c53d8d2db39467fafc5bf053510d1a722a0c5a03d26807e4b664ee801a96aad2",
+      "sourceUnchanged": true
+    },
+    {
+      "id": "can-250",
+      "src": "/models/cans/can-250.glb",
+      "sourceFile": "Can 250ml.blend",
+      "sourceSha256": "efc3b30c84a90517084bef647979fe91010b7aadad36c10b7cfe2ae12bd33048",
+      "volumeMl": 250,
+      "label": "250 ml · Slim",
+      "kind": "can",
+      "dimensions": {
+        "width": 0.054345,
+        "height": 0.132957,
+        "depth": 0.054346
+      },
+      "triangleCount": 29040,
+      "sourceBaseTriangleCount": 7306,
+      "subdivisionLevel": 1,
+      "bytes": 132184,
+      "materialSlots": {
+        "body": [
+          "aluminum-body"
+        ],
+        "tab": [
+          "aluminum-tab"
+        ],
+        "label": [
+          "printed-label"
+        ]
+      },
+      "materials": [
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "body"
+          },
+          "name": "aluminum-body",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.2199999988079071
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatFactor": 0.3499999940395355,
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "label"
+          },
+          "name": "printed-label",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.8299999833106995,
+              0.8299999833106995,
+              0.8100000023841858,
+              1
+            ],
+            "metallicFactor": 0.18000000715255737,
+            "roughnessFactor": 0.2800000011920929
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "tab"
+          },
+          "name": "aluminum-tab",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.23999999463558197
+          }
+        }
+      ],
+      "meshNames": [
+        "body",
+        "label",
+        "tab"
+      ],
+      "extensionsUsed": [
+        "KHR_draco_mesh_compression",
+        "KHR_materials_clearcoat",
+        "KHR_materials_anisotropy"
+      ],
+      "labelUv": {
+        "frontU": 0.5,
+        "topV": 0,
+        "seam": "rear",
+        "wrapS": "repeat"
+      },
+      "labelOffsetMeters": 8e-05,
+      "sidedness": "single-sided outward surfaces; label is an open wrap over opaque body",
+      "compression": "draco",
+      "uncompressedBytes": 982940,
+      "quantizationBits": {
+        "position": 14,
+        "normal": 10,
+        "texcoord": 12,
+        "generic": 12
+      },
+      "sha256": "46307936719ba802e35f7015fe7f7ca37d24b1992ba727ae03dfad0276fe93d3",
+      "sourceUnchanged": true
+    },
+    {
+      "id": "can-320",
+      "src": "/models/cans/can-320.glb",
+      "sourceFile": "Can 320ml.blend",
+      "sourceSha256": "9b7b84ad177bd1d02d27758c444286b6a9bb0269fede9d1f26cf4bfdf8be60b0",
+      "volumeMl": 320,
+      "label": "320 ml",
+      "kind": "can",
+      "dimensions": {
+        "width": 0.057907,
+        "height": 0.145924,
+        "depth": 0.057907
+      },
+      "triangleCount": 30928,
+      "sourceBaseTriangleCount": 7778,
+      "subdivisionLevel": 1,
+      "bytes": 167516,
+      "materialSlots": {
+        "body": [
+          "aluminum-body"
+        ],
+        "tab": [
+          "aluminum-tab"
+        ],
+        "label": [
+          "printed-label"
+        ]
+      },
+      "materials": [
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "body"
+          },
+          "name": "aluminum-body",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.2199999988079071
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatFactor": 0.3499999940395355,
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "label"
+          },
+          "name": "printed-label",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.8299999833106995,
+              0.8299999833106995,
+              0.8100000023841858,
+              1
+            ],
+            "metallicFactor": 0.18000000715255737,
+            "roughnessFactor": 0.2800000011920929
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "tab"
+          },
+          "name": "aluminum-tab",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.23999999463558197
+          }
+        }
+      ],
+      "meshNames": [
+        "body",
+        "label",
+        "tab"
+      ],
+      "extensionsUsed": [
+        "KHR_draco_mesh_compression",
+        "KHR_materials_clearcoat",
+        "KHR_materials_anisotropy"
+      ],
+      "labelUv": {
+        "frontU": 0.5,
+        "topV": 0,
+        "seam": "rear",
+        "wrapS": "repeat"
+      },
+      "labelOffsetMeters": 8e-05,
+      "sidedness": "single-sided outward surfaces; label is an open wrap over opaque body",
+      "compression": "draco",
+      "uncompressedBytes": 1068016,
+      "quantizationBits": {
+        "position": 14,
+        "normal": 10,
+        "texcoord": 12,
+        "generic": 12
+      },
+      "sha256": "43efc229a646bba2f74a44e56183aa80f92f6111b383ba4d4b9ab6357b372f6d",
+      "sourceUnchanged": true
+    },
+    {
+      "id": "can-500",
+      "src": "/models/cans/can-500.glb",
+      "sourceFile": "Can 500ml.blend",
+      "sourceSha256": "3cec9cd2ae5ff6d008879fa542926bd95389f9a52a7e82fdcbf1c833d7e6cb9a",
+      "volumeMl": 500,
+      "label": "500 ml",
+      "kind": "can",
+      "dimensions": {
+        "width": 0.066045,
+        "height": 0.167861,
+        "depth": 0.066045
+      },
+      "triangleCount": 30216,
+      "sourceBaseTriangleCount": 7602,
+      "subdivisionLevel": 1,
+      "bytes": 127588,
+      "materialSlots": {
+        "body": [
+          "aluminum-body"
+        ],
+        "tab": [
+          "aluminum-tab"
+        ],
+        "label": [
+          "printed-label"
+        ]
+      },
+      "materials": [
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "body"
+          },
+          "name": "aluminum-body",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.2199999988079071
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatFactor": 0.3499999940395355,
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "label"
+          },
+          "name": "printed-label",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.8299999833106995,
+              0.8299999833106995,
+              0.8100000023841858,
+              1
+            ],
+            "metallicFactor": 0.18000000715255737,
+            "roughnessFactor": 0.2800000011920929
+          }
+        },
+        {
+          "extensions": {
+            "KHR_materials_clearcoat": {
+              "clearcoatRoughnessFactor": 0.15000000596046448
+            },
+            "KHR_materials_anisotropy": {
+              "anisotropyRotation": 1.5707963267948966
+            }
+          },
+          "extras": {
+            "materialSlot": "tab"
+          },
+          "name": "aluminum-tab",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.6200000047683716,
+              0.6600000262260437,
+              0.6899999976158142,
+              1
+            ],
+            "roughnessFactor": 0.23999999463558197
+          }
+        }
+      ],
+      "meshNames": [
+        "body",
+        "label",
+        "tab"
+      ],
+      "extensionsUsed": [
+        "KHR_draco_mesh_compression",
+        "KHR_materials_clearcoat",
+        "KHR_materials_anisotropy"
+      ],
+      "labelUv": {
+        "frontU": 0.5,
+        "topV": 0,
+        "seam": "rear",
+        "wrapS": "repeat"
+      },
+      "labelOffsetMeters": 8e-05,
+      "sidedness": "single-sided outward surfaces; label is an open wrap over opaque body",
+      "compression": "draco",
+      "uncompressedBytes": 1007644,
+      "quantizationBits": {
+        "position": 14,
+        "normal": 10,
+        "texcoord": 12,
+        "generic": 12
+      },
+      "sha256": "14817c2a509bf5c357462be4ab54fee6f0296aa9c70f7d846110882b26a86c1b",
+      "sourceUnchanged": true
+    }
+  ]
+}

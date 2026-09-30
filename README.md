@@ -5,7 +5,7 @@ Next.js App Router, TypeScript and Three.js storefront prototype. The hero uses 
 ## Quick start
 
 ```powershell
-npm install
+npm ci
 npm run dev
 ```
 
@@ -47,5 +47,8 @@ npm run build
 
 Model geometry, flavor artwork and presentation settings are separate. Future bottles/pouches use the same viewer with their own geometry/material slots; those assets are not bundled yet. The six source `.blend` files remain unchanged outside this project. Their current printed artwork is demo artwork and can be replaced independently.
 
-Admin authentication, persistence, upload processing and draft/publish workflows are future work. The serializable contracts prepare that integration; this prototype does not contain a working admin. `npm run convert:model` is the historical OBJ demo converter and does not rebuild the new model registry. Its source/output archive lives in `source-assets/legacy-can`, outside the public website files.
-# HyperDrink
+Admin authentication, persistence, upload processing and draft/publish workflows are future work. The serializable contracts prepare that integration; this prototype does not contain a working admin. `npm run convert:model` is the historical OBJ demo converter and does not rebuild the new model registry. Its source/output archive lives locally in `source-assets/legacy-can` and is excluded from Git.
+
+## Repository size
+
+Git includes the application source, lockfile, documentation and optimized web assets, including all six can GLBs and the studio HDRI. Installed dependencies (`node_modules`), Next.js output (`.next`), package-manager caches, temporary files and local QA captures are excluded by `.gitignore`. Recreate dependencies with `npm ci`; the development/build commands recreate their output. Original Blender authoring files remain in the external source library described in `docs/model-pipeline.md`.
