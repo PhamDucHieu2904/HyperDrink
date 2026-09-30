@@ -24,6 +24,22 @@ const framing = loadSource('lib/viewer/framing.ts');
 const config = loadSource('lib/viewer-config.ts');
 const backgroundMotion = loadSource('lib/background-motion.ts');
 const packageMotion = loadSource('lib/viewer/package-motion.ts');
+const publicUrls = loadSource('lib/public-url.ts');
+
+test('public asset URLs support repository paths without double prefixes or changing external URLs', () => {
+  const previous = process.env.NEXT_PUBLIC_BASE_PATH;
+  try {
+    process.env.NEXT_PUBLIC_BASE_PATH = '/HyperDrink';
+    assert.equal(publicUrls.publicUrl('/models/cans/can-330.glb?v=123'), '/HyperDrink/models/cans/can-330.glb?v=123');
+    assert.equal(publicUrls.publicUrl('/HyperDrink/decoders/draco/'), '/HyperDrink/decoders/draco/');
+    for (const url of ['https://cdn.example/model.glb', '//cdn.example/image.png', 'data:image/png;base64,abc']) assert.equal(publicUrls.publicUrl(url), url);
+    process.env.NEXT_PUBLIC_BASE_PATH = '';
+    assert.equal(publicUrls.publicUrl('/environments/studio.exr'), '/environments/studio.exr');
+  } finally {
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_BASE_PATH;
+    else process.env.NEXT_PUBLIC_BASE_PATH = previous;
+  }
+});
 
 test('package curves provide an upright lid view and a continuously moving entrance and rebound', () => {
   const motion = config.DEFAULT_VIEWER_PRESENTATION.motion;
@@ -259,6 +275,7 @@ function runtimeFixture(context, immediateAppearance = false) {
     }
   });
   const runtime = loadSource('lib/viewer/runtime.ts', (name) => {
+    if (name === '../public-url') return publicUrls;
     if (name === 'three') return { ...THREE, WebGLRenderer: Renderer, PMREMGenerator: PMREM };
     if (name.includes('GLTFLoader')) return { GLTFLoader: GltfLoader };
     if (name.includes('EXRLoader')) return { EXRLoader: ExrLoader };

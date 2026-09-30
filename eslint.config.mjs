@@ -5,7 +5,7 @@ const config = [
   ...nextCoreWebVitals,
   ...nextTypeScript,
   {
-    ignores: ['.next/**', 'node_modules/**', 'public/models/**/*.obj', 'public/models/**/*.glb', 'public/decoders/**'],
+    ignores: ['.next/**', '.next-pages/**', 'out/**', 'node_modules/**', 'public/models/**/*.obj', 'public/models/**/*.glb', 'public/decoders/**'],
   },
 ];
 

@@ -1,3 +1,4 @@
+import { publicUrl } from '../public-url';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
@@ -101,8 +102,8 @@ export function createProductViewer(
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
   const loader = new GLTFLoader();
-  const draco = new DRACOLoader().setDecoderPath(presentation.decoders.dracoPath).setWorkerLimit(2);
-  const basis = new KTX2Loader().setTranscoderPath(presentation.decoders.basisPath).setWorkerLimit(2).detectSupport(renderer);
+  const draco = new DRACOLoader().setDecoderPath(publicUrl(presentation.decoders.dracoPath)).setWorkerLimit(2);
+  const basis = new KTX2Loader().setTranscoderPath(publicUrl(presentation.decoders.basisPath)).setWorkerLimit(2).detectSupport(renderer);
   loader.setMeshoptDecoder(MeshoptDecoder).setDRACOLoader(draco).setKTX2Loader(basis);
 
   const emitStatus = (phase: ViewerStatus['phase'], message?: string) => {
@@ -146,7 +147,7 @@ export function createProductViewer(
     const thisRevision = ++environmentRevision;
     environmentSrc = src;
     if (!environmentTargets.has(src)) {
-      const pending = (/\.exr(?:\?|$)/i.test(src) ? new EXRLoader() : new HDRLoader()).loadAsync(src).then((texture) => {
+      const pending = (/\.exr(?:\?|$)/i.test(src) ? new EXRLoader() : new HDRLoader()).loadAsync(publicUrl(src)).then((texture) => {
         if (disposed) { texture.dispose(); throw new Error('Viewer disposed'); }
         try {
           const target = pmrem.fromEquirectangular(texture);
@@ -190,8 +191,8 @@ export function createProductViewer(
     scene.environmentIntensity = value.environment.intensity;
     scene.environmentRotation.set(...value.environment.rotation);
     if (value.environment.src !== environmentSrc) loadEnvironment(value.environment.src);
-    draco.setDecoderPath(value.decoders.dracoPath);
-    basis.setTranscoderPath(value.decoders.basisPath);
+    draco.setDecoderPath(publicUrl(value.decoders.dracoPath));
+    basis.setTranscoderPath(publicUrl(value.decoders.basisPath));
     if (poseChanged) {
       cinematic = null; clearPackageMotion(); target.copy(rest); returnFrom = pose.clone(); returnElapsed = 0;
       lastInputAt = animationTime - value.motion.returnDelay;
@@ -281,7 +282,7 @@ export function createProductViewer(
     emitStatus('loading');
     const src = assetUrl(asset.src);
     if (!src) { recoverPackageMotion(); emitStatus('error', 'Đường dẫn model không hợp lệ.'); return; }
-    loader.loadAsync(src).then(async (gltf) => {
+    loader.loadAsync(publicUrl(src)).then(async (gltf) => {
       if (disposed || thisRevision !== assetRevision) { disposeProduct(gltf.scene); return; }
       // Lights/cameras from authoring files are not allowed to override presentation.
       const unwanted: THREE.Object3D[] = [];

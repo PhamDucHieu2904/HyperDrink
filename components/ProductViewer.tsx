@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { publicUrl } from '@/lib/public-url';
 import { Box } from 'lucide-react';
 import { ProductAppearance, ProductAsset, resolveViewerPresentation, ViewerPresentationInput } from '@/lib/viewer-config';
 import { createProductViewer, ProductViewerController, ViewerStatus } from '@/lib/viewer/runtime';
@@ -71,7 +72,7 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
       {showFallback && <div className="scene-fallback" aria-hidden="true">
         {asset.poster
           // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={asset.poster} alt="" style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
+          ? <img src={publicUrl(asset.poster)} alt="" style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
           : <Box size={60} strokeWidth={1} style={{ opacity: 0.45 }} />}
       </div>}
       {loading && <span className="scene-loading" aria-live="polite">Đang nạp mô hình 3D…</span>}

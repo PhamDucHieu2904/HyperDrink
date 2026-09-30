@@ -1,3 +1,5 @@
+import { publicUrl } from '@/lib/public-url';
+import type { CSSProperties } from 'react';
 import type { Metadata } from 'next';
 import './globals.css';
 import './showcase.css';
@@ -16,7 +18,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="vi">
-      <body>{children}</body>
+      <body style={{
+        '--hero-atmosphere': `url("${publicUrl('/assets/backgrounds/hero-atmosphere.png')}")`,
+        '--hero-splash': `url("${publicUrl('/assets/backgrounds/hero-water-splash.jpg')}")`,
+      } as CSSProperties}>{children}</body>
     </html>
   );
 }

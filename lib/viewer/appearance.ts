@@ -1,3 +1,4 @@
+import { publicUrl } from '../public-url';
 import * as THREE from 'three';
 import { ProductAppearance, ProductAsset, resolveMaterialOverride } from '../viewer-config';
 
@@ -84,7 +85,7 @@ export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset
       const requested = new Map<string, Promise<THREE.Texture>>();
       const loadTexture = (url: string, srgb: boolean) => {
         const key = `${url}:${srgb}`;
-        if (!requested.has(key)) requested.set(key, textureLoader.loadAsync(url).then((texture) => {
+        if (!requested.has(key)) requested.set(key, textureLoader.loadAsync(publicUrl(url)).then((texture) => {
           texture.flipY = false;
           texture.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
           texture.anisotropy = 4;

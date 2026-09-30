@@ -4,6 +4,7 @@
 
 # Next.js output and local build caches
 /.next/
+/.next-pages/
 /out/
 /build/
 *.tsbuildinfo

@@ -36,7 +36,7 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
   background:
     linear-gradient(125deg, rgba(4, 24, 53, .52), rgba(9, 88, 125, .16) 46%, rgba(130, 63, 58, .3)),
-    url('/assets/backgrounds/hero-atmosphere.png') center top / cover no-repeat,
+    var(--hero-atmosphere) center top / cover no-repeat,
     radial-gradient(circle at 78% 8%, rgba(255, 198, 145, .85) 0%, rgba(255, 173, 132, .2) 17%, transparent 37%),
     radial-gradient(circle at 18% 40%, rgba(58, 180, 235, .78) 0%, rgba(48, 111, 194, .26) 31%, transparent 58%),
     linear-gradient(132deg, #071d40 0%, #0c5181 43%, #f28c74 100%);

@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
+import { publicUrl } from '@/lib/public-url';
 import FlavorBackground from './FlavorBackground';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ChevronRight, Heart, Leaf, LayoutGrid, Play, Rotate3D, Sparkles, Waves } from 'lucide-react';
@@ -48,7 +49,7 @@ export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
   const appearance: ProductAppearance = { id: flavor.id, label: { name: flavor.name, category: 'SPARKLING DRINK', volumeMl: asset.volumeMl, colors: flavor.labelColors } };
   const select = (next: number) => setIndex((next + flavors.length) % flavors.length);
   const renderFlavorSet = (isClone = false) => <div className="flavor-set" aria-hidden={isClone || undefined}>
-    {flavors.map((item, i) => <button key={item.short} type="button" tabIndex={isClone ? -1 : undefined} aria-pressed={index === i} onPointerDown={() => select(i)} onClick={() => select(i)}><span><Image src={'/assets/flavors/' + item.image} width={64} height={64} alt="" loading="eager" sizes="64px" /></span>{item.short}</button>)}
+    {flavors.map((item, i) => <button key={item.short} type="button" tabIndex={isClone ? -1 : undefined} aria-pressed={index === i} onPointerDown={() => select(i)} onClick={() => select(i)}><span><Image src={publicUrl('/assets/flavors/' + item.image)} width={64} height={64} alt="" loading="eager" sizes="64px" /></span>{item.short}</button>)}
     <button type="button" tabIndex={isClone ? -1 : undefined} onClick={onExplore}><span><LayoutGrid /></span>All flavors</button>
   </div>;
 
@@ -82,11 +83,11 @@ export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
     <div className="showcase-details">
       <div className="notes-stack">
         <button className="notes-card glass-surface" style={glassStyle} onClick={() => setDetail('flavor')}>
-          <Image src={'/assets/flavors/' + flavor.image} width={88} height={88} alt="" priority loading="eager" sizes="88px" />
+          <Image src={publicUrl('/assets/flavors/' + flavor.image)} width={88} height={88} alt="" priority loading="eager" sizes="88px" />
           <span><strong>Flavor Notes</strong><span>{flavor.note}</span></span><ChevronRight />
         </button>
         <button className="notes-card glass-surface" style={glassStyle} onClick={() => setDetail('collection')}>
-          <Image src="/assets/flavors/natural-leaf.jpg" width={88} height={88} alt="" />
+          <Image src={publicUrl("/assets/flavors/natural-leaf.jpg")} width={88} height={88} alt="" />
           <span><strong>Made for your moments</strong><span>Nhiều hương vị. Nhiều lựa chọn bao bì. Một cảm hứng tươi mới.</span></span><ChevronRight />
         </button>
       </div>
@@ -98,7 +99,7 @@ export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
     <aside className="showcase-feature glass-surface" style={featureGlassStyle} aria-label="Hương vị nổi bật">
       <span className="showcase-badge">NEW</span>
       <div className="flavor-portrait-ring">
-        <Image className="flavor-portrait" src={'/assets/flavors/' + flavor.image} width={360} height={360} alt={flavor.name} priority loading="eager" sizes="(max-width: 760px) 65vw, 22vw" />
+        <Image className="flavor-portrait" src={publicUrl('/assets/flavors/' + flavor.image)} width={360} height={360} alt={flavor.name} priority loading="eager" sizes="(max-width: 760px) 65vw, 22vw" />
       </div>
       <h2>{flavor.name}</h2><p className="feature-subtitle">A BRIGHTER KIND OF ENERGY</p>
       <div className="showcase-metrics"><span><strong>{asset.volumeMl}<small>ml</small></strong>Lon nhôm</span><span><strong>04</strong>Hương vị</span><span><strong>360°</strong>Trải nghiệm</span></div>
