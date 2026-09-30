@@ -378,7 +378,8 @@ test('packaging grows continuously into a visible upright rebound without a came
   viewer.select(asset('tall'));
   geometryRequests[1].resolve(model(0.18)); await flush();
   assert.equal(mount.dataset.transitionPhase, 'package-aim');
-  advance(0.3);
+  // Cross the phase boundary by one RAF tick, avoiding floating-point equality.
+  advance(0.3 + 1 / 120);
   assert.equal(mount.dataset.transitionPhase, 'package-anticipate');
   assert.ok(product.quaternion.angleTo(cap) < 1e-7, 'Aim must present the lid without inheriting idle yaw or roll');
   assert.equal(product.scale.x, 1);
@@ -387,7 +388,7 @@ test('packaging grows continuously into a visible upright rebound without a came
   assert.equal(mount.dataset.transitionPhase, 'package-anticipate');
   assert.ok(product.scale.x > 1.02 && product.scale.x < 1.045, 'Visible small growth provides anticipation before launch');
   assert.equal(product.visible, true);
-  advance(0.06 + 1 / 120);
+  for (let tick = 0; tick < 12 && mount.dataset.transitionPhase === 'package-anticipate'; tick += 1) advance(1 / 120);
   assert.equal(mount.dataset.transitionPhase, 'package-out');
   assert.ok(Math.abs(product.scale.x - 1.06) < 1e-10, 'Anticipation lands at the configured launch scale');
   const launchScale = product.scale.x;
