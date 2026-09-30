@@ -16,7 +16,7 @@ Open `http://localhost:3000`.
 Live website: https://phamduchieu2904.github.io/HyperDrink/
 
 The Pages workflow builds and deploys automatically when `main` changes. In repository Settings → Pages, use **GitHub Actions** as the source.
-`GITHUB_PAGES=true` enables static export to `out/`; `NEXT_PUBLIC_BASE_PATH=/HyperDrink` prefixes application and public asset URLs. Local development keeps its root URL and a separate build cache.
+`GITHUB_PAGES=true` enables static export to `.next-pages/`; `NEXT_PUBLIC_BASE_PATH=/HyperDrink` prefixes application and public asset URLs. Local development keeps its root URL and a separate build directory.
 
 ## Verification commands
 
