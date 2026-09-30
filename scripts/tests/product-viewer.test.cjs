@@ -259,7 +259,10 @@ function runtimeFixture(context, immediateAppearance = false) {
     setDecoderPath() { return this; } setTranscoderPath() { return this; }
     setWorkerLimit() { return this; } detectSupport() { return this; } dispose() {}
   }
-  const originalGlobals = new Map(['window', 'document', 'ResizeObserver', 'IntersectionObserver'].map((key) => [key, global[key]]));
+  const originalGlobals = new Map(['window', 'document', 'ResizeObserver', 'IntersectionObserver', 'performance'].map((key) => [key, global[key]]));
+  // The browser clock and RAF timestamps share one deterministic origin.
+  let frameTime = 0;
+  global.performance = { now: () => frameTime };
   global.window = {
     devicePixelRatio: 1, innerWidth: 1440,
     matchMedia() { return { matches: false, addEventListener(_type, listener) { motionListeners.add(listener); },
@@ -311,7 +314,6 @@ function runtimeFixture(context, immediateAppearance = false) {
   };
   const flush = async () => { for (let index = 0; index < 12; index += 1) await Promise.resolve(); };
   const asset = (id) => ({ id, name: id.toUpperCase(), src: `/${id}.glb`, packaging: 'can' });
-  let frameTime = performance.now();
   const advance = (seconds) => {
     for (let frame = 0; frame < Math.round(seconds * 120); frame += 1) {
       frameTime += 1000 / 120;
