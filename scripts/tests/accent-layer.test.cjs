@@ -207,16 +207,16 @@ test('outgoing flavor keeps its atlas crop through fading and a new flavor reuse
   assert.equal(root.children[0].visible, true);
 }));
 
-test('the complete image demo shares four distinct water sources, preserves white ice and releases each source once', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {
+test('restored water uses the live sampler while white ice and rear splash retain their shared image resources', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {
   const backdrop = fakeTexture();
   let backdropDisposals = 0;
   backdrop.addEventListener('dispose', () => { backdropDisposals += 1; });
   layer.setBackdrop(backdrop);
   layer.configure(DEFAULT_PRODUCT_ACCENT_SCENE, 'can-330:lime', 'lime');
   assert.equal(update().count, 23);
-  assert.equal(textureRequests.length, 7, 'One splash, one fruit atlas, one ice and four water images are shared across 23 nodes');
+  assert.equal(textureRequests.length, 3, 'Native droplets add no image downloads to the splash, fruit atlas and ice');
   const atlases = textureRequests.map(() => fakeTexture());
-  const disposals = Array(7).fill(0);
+  const disposals = Array(3).fill(0);
   atlases.forEach((atlas, index) => atlas.addEventListener('dispose', () => { disposals[index] += 1; }));
   textureRequests[0].resolve(atlases[0]); await flush();
   assert.equal(update({ reducedMotion: true }).phase, 'waiting');
@@ -232,13 +232,13 @@ test('the complete image demo shares four distinct water sources, preserves whit
   assert.equal(ice.material.toneMapped, false, 'Can exposure cannot burn out the supplied ice artwork');
   let cropDisposals = 0;
   ice.material.map.addEventListener('dispose', () => { cropDisposals += 1; });
-  assert.ok(drop.material instanceof THREE.MeshBasicMaterial);
-  assert.equal(drop.material.color.getHex(), 0xffffff);
-  assert.equal(drop.geometry.parameters.width, 1, 'Preframed square images keep their natural size instead of doubling the old analytic footprint');
+  assert.ok(drop.material instanceof THREE.ShaderMaterial);
+  assert.equal(drop.geometry.parameters.width, 1.7, 'Native water retains the previous analytic footprint');
   const waterMeshes = root.children.filter(group => group.name.startsWith('droplet-')).map(group => group.children[0]);
-  assert.equal(new Set(waterMeshes.map(mesh => mesh.material.map.source)).size, 4, 'Water uses four genuinely different source images');
-  assert.equal(new Set(waterMeshes.map(mesh => mesh.material.map)).size, 12, 'Independent transform clones share decoded sources without corrupting each other');
-  assert.ok(waterMeshes.every(mesh => mesh.material.map.colorSpace === THREE.SRGBColorSpace));
+  assert.ok(waterMeshes.every(mesh => mesh.material.name === 'colorless-water-droplet'));
+  assert.ok(waterMeshes.every(mesh => mesh.material.uniforms.backdrop.value === backdrop));
+  assert.ok(waterMeshes.every(mesh => mesh.material.uniforms.resolution.value.equals(new THREE.Vector2(900, 1400))));
+  assert.equal(new Set(waterMeshes.map(mesh => mesh.material)).size, 12, 'Each drop retains independent fade and blur uniforms');
   assert.ok(ice.material.transparent && drop.material.transparent);
   const splash = root.children.find(group => group.name === 'water-splash-back').children[0];
   assert.ok(splash.material instanceof THREE.MeshBasicMaterial);
@@ -262,12 +262,12 @@ test('the complete image demo shares four distinct water sources, preserves whit
   }
   layer.configure(DEFAULT_PRODUCT_ACCENT_SCENE, 'can-500:berry', 'berry');
   update({ reducedMotion: true }); await flush(); await settle();
-  assert.equal(textureRequests.length, 7, 'Flavor changes reuse the same white water, ice and splash images');
+  assert.equal(textureRequests.length, 3, 'Flavor changes reuse ice and splash while water follows the shared live backdrop');
   assert.equal(cropDisposals, 1, 'The outgoing ice crop is released when its flavor scene is replaced');
   layer.dispose();
-  assert.deepEqual(disposals, Array(7).fill(1));
+  assert.deepEqual(disposals, Array(3).fill(1));
   layer.dispose();
-  assert.deepEqual(disposals, Array(7).fill(1), 'Repeated lifecycle disposal does not release cached textures twice');
+  assert.deepEqual(disposals, Array(3).fill(1), 'Repeated lifecycle disposal does not release cached textures twice');
   assert.equal(backdropDisposals, 0, 'Image accents do not own the optional viewer backdrop');
 }));
 
@@ -320,7 +320,7 @@ test('actual layer spreads a squat product more widely without shrinking the enl
   assert.ok(broadX > narrowX * 1.2, 'Width-aware staging reaches further around squat cans in the actual Three scene');
   const droplet = root.children.find(group => group.name === 'droplet-02');
   const projectedScale = droplet.scale.x * 4 / (4 - droplet.position.z);
-  assert.ok(projectedScale >= 0.30 - 1e-10, 'The smaller oval artwork retains its compensated size after depth compensation');
+  assert.ok(projectedScale >= 0.24 - 1e-10, 'The restored native drop retains its previous size after depth compensation');
 }));
 
 test('splash stays behind every accent throughout burst and idle while fitting broad/slim desktop/mobile frames', async () => harness(async ({ layer, root, textureRequests, update }) => {

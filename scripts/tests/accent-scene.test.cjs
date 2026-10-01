@@ -50,7 +50,7 @@ test('scene data supports replaceable flavor assets, deliberate depth and indepe
   assert.ok(scene.nodes.some(node => node.depth === 'far' && node.blur > 0));
   assert.ok(scene.nodes.every(node => node.position[2] < 0), 'Even the blurred legacy near leaf is behind the product');
   const drops = scene.nodes.filter(node => node.kind === 'droplet');
-  assert.equal(Math.max(...drops.map(node => node.scale)), 0.15);
+  assert.equal(Math.max(...drops.map(node => node.scale)), 0.12);
   assert.equal(Math.min(...drops.map(node => node.scale)), 0.062);
   assert.ok(new Set(drops.map(node => node.scale)).size > 10, 'Larger droplets retain natural size variation');
   assert.deepEqual(drops.map(node => node.id), ['droplet-01','droplet-02','droplet-03','droplet-05','droplet-07','droplet-09','droplet-11','droplet-13','droplet-14','droplet-16','droplet-17','droplet-20']);
@@ -135,28 +135,18 @@ test('rear splash is a replaceable independent image with broad scale and neutra
   }
 });
 
-test('demo water and ice bind the supplied transparent images with deliberate variety and no flavor tint', () => {
+test('demo restores neutral refractive droplets while retaining the supplied white ice', () => {
   const normalized = config.normalizeAccentScene();
   const drops = normalized.nodes.filter(node => node.kind === 'droplet');
-  const usage = drops.reduce((result, node) => ({ ...result, [node.assetUrl]: (result[node.assetUrl] ?? 0) + 1 }), {});
-  assert.deepEqual(usage, {
-    '/assets/scene/droplet-clear-01.webp': 3,
-    '/assets/scene/droplet-clear-03.webp': 3,
-    '/assets/scene/droplet-clear-02.webp': 3,
-    '/assets/scene/droplet-clear-04.webp': 3,
-  });
-  assert.ok(drops.every((node, index) => index === 0 || node.assetUrl !== drops[index - 1].assetUrl),
-    'Adjacent staged droplets do not repeat the same photographic shape');
-  assert.deepEqual(drops.filter(node => node.assetUrl === '/assets/scene/droplet-clear-03.webp').map(node => node.scale),
-    [0.12 * 1.25, 0.066 * 1.25, 0.1 * 1.25],
-    'The smaller image-03 subject gets 25% uniform scale compensation without stretching its bitmap');
-  assert.ok(drops.filter(node => node.assetUrl !== '/assets/scene/droplet-clear-03.webp').every(node => node.scale >= 0.062 && node.scale <= 0.104));
+  assert.equal(drops.length, 12);
+  assert.ok(drops.every(node => node.assetUrl === undefined), 'The requested preview uses the previous live-refraction water preset');
+  assert.ok(drops.every(node => node.scale >= 0.062 && node.scale <= 0.12), 'Image-specific enlargement must not inflate native water planes');
   const glass = normalized.nodes.filter(node => node.kind === 'droplet' || node.kind === 'ice');
   assert.ok(glass.every(node => node.color === '#ffffff' && node.tint === undefined && node.variants === undefined));
   assert.ok(normalized.nodes.filter(node => node.kind === 'ice').every(node => node.assetUrl === '/assets/scene/ice-clear.webp'));
   for (const flavor of ['citrus', 'berry', 'peach', 'lime']) {
     assert.deepEqual(config.resolveAccentNodes(normalized, flavor).filter(node => node.kind === 'droplet' || node.kind === 'ice'), glass,
-      'The approved neutral water photographs stay identical across flavors');
+      'Neutral water settings stay identical across flavors while the live backdrop supplies their color');
   }
 });
 
@@ -313,9 +303,9 @@ test('adaptive spread broadens squat packages using width while preserving reque
   assert.ok(projectedX(broad) > projectedX(narrow) * 1.4, 'Extra depth does not cancel the broader visible composition');
   const dropletIndex = scene.nodes.findIndex(node => node.id === 'droplet-02');
   const droplet = scene.nodes[dropletIndex];
-  const displayed = layout.adaptAccentFrame(sample(state, dropletIndex), droplet, slim, camera, Math.SQRT1_2, [0.5, 0.5, 0]);
+  const displayed = layout.adaptAccentFrame(sample(state, dropletIndex), droplet, slim, camera, Math.SQRT1_2 * 1.7, [0.85, 0.85, 0]);
   const apparentScale = displayed.scale * camera.distance / (camera.distance - displayed.position[2]);
-  assert.ok(Math.abs(apparentScale - 0.15) < 1e-12, 'Depth compensation retains the largest readable droplet size on screen');
+  assert.ok(Math.abs(apparentScale - 0.12) < 1e-12, 'Depth compensation retains the largest readable droplet size on screen');
 });
 
 test('burst and idle geometry stay outside the swept product sphere and inside desktop/mobile viewer bounds', () => {

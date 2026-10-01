@@ -96,18 +96,20 @@ function loadSource(relativePath) {
   return loaded.exports;
 }
 
-test('the default scene assigns only verified water/ice URLs and actually uses all four water photographs', () => {
+test('the default scene keeps verified white ice and restores native water without image assignments', () => {
   const { DEFAULT_PRODUCT_ACCENT_SCENE } = loadSource('lib/viewer/accent-config.ts');
   const expected = new Map(manifest.assets.map(asset => [asset.src, asset.kind]));
-  const seen = new Set();
   const water = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.filter(node => node.enabled && ['droplet', 'ice'].includes(node.kind));
   assert.ok(water.length > 0);
   for (const node of water) {
+    if (node.kind === 'droplet') {
+      assert.equal(node.assetUrl, undefined, 'The selected water preset refracts the live scene');
+      continue;
+    }
     assert.equal(expected.get(node.assetUrl), node.kind, `${node.id} must select the matching supplied artwork rather than a missing/fake fallback`);
-    seen.add(node.assetUrl);
     assert.ok(fs.existsSync(path.resolve(publicRoot, '.' + node.assetUrl)));
   }
-  assert.deepEqual([...seen].sort(), [...expected.keys()].sort());
+  assert.equal(water.filter(node => node.kind === 'ice').length, 2);
 });
 
 test('supplied splash ships transparent 768px WebP with clear padding within its download budget', () => {

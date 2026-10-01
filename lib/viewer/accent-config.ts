@@ -106,16 +106,15 @@ const composition: ProductAccentNode[] = [
 // Fewer, readable water shapes replace the old scatter of tiny points. Retained
 // IDs preserve admin bindings and deterministic phases while empty spaces let
 // each larger drop read clearly against both warm and green backgrounds.
-// Last value selects one of the user's four transparent water photographs.
-// Each shape appears three times, with neighboring entries using a different
-// shape and size. No flavor tint or substitute water shader is assigned here.
-const droplets: Array<[number, number, number, number, number, number]> = [
-  [1, -0.22, 0.56, -0.05, 0.088, 1], [2, -0.23, 0.32, -0.28, 0.120 * 1.25, 3],
-  [3, -0.41, 0.05, -0.16, 0.062, 2], [5, -0.27, -0.11, -0.14, 0.104, 4],
-  [7, -0.34, -0.46, -0.10, 0.080, 2], [9, 0.43, 0.30, -0.10, 0.092, 1],
-  [11, 0.29, 0.23, -0.18, 0.075, 4], [13, 0.47, 0.10, -0.35, 0.066 * 1.25, 3],
-  [14, 0.30, 0.02, -0.25, 0.064, 1], [16, 0.24, -0.32, -0.15, 0.086, 2],
-  [17, 0.42, -0.38, -0.13, 0.100 * 1.25, 3], [20, 0.24, 0.43, -0.32, 0.069, 4],
+// Restore the clear refractive droplet preset from 64be861. Keep the first drop
+// above the newly raised fruit; the native footprint needs no image compensation.
+const droplets: Array<[number, number, number, number, number]> = [
+  [1, -0.22, 0.56, -0.05, 0.088], [2, -0.23, 0.32, -0.28, 0.120],
+  [3, -0.41, 0.05, -0.16, 0.062], [5, -0.27, -0.11, -0.14, 0.104],
+  [7, -0.34, -0.46, -0.10, 0.080], [9, 0.43, 0.30, -0.10, 0.092],
+  [11, 0.29, 0.23, -0.18, 0.075], [13, 0.47, 0.10, -0.35, 0.066],
+  [14, 0.30, 0.02, -0.25, 0.064], [16, 0.24, -0.32, -0.15, 0.086],
+  [17, 0.42, -0.38, -0.13, 0.100], [20, 0.24, 0.43, -0.32, 0.069],
 ];
 
 export const DEFAULT_PRODUCT_ACCENT_SCENE: ProductAccentScene = {
@@ -133,11 +132,10 @@ export const DEFAULT_PRODUCT_ACCENT_SCENE: ProductAccentScene = {
       idle: { phase: 0.7, floatAmplitude: 0.003, rockAmplitude: 0.012, periodSeconds: 14 },
     },
     ...composition,
-    ...droplets.map(([id, x, y, z, size, image]) => ({
-      ...accent(`droplet-${String(id).padStart(2, '0')}`, 'droplet', [x, y, z], size,
-        [0, 0, (id - 1) * 0.26], (id - 1) * 0.83, z < -0.28 ? 'far' : 'mid', z < -0.28 ? 0.8 : 0),
-      assetUrl: `/assets/scene/droplet-clear-${String(image).padStart(2, '0')}.webp`,
-    })),
+    ...droplets.map(([id, x, y, z, size]) => accent(
+      `droplet-${String(id).padStart(2, '0')}`, 'droplet', [x, y, z], size,
+      [0, 0, (id - 1) * 0.26], (id - 1) * 0.83, z < -0.28 ? 'far' : 'mid', z < -0.28 ? 0.8 : 0,
+    )),
   ],
   motion: { fadeSeconds: 0.18, burstSeconds: 0.95, staggerSeconds: 0.008, origin: [0, 0, -0.2], startScale: 0.35 },
 };
