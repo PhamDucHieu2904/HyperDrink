@@ -248,7 +248,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
         if (item.blended) {
           item.group.updateWorldMatrix(true, false);
           item.blended.update(item.group.matrixWorld, frame.camera,
-            sample.opacity * (config!.opacity ?? 1) * (item.node.opacity ?? 1), item.group.visible && root.visible);
+            sample.opacity * (config!.opacity ?? 1) * (item.node.opacity ?? 1), item.group.visible && root.visible, item.node.imageZoom ?? 1);
         }
         item.materials.forEach(material => {
           const opacity = sample.opacity * (config!.opacity ?? 1) * material.userData.accentOpacity;

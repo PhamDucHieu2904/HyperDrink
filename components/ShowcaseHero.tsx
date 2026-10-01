@@ -78,7 +78,7 @@ export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
         <button className="btn btn-ghost" onClick={() => setDetail('flavor')}><Play size={18} fill="currentColor" /> Hương vị</button>
       </div>
     </div>
-    <div ref={productRef} className="showcase-product"><ProductViewer asset={asset} appearance={appearance} accentScene={DEFAULT_PRODUCT_ACCENT_SCENE} accentFlavor={flavor.id} backdrop={{ state: backgroundState, config: backgroundSettings }} /></div>
+    <div ref={productRef} className="showcase-product"><ProductViewer asset={asset} appearance={appearance} accentScene={DEFAULT_PRODUCT_ACCENT_SCENE} accentFlavor={flavor.id} /></div>
     <div className="model-picker" role="group" aria-label="Chọn kiểu lon">
       <span className="model-picker-label">Kiểu dáng bao bì</span>
       <div className="model-options">{canAssets.map(item => <button type="button" key={item.id} aria-pressed={item.id === asset.id} onClick={() => setAssetId(item.id)}>{item.name.replace('Lon ', '')}</button>)}</div>

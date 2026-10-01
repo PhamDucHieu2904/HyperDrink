@@ -25,7 +25,9 @@ function loadSource(relativePath) {
   return loaded.exports;
 }
 
-const { DEFAULT_PRODUCT_ACCENT_SCENE } = loadSource('lib/viewer/accent-config.ts');
+const { DEFAULT_PRODUCT_ACCENT_SCENE: STOREFRONT_SCENE } = loadSource('lib/viewer/accent-config.ts');
+// Optional presets continue to exercise water rendering when explicitly enabled.
+const DEFAULT_PRODUCT_ACCENT_SCENE = { ...STOREFRONT_SCENE, nodes: STOREFRONT_SCENE.nodes.map(node => ({ ...node, enabled: true })) };
 const { createAccentLayer } = loadSource('lib/viewer/accent-layer.ts');
 const baseNode = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.find(node => node.kind === 'fruit');
 const node = (id, overrides = {}) => ({ ...baseNode, id, variants: undefined, ...overrides });
@@ -73,16 +75,16 @@ async function harness(run, mount) {
 
 const { projectAccentImage } = loadSource('lib/viewer/blended-accent.ts');
 test('CSS splash projection is invertible and matches real Three perspective at every image corner', () => {
-  for (const [width, height] of [[390, 560], [800, 700]]) {
+  for (const [width, height] of [[390, 560], [800, 700]]) for (const zoom of [1, 1.5]) {
     const camera = new THREE.PerspectiveCamera(30, width / height, 0.01, 40);
     camera.position.set(0.1, -0.05, 4); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
     const world = new THREE.Matrix4().compose(new THREE.Vector3(0.2, 0.1, -3),
       new THREE.Quaternion().setFromEuler(new THREE.Euler(0.1, 0.2, -0.12)), new THREE.Vector3(3, 3, 3));
-    const css = projectAccentImage(world, camera, width, height);
+    const css = projectAccentImage(world, camera, width, height, 768, zoom);
     assert.ok(Math.abs(css.determinant()) > 1e-10, 'Browsers discard singular matrix3d images');
     for (const x of [0, 384, 768]) for (const y of [0, 384, 768]) {
       const actual = new THREE.Vector3(x, y, 0).applyMatrix4(css);
-      const projected = new THREE.Vector3(x / 768 - 0.5, 0.5 - y / 768, 0).applyMatrix4(world).project(camera);
+      const projected = new THREE.Vector3((x / 768 - 0.5) * zoom, (0.5 - y / 768) * zoom, 0).applyMatrix4(world).project(camera);
       assert.ok(Math.abs(actual.x - (projected.x + 1) * width / 2) < 1e-9);
       assert.ok(Math.abs(actual.y - (1 - projected.y) * height / 2) < 1e-9);
       assert.equal(actual.z, 0);
@@ -212,6 +214,9 @@ test('restored water uses the live sampler while white ice and rear splash retai
   let backdropDisposals = 0;
   backdrop.addEventListener('dispose', () => { backdropDisposals += 1; });
   layer.setBackdrop(backdrop);
+  layer.configure(STOREFRONT_SCENE, 'can-330:lime', 'lime');
+  assert.equal(update().count, 11, 'The preview has no individual droplets');
+  assert.ok(root.children.every(group => !group.name.startsWith('droplet-')));
   layer.configure(DEFAULT_PRODUCT_ACCENT_SCENE, 'can-330:lime', 'lime');
   assert.equal(update().count, 23);
   assert.equal(textureRequests.length, 3, 'Native droplets add no image downloads to the splash, fruit atlas and ice');

@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:admin": "node scripts/dev-admin.cjs",
+    "admin:api": "node scripts/admin-server.cjs",
+    "test:admin": "node scripts/tests/admin-domain.test.cjs && node scripts/tests/admin-media.test.cjs && node scripts/tests/admin-api.test.cjs && node scripts/tests/admin-resolver.test.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

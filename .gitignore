@@ -5,12 +5,14 @@
 # Next.js output and local build caches
 /.next/
 /.next-pages/
+/.next-admin/
 /out/
 /build/
 *.tsbuildinfo
 
 # Temporary QA captures and the retired OBJ prototype archive
 /.tmp/
+/data/admin/
 /docs/screenshots/
 /source-assets/legacy-can/
 

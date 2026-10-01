@@ -16,6 +16,8 @@ export interface ProductAccentVariant {
   opacity?: number;
   /** Rear splash images can blend with the storefront backdrop in CSS. */
   blendMode?: 'normal' | 'hard-light';
+  /** Hard Light image magnification after fitting; overflow clips to the viewer. */
+  imageZoom?: number;
   sprite?: AccentSprite;
   color: string;
   secondaryColor?: string;
@@ -129,13 +131,16 @@ export const DEFAULT_PRODUCT_ACCENT_SCENE: ProductAccentScene = {
       imageBounds: [53 / 768, 86 / 768, 714 / 768, 680 / 768],
       opacity: 1,
       blendMode: 'hard-light',
+      imageZoom: 1.2,
       idle: { phase: 0.7, floatAmplitude: 0.003, rockAmplitude: 0.012, periodSeconds: 14 },
     },
     ...composition,
-    ...droplets.map(([id, x, y, z, size]) => accent(
-      `droplet-${String(id).padStart(2, '0')}`, 'droplet', [x, y, z], size,
-      [0, 0, (id - 1) * 0.26], (id - 1) * 0.83, z < -0.28 ? 'far' : 'mid', z < -0.28 ? 0.8 : 0,
-    )),
+    // Keep the previous preset available, but hide every individual droplet.
+    ...droplets.map(([id, x, y, z, size]) => ({
+      ...accent(`droplet-${String(id).padStart(2, '0')}`, 'droplet', [x, y, z], size,
+        [0, 0, (id - 1) * 0.26], (id - 1) * 0.83, z < -0.28 ? 'far' : 'mid', z < -0.28 ? 0.8 : 0),
+      enabled: false,
+    })),
   ],
   motion: { fadeSeconds: 0.18, burstSeconds: 0.95, staggerSeconds: 0.008, origin: [0, 0, -0.2], startScale: 0.35 },
 };
@@ -163,6 +168,7 @@ const sanitizeVariant = (value: Partial<ProductAccentVariant>): Partial<ProductA
   if (value.assetUrl !== undefined) result.assetUrl = assetUrl(value.assetUrl);
   if (value.opacity !== undefined) result.opacity = bound(value.opacity, 1, 0, 1);
   if (value.blendMode !== undefined) result.blendMode = value.blendMode === 'hard-light' ? 'hard-light' : 'normal';
+  if (value.imageZoom !== undefined) result.imageZoom = bound(value.imageZoom, 1, 0.5, 3);
   if (value.imageBounds !== undefined) {
     const bounds = value.imageBounds;
     result.imageBounds = Array.isArray(bounds) && bounds.length === 4

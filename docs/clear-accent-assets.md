@@ -2,7 +2,7 @@
 
 These five WebP textures are derived from the transparent PNGs supplied by the user on 2026-10-01. The source PNGs remain outside the repository. The optimized images preserve the supplied artwork, original white highlights and RGB reflections; they are not shader reconstructions or regenerated pictures.
 
-The user subsequently requested the earlier clear refractive droplets for comparison. The default scene now uses that native preset, while the supplied ice remains active. These four water WebPs are retained for future image assignments and are not downloaded by the default scene.
+The native refractive droplet preset is retained but disabled in the current preview, which shows no individual droplets. The supplied ice remains active. These four water WebPs are retained for future image assignments and are not downloaded by the default scene.
 
 | Runtime asset | User-supplied source | Canvas |
 | --- | --- | --- |

@@ -4,10 +4,10 @@ import { publicUrl } from '../public-url';
 /** Project a unit Three plane into a CSS image without dropping perspective.
  * CSS pixels point downward; the image's UV origin is the plane's upper-left.
  * Output Z is zero so browser compositing order is controlled by CSS layers. */
-export function projectAccentImage(world: THREE.Matrix4, camera: THREE.Camera, width: number, height: number, pixels = 768): THREE.Matrix4 {
+export function projectAccentImage(world: THREE.Matrix4, camera: THREE.Camera, width: number, height: number, pixels = 768, zoom = 1): THREE.Matrix4 {
   const local = new THREE.Matrix4().set(
-    1 / pixels, 0, 0, -0.5,
-    0, -1 / pixels, 0, 0.5,
+    zoom / pixels, 0, 0, -0.5 * zoom,
+    0, -zoom / pixels, 0, 0.5 * zoom,
     0, 0, 1, 0,
     0, 0, 0, 1,
   );
@@ -64,11 +64,11 @@ export function createBlendedAccentHost(mount: HTMLDivElement) {
       });
       let removed = false, loaded = false;
       const target = {
-        update(world: THREE.Matrix4, camera: THREE.Camera, opacity: number, visible: boolean) {
+        update(world: THREE.Matrix4, camera: THREE.Camera, opacity: number, visible: boolean, zoom = 1) {
           if (removed) return;
           image.style.display = visible && loaded ? 'block' : 'none';
           image.style.opacity = String(opacity);
-          if (visible) image.style.transform = `matrix3d(${projectAccentImage(world, camera, width, height).elements.join(',')})`;
+          if (visible) image.style.transform = `matrix3d(${projectAccentImage(world, camera, width, height, 768, zoom).elements.join(',')})`;
         },
         dispose() {
           if (removed) return;

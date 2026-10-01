@@ -29,7 +29,8 @@ function loadSource(relativePath) {
 const config = loadSource('lib/viewer/accent-config.ts');
 const motion = loadSource('lib/viewer/accent-motion.ts');
 const layout = loadSource('lib/viewer/accent-layout.ts');
-const scene = config.DEFAULT_PRODUCT_ACCENT_SCENE;
+// Exercise retained optional droplets as well as the visible demo composition.
+const scene = { ...config.DEFAULT_PRODUCT_ACCENT_SCENE, nodes: config.DEFAULT_PRODUCT_ACCENT_SCENE.nodes.map(node => ({ ...node, enabled: true })) };
 const input = { key: 'can-330:lime', ready: true, viewerIdle: true, reducedMotion: false, deltaSeconds: 1 / 60, nodeCount: scene.nodes.length };
 const advance = (state, overrides = {}) => motion.advanceAccentMotion(state, { ...input, ...overrides }, scene.motion);
 const sample = (state, index = 0) => motion.sampleAccentNode(scene.nodes[index], state, index, scene.motion);
@@ -113,6 +114,10 @@ test('rear splash is a replaceable independent image with broad scale and neutra
   assert.equal(splash.tint, undefined);
   assert.equal(splash.opacity, 1);
   assert.equal(splash.blendMode, 'hard-light');
+  assert.equal(splash.imageZoom, 1.2);
+  for (const [imageZoom, expected] of [[NaN, 1], [Infinity, 1], [0, 0.5], [10, 3], [1.5, 1.5]]) {
+    assert.equal(config.normalizeAccentScene({ nodes: [{ ...splash, imageZoom }] }).nodes[0].imageZoom, expected);
+  }
   for (const invalid of ['overlay', 'screen', null]) {
     assert.equal(config.normalizeAccentScene({ nodes: [{ ...splash, blendMode: invalid }] }).nodes[0].blendMode, 'normal');
   }
@@ -135,10 +140,11 @@ test('rear splash is a replaceable independent image with broad scale and neutra
   }
 });
 
-test('demo restores neutral refractive droplets while retaining the supplied white ice', () => {
+test('demo hides all retained droplet presets while retaining the supplied white ice', () => {
   const normalized = config.normalizeAccentScene();
   const drops = normalized.nodes.filter(node => node.kind === 'droplet');
   assert.equal(drops.length, 12);
+  assert.ok(drops.every(node => !node.enabled), 'No individual droplet is rendered in this preview');
   assert.ok(drops.every(node => node.assetUrl === undefined), 'The requested preview uses the previous live-refraction water preset');
   assert.ok(drops.every(node => node.scale >= 0.062 && node.scale <= 0.12), 'Image-specific enlargement must not inflate native water planes');
   const glass = normalized.nodes.filter(node => node.kind === 'droplet' || node.kind === 'ice');
