@@ -69,30 +69,37 @@ const fragmentShader = /* glsl */`
     }
     float focus = 1.0 / (1.0 + blur * 0.18);
     vec2 screenUv = gl_FragCoord.xy / resolution;
-    vec2 bend = refractedPixels * 0.7 * focus / resolution;
+    vec2 bend = refractedPixels * 0.9 * focus / resolution;
 
-    // The opposing localized reflections reveal a rounded water lens on bright
-    // backgrounds. They never paint a continuous grey/blue ring around its edge.
+    // The ellipse rotates, but illumination stays fixed above/left in screen
+    // space. Its projected gradient points outward even when the plane tilts.
+    vec2 screenGradient = vec2(dot(point, gradientX), dot(point, gradientY));
+    vec2 screenRadial = screenGradient / max(length(screenGradient), 0.000001);
+    vec2 screenPoint = screenRadial * radius;
+    // Air/water Fresnel is only 2% at the center, rising at the silhouette. Broad
+    // bright and dark environment reflections make that curvature readable;
+    // they are localized crescents rather than an opaque photographic outline.
     float fresnel = 0.02037 + 0.97963 * pow(1.0 - normal.z, 5.0);
-    vec2 radial = point / max(radius, 0.0001);
-    float upperDirection = pow(max(dot(radial, normalize(vec2(-0.55, 0.83))), 0.0), 9.0);
-    float upperArc = exp(-pow((radius - 0.76) / 0.082, 2.0)) * upperDirection;
-    float lowerDirection = pow(max(dot(radial, normalize(vec2(-0.22, -0.97))), 0.0), 11.0);
-    float lowerArc = exp(-pow((radius - 0.84) / 0.075, 2.0)) * lowerDirection;
-    float shadowDirection = pow(max(dot(radial, normalize(vec2(0.88, -0.47))), 0.0), 5.0);
-    float shadowArc = exp(-pow((radius - 0.85) / 0.095, 2.0)) * shadowDirection;
-    float whiteReflection = (fresnel * 0.065 + upperArc * 0.66 + lowerArc * 0.15) * focus;
-    float shadowReflection = shadowArc * 0.34 * focus * hasBackdrop;
-    float reflectionAlpha = whiteReflection + shadowReflection;
-    float transmissionAlpha = mix(0.012, 0.78, hasBackdrop);
-    float opticalAlpha = transmissionAlpha + reflectionAlpha * (1.0 - transmissionAlpha);
+    float upperDirection = pow(max(dot(screenRadial, normalize(vec2(-0.58, 0.82))), 0.0), 3.0);
+    float upperArc = exp(-pow((radius - 0.84) / 0.09, 2.0)) * upperDirection;
+    float interiorGlint = exp(-dot((screenPoint - vec2(-0.35, 0.55)) / vec2(0.12, 0.17),
+      (screenPoint - vec2(-0.35, 0.55)) / vec2(0.12, 0.17)));
+    float lowerDirection = pow(max(dot(screenRadial, normalize(vec2(0.05, -1.0))), 0.0), 6.0);
+    float lowerArc = exp(-pow((radius - 0.87) / 0.08, 2.0)) * lowerDirection;
+    float shadowDirection = pow(max(dot(screenRadial, normalize(vec2(0.75, -0.66))), 0.0), 2.0);
+    float shadowArc = exp(-pow((radius - 0.83) / 0.15, 2.0)) * shadowDirection;
+    float rim = smoothstep(0.84, 0.97, radius) * (1.0 - smoothstep(0.97, 1.02, radius));
+    float whiteReflection = clamp((upperArc * 0.94 + interiorGlint * 0.94 + lowerArc * 0.48 + fresnel * 0.10) * focus, 0.0, 0.96);
+    float shadowReflection = clamp((shadowArc * 0.88 + rim * fresnel * 0.46) * focus * hasBackdrop, 0.0, 0.92);
+    float reflectionCoverage = max(whiteReflection, shadowReflection);
+    float transmissionAlpha = mix(0.012, 0.86, hasBackdrop);
+    float opticalAlpha = transmissionAlpha + reflectionCoverage * (1.0 - transmissionAlpha);
     vec3 transmittedColor = vec3(1.0);
     if (hasBackdrop > 0.5) transmittedColor = backgroundAt(screenUv + bend, blur * 0.6);
-    // Dark reflection keeps the underlying flavor hue; no opaque grey stock-photo
-    // crescent is introduced. A missing backdrop has white reflections only.
-    vec3 shadowColor = transmittedColor * 0.28;
-    vec3 color = (transmittedColor * (opticalAlpha - reflectionAlpha)
-      + vec3(1.0) * whiteReflection + shadowColor * shadowReflection) / max(opticalAlpha, 0.001);
+    // Reflected shade inherits the actual backdrop hue, keeping water neutral on
+    // citrus, berry, peach and lime. The center stays a clear refracted sampler.
+    vec3 color = mix(transmittedColor, transmittedColor * 0.06, shadowReflection);
+    color = mix(color, vec3(1.0), whiteReflection);
 
     gl_FragColor = vec4(color, opticalAlpha * coverage * opacity);
     // The sampler supplies linear RGB: canvas sRGB is decoded in the capture,

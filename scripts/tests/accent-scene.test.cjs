@@ -43,7 +43,7 @@ test('scene data supports replaceable flavor assets, deliberate depth and indepe
   assert.deepEqual(JSON.parse(JSON.stringify(scene)), scene, 'Saved scene contains only JSON data');
   assert.equal(new Set(scene.nodes.map(node => node.id)).size, scene.nodes.length);
   const counts = scene.nodes.reduce((result, node) => ({ ...result, [node.kind]: (result[node.kind] ?? 0) + 1 }), {});
-  assert.deepEqual(counts, { fruit: 2, leaf: 5, ice: 2, droplet: 12 });
+  assert.deepEqual(counts, { fruit: 2, leaf: 6, ice: 2, droplet: 12 });
   const fruit = scene.nodes.filter(node => node.kind === 'fruit');
   assert.ok(fruit.every(node => Math.abs(node.position[0]) > 0.3 && node.position[2] < 0));
   assert.ok(scene.nodes.some(node => node.depth === 'near' && node.blur >= 3));
@@ -77,6 +77,28 @@ test('scene data supports replaceable flavor assets, deliberate depth and indepe
   assert.equal(normalized.opacity, 1);
   assert.equal(normalized.motion.burstSeconds, scene.motion.burstSeconds);
   assert.equal(normalized.motion.staggerSeconds, 0);
+});
+
+test('composition keeps the larger right fruit and a small leaf peeking from directly behind the left edge', () => {
+  assert.equal(scene.nodes.length, 22);
+  const rightFruit = scene.nodes.find(node => node.id === 'fruit-lower-right');
+  assert.equal(rightFruit.scale, 0.32 * 1.1, 'Right fruit is exactly 10% larger than the previous 0.32 composition');
+  const peek = scene.nodes.find(node => node.id === 'leaf-left-peek');
+  assert.deepEqual(peek.position, [-0.225, -0.02, -0.24]);
+  assert.equal(peek.scale, 0.11);
+  assert.equal(peek.depth, 'far');
+  assert.equal(peek.blur, 0.4);
+  assert.ok(Math.abs(peek.position[0]) >= 0.21 && Math.abs(peek.position[0]) <= 0.24,
+    'Leaf center sits at the can edge so a small part remains visible rather than being entirely occluded');
+  assert.ok(Math.abs(peek.position[0]) < Math.abs(scene.nodes.find(node => node.id === 'leaf-left-middle').position[0]),
+    'Peek leaf stays closer to the can than the existing outside middle leaf');
+  for (const flavor of ['citrus', 'berry', 'peach', 'lime']) {
+    assert.equal(config.resolveAccentNodeForFlavor(peek, flavor).sprite,
+      flavor === 'lime' || flavor === 'berry' ? 'mint' : 'citrus-leaf');
+  }
+  const outer = scene.nodes.find(node => node.id === 'leaf-left-near');
+  assert.equal(outer.blur, 5.5, 'Outer leaf retains a recognizable but clearly defocused silhouette');
+  assert.ok(outer.scale > 0 && outer.position[2] < 0);
 });
 
 test('persisted malformed sprites, colors, tint and asset URLs are sanitized before rendering', () => {

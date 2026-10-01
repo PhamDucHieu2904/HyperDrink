@@ -45,17 +45,18 @@ function fixture(floatSupported = true) {
   const water = new THREE.Mesh(new THREE.PlaneGeometry(), [new THREE.MeshBasicMaterial(), waterMaterial]);
   const hiddenWater = new THREE.Mesh(new THREE.PlaneGeometry(), waterMaterial);
   hiddenWater.visible = false;
+  const ice = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.ShaderMaterial({ name: 'colorless-refractive-ice' }));
   // A similarly named ordinary material is not a water sampler and must remain visible.
   const ordinary = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial({ name: 'colorless-water-droplet' }));
-  scene.add(water, hiddenWater, ordinary);
+  scene.add(water, hiddenWater, ice, ordinary);
   const camera = new THREE.PerspectiveCamera();
   const background = new THREE.Texture({ width: 512, height: 768 });
   const pass = loaded.exports.createWaterBackdropPass(renderer, scene, product);
-  return { pass, targets, renderer, scene, product, fruit, water, hiddenWater, ordinary, camera,
+  return { pass, targets, renderer, scene, product, fruit, water, hiddenWater, ice, ordinary, camera,
     background, originalBackground, previousTarget };
 }
 
-test('capture includes actual accents, excludes product/water feedback and restores caller state on success or render failure', () => {
+test('capture includes actual accents, excludes product/water/ice feedback and restores caller state on success or render failure', () => {
   const f = fixture();
   const target = f.targets[0];
   for (const shouldThrow of [false, true]) {
@@ -67,6 +68,7 @@ test('capture includes actual accents, excludes product/water feedback and resto
       assert.equal(f.product.visible, false);
       assert.equal(f.water.visible, false);
       assert.equal(f.hiddenWater.visible, false);
+      assert.equal(f.ice.visible, false, 'Native ice also samples this target and cannot render back into itself');
       assert.equal(f.fruit.visible, true, 'Fruit remains in the water sampler instead of being replaced by CSS color');
       assert.equal(f.ordinary.visible, true);
       assert.equal(f.renderer.getRenderTarget(), target);
@@ -78,6 +80,7 @@ test('capture includes actual accents, excludes product/water feedback and resto
     assert.equal(f.product.visible, oldProductVisibility);
     assert.equal(f.water.visible, true);
     assert.equal(f.hiddenWater.visible, false);
+    assert.equal(f.ice.visible, true);
     assert.equal(f.renderer.getRenderTarget(), f.previousTarget);
     assert.equal(f.renderer.getActiveCubeFace(), 3);
     assert.equal(f.renderer.getActiveMipmapLevel(), 2);

@@ -81,14 +81,17 @@ function accent(
 // product occupies roughly x ±0.19; opaque fruit/leaf/ice slots sit outside it.
 const composition: ProductAccentNode[] = [
   accent('fruit-upper-left', 'fruit', [-0.40, 0.25, -0.10], 0.31, [0.18, -0.24, -0.55], 0.3),
-  accent('fruit-lower-right', 'fruit', [0.39, -0.27, -0.09], 0.32, [-0.1, 0.22, 0.65], 2.6),
+  accent('fruit-lower-right', 'fruit', [0.39, -0.27, -0.09], 0.32 * 1.1, [-0.1, 0.22, 0.65], 2.6),
   accent('leaf-left-middle', 'leaf', [-0.32, 0.09, -0.13], 0.17, [0.15, 0.2, 0.45], 1.3),
   accent('leaf-upper-right', 'leaf', [0.34, 0.37, -0.21], 0.14, [0.3, -0.4, -0.65], 3.7),
   accent('leaf-right-middle', 'leaf', [0.33, -0.05, -0.13], 0.19, [0.1, 0.2, -0.3], 4.4),
   accent('leaf-lower-right', 'leaf', [0.27, -0.46, -0.16], 0.11, [-0.3, -0.3, 0.8], 0.8),
+  // A small, mostly occluded leaf gives density directly behind the can edge,
+  // distinct from the larger left leaf and the blurred outer depth cue.
+  accent('leaf-left-peek', 'leaf', [-0.225, -0.02, -0.24], 0.11, [0.12, -0.2, -0.65], 2.9, 'far', 0.4),
   // The legacy ID is stable for saved layouts; even this blurred depth cue now
   // sits behind the product rather than floating in its rotation path.
-  accent('leaf-left-near', 'leaf', [-0.46, -0.07, -0.26], 0.12, [0.5, 0.8, -0.55], 5.1, 'near', 3.2),
+  accent('leaf-left-near', 'leaf', [-0.46, -0.07, -0.26], 0.12, [0.5, 0.8, -0.55], 5.1, 'near', 5.5),
   accent('ice-lower-left', 'ice', [-0.41, -0.27, -0.11], 0.20, [0.14, 0.16, 0.3], 2.1),
   accent('ice-middle-right', 'ice', [0.44, 0.015, -0.23], 0.11, [0.12, 0.16, 0.7], 4.8, 'far', 0.7),
 ];

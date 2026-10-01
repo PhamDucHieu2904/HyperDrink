@@ -135,8 +135,12 @@ test('outgoing flavor keeps its atlas crop through fading and a new flavor reuse
 }));
 
 test('the complete demo waits for fruit/ice atlases, builds native water and releases every owned texture', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {
+  const backdrop = fakeTexture();
+  let backdropDisposals = 0;
+  backdrop.addEventListener('dispose', () => { backdropDisposals += 1; });
+  layer.setBackdrop(backdrop);
   layer.configure(DEFAULT_PRODUCT_ACCENT_SCENE, 'can-330:lime', 'lime');
-  assert.equal(update().count, 21);
+  assert.equal(update().count, 22);
   assert.equal(textureRequests.length, 2, 'Fruit/leaves and ice share two downloads; water is procedural');
   const atlases = textureRequests.map(() => fakeTexture());
   const disposals = [0, 0];
@@ -145,12 +149,19 @@ test('the complete demo waits for fruit/ice atlases, builds native water and rel
   assert.equal(update({ reducedMotion: true }).phase, 'waiting');
   assert.ok(root.children.every(group => !group.visible), 'No partial fruit-only scene before the glass atlas is ready');
   textureRequests[1].resolve(atlases[1]); await flush();
-  assert.equal(update({ reducedMotion: true }).phase, 'idle');
+  assert.equal(update({ reducedMotion: true, resolution: [900, 1400] }).phase, 'idle');
   const ice = root.children.find(group => group.name === 'ice-lower-left').children[0];
   const drop = root.children.find(group => group.name === 'droplet-01').children[0];
-  assert.equal(ice.material.map.repeat.x, 0.5);
-  assert.equal(ice.material.map.repeat.y, 1);
-  assert.equal(ice.material.map.offset.x, 0);
+  assert.ok(ice.material instanceof THREE.ShaderMaterial);
+  assert.equal(ice.material.name, 'colorless-refractive-ice');
+  assert.equal(ice.material.uniforms.iceMap.value.repeat.x, 0.5);
+  assert.equal(ice.material.uniforms.iceMap.value.repeat.y, 1);
+  assert.equal(ice.material.uniforms.iceMap.value.offset.x, 0);
+  assert.equal(ice.material.uniforms.backdrop.value, backdrop);
+  assert.deepEqual(ice.material.uniforms.resolution.value.toArray(), [900, 1400]);
+  assert.equal(ice.material.uniforms.opacity.value, ice.material.opacity);
+  let cropDisposals = 0;
+  ice.material.uniforms.iceMap.value.addEventListener('dispose', () => { cropDisposals += 1; });
   assert.ok(drop.material instanceof THREE.ShaderMaterial);
   assert.equal(drop.material.name, 'colorless-water-droplet');
   assert.equal(drop.material.map, undefined, 'Default droplets have no photographic color baked into them');
@@ -170,10 +181,12 @@ test('the complete demo waits for fruit/ice atlases, builds native water and rel
   layer.configure(DEFAULT_PRODUCT_ACCENT_SCENE, 'can-500:berry', 'berry');
   update({ reducedMotion: true }); await flush(); await settle();
   assert.equal(textureRequests.length, 2);
+  assert.equal(cropDisposals, 1, 'The outgoing ice crop is released when its flavor scene is replaced');
   layer.dispose();
   assert.deepEqual(disposals, [1, 1]);
   layer.dispose();
   assert.deepEqual(disposals, [1, 1], 'Repeated lifecycle disposal does not release cached textures twice');
+  assert.equal(backdropDisposals, 0, 'Neither native water nor ice owns the viewer backdrop');
 }));
 
 test('changing the explicit flavor prop also updates fruit when appearance IDs are omitted or reused', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {

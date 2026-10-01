@@ -12,7 +12,7 @@ const imageDimension = (value: unknown) =>
 
 /**
  * Capture the CSS backdrop and actual accent objects beneath water in the same
- * camera projection. Hide water to avoid sampling the target while writing it;
+ * camera projection. Hide native water/ice to avoid sampling the target while writing it;
  * hide the primary product because these droplets sit behind it in the scene.
  * No camera, animation loop or background texture is owned by this pass.
  */
@@ -47,24 +47,25 @@ export function createWaterBackdropPass(
       const previousMipmapLevel = renderer.getActiveMipmapLevel();
       const previousBackground = scene.background;
       const previousProductVisibility = productGroup.visible;
-      const hiddenWater: Array<{ mesh: THREE.Mesh; visible: boolean }> = [];
+      const hiddenGlass: Array<{ mesh: THREE.Mesh; visible: boolean }> = [];
       scene.traverse(object => {
         if (!(object instanceof THREE.Mesh)) return;
         const materials = Array.isArray(object.material) ? object.material : [object.material];
-        if (materials.some(material => material instanceof THREE.ShaderMaterial && material.name === 'colorless-water-droplet')) {
-          hiddenWater.push({ mesh: object, visible: object.visible });
+        if (materials.some(material => material instanceof THREE.ShaderMaterial
+          && ['colorless-water-droplet', 'colorless-refractive-ice'].includes(material.name))) {
+          hiddenGlass.push({ mesh: object, visible: object.visible });
         }
       });
       try {
         scene.background = background;
         productGroup.visible = false;
-        hiddenWater.forEach(({ mesh }) => { mesh.visible = false; });
+        hiddenGlass.forEach(({ mesh }) => { mesh.visible = false; });
         renderer.setRenderTarget(target);
         renderer.render(scene, camera);
       } finally {
         scene.background = previousBackground;
         productGroup.visible = previousProductVisibility;
-        hiddenWater.forEach(({ mesh, visible }) => { mesh.visible = visible; });
+        hiddenGlass.forEach(({ mesh, visible }) => { mesh.visible = visible; });
         renderer.setRenderTarget(previousTarget, previousCubeFace, previousMipmapLevel);
       }
     },

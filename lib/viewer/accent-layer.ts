@@ -6,6 +6,7 @@ import { normalizeAccentScene, resolveAccentNodes, type AccentFlavor, type Produ
 import { advanceAccentMotion, createAccentMotion, sampleAccentNode } from './accent-motion';
 import { adaptAccentFrame } from './accent-layout';
 import { createDropletMaterial, updateDropletMaterial } from './droplet-material';
+import { createIceMaterial, updateIceMaterial } from './ice-material';
 
 type AccentObject = { node: ProductAccentNode; group: THREE.Group; materials: THREE.Material[]; resources: Array<{ dispose(): void }>; ready: boolean };
 type AccentFrame = { deltaSeconds: number; ready: boolean; viewerIdle: boolean; reducedMotion: boolean; paused: boolean; height: number; width: number; productRadius: number; maximumProductScale: number; camera: THREE.PerspectiveCamera; resolution?: [number, number] };
@@ -61,34 +62,44 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     const map = texture.clone();
     if (cell) { map.repeat.set(1 / columns, 1 / rows); map.offset.set(cell[0] / columns, cell[1] / rows); }
     map.needsUpdate = true;
-    const material = new THREE.MeshBasicMaterial({ map, color:item.node.tint ?? '#ffffff', transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+    const crop = cell && !['ice', 'droplet'].includes(item.node.kind)
+      ? SUBJECT_UVS[item.node.sprite ?? (item.node.kind === 'leaf' ? 'mint' : desiredFlavor === 'citrus' ? 'orange' : desiredFlavor)] : undefined;
+    const nativeIce = item.node.kind === 'ice' && !item.node.assetUrl;
+    const material = nativeIce ? createIceMaterial(map, backdrop)
+      : new THREE.MeshBasicMaterial({ map, color: item.node.tint ?? '#ffffff', transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
     // Focus blur only affects this cutout; the product and UI remain sharp.
-    if (item.node.blur > 0) {
-      const radius = item.node.blur / 512;
+    if (!nativeIce && item.node.blur > 0) {
+      // Blur is measured in subject UVs, independently of atlas dimensions.
+      // Premultiplied convolution keeps transparent edges clean; crop limits
+      // prevent the neighbouring orange slice leaking into the blurred leaf.
+      const radius = item.node.blur / 128;
+      const bounds = crop ?? [0, 0, 1, 1];
+      const cropMinimum = new THREE.Vector2(map.offset.x + bounds[0] * map.repeat.x, map.offset.y + bounds[1] * map.repeat.y);
+      const cropMaximum = new THREE.Vector2(map.offset.x + bounds[2] * map.repeat.x, map.offset.y + bounds[3] * map.repeat.y);
       material.onBeforeCompile = shader => {
-        shader.uniforms.accentBlur = { value: radius };
-        shader.fragmentShader = 'uniform float accentBlur;\n' + shader.fragmentShader.replace('#include <map_fragment>', `
+        shader.uniforms.accentBlur = { value: new THREE.Vector2(radius * map.repeat.x, radius * map.repeat.y) };
+        shader.uniforms.accentCropMin = { value: cropMinimum };
+        shader.uniforms.accentCropMax = { value: cropMaximum };
+        shader.fragmentShader = 'uniform vec2 accentBlur;\nuniform vec2 accentCropMin;\nuniform vec2 accentCropMax;\n' + shader.fragmentShader.replace('#include <map_fragment>', `
           #ifdef USE_MAP
-            vec2 d = vec2(accentBlur);
-            vec4 c = texture2D(map, vMapUv) * 0.2;
-            c += texture2D(map,vMapUv+vec2(d.x,0.0))*0.12;
-            c += texture2D(map,vMapUv-vec2(d.x,0.0))*0.12;
-            c += texture2D(map,vMapUv+vec2(0.0,d.y))*0.12;
-            c += texture2D(map,vMapUv-vec2(0.0,d.y))*0.12;
-            c += texture2D(map,vMapUv+d)*0.08;
-            c += texture2D(map,vMapUv-d)*0.08;
-            c += texture2D(map,vMapUv+vec2(d.x,-d.y))*0.08;
-            c += texture2D(map,vMapUv+vec2(-d.x,d.y))*0.08;
+            vec4 c = vec4(0.0);
+            for (int y = -2; y <= 2; y++) {
+              for (int x = -2; x <= 2; x++) {
+                float wx = x == 0 ? 6.0 : (abs(x) == 1 ? 4.0 : 1.0);
+                float wy = y == 0 ? 6.0 : (abs(y) == 1 ? 4.0 : 1.0);
+                vec4 tap = texture2D(map, clamp(vMapUv + vec2(float(x), float(y)) * accentBlur, accentCropMin, accentCropMax));
+                c += vec4(tap.rgb * tap.a, tap.a) * (wx * wy / 256.0);
+              }
+            }
+            c.rgb /= max(c.a, 0.00001);
             diffuseColor *= c;
           #endif`);
       };
-      material.customProgramCacheKey = () => `accent-focus-${radius}`;
+      material.customProgramCacheKey = () => 'accent-gaussian-focus-v2';
     }
     trackMaterial(item, material);
     const size = item.node.kind === 'droplet' ? 1.7 : 1;
     const geometry = new THREE.PlaneGeometry(size, size);
-    const crop = cell && !['ice', 'droplet'].includes(item.node.kind)
-      ? SUBJECT_UVS[item.node.sprite ?? (item.node.kind === 'leaf' ? 'mint' : desiredFlavor === 'citrus' ? 'orange' : desiredFlavor)] : undefined;
     if (crop) {
       const uv = geometry.getAttribute('uv');
       for (let index = 0; index < uv.count; index += 1) {
@@ -197,6 +208,9 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
           material.opacity = opacity;
           if (material instanceof THREE.ShaderMaterial && material.name === 'colorless-water-droplet') {
             updateDropletMaterial(material, { opacity, blur: item.node.blur,
+              resolution: frame.resolution ?? [1, 1], background: backdrop });
+          } else if (material instanceof THREE.ShaderMaterial && material.name === 'colorless-refractive-ice') {
+            updateIceMaterial(material, { opacity, blur: item.node.blur,
               resolution: frame.resolution ?? [1, 1], background: backdrop });
           }
         });
