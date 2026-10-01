@@ -40,7 +40,7 @@ const presentation = {
     packageAimSeconds: 0.3, packageAnticipationSeconds: 0.12, packageAnticipationScale: 1.06,
     packageOutSeconds: 0.4, packageHoldSeconds: 0.2, packageInSeconds: 0.5,
     packageTilt: 1.3, packageSpringDamping: 0.66,
-    packageBounceSeconds: 0.48, packageBounceAmount: 0.15,
+    packageBounceSeconds: 0.7, packageBounceAmount: 0.2,
   },
 };
 ```
@@ -67,13 +67,19 @@ Different asset definitions use a separate packaging choreography, independent o
 | Anticipate | 0.12s | Grow to 1.06× with a small reverse twist to establish momentum |
 | Exit | 0.4s | Accelerate one full local-axis turn while shrinking to 0.01× scale |
 | Hold | 0.2s minimum | Hide the product and activate the latest loaded asset; refit the camera here |
-| Enter | 0.5s | Grow through full scale with forward momentum while the spin decelerates to the idle pose |
-| Bounce | 0.48s | Continue the same scale trajectory to a 15% crest, about 5% recoil and a smaller final crest before settling |
+| Enter | 0.5s | Start nearly still and accelerate into full scale while the spin decelerates to the idle pose |
+| Bounce | 0.7s | Continue directly into a 20% crest, then 5% and 1.25% crests with two shrinking contractions before settling |
 
-Aim and anticipation use minimum-jerk curves. Exit uses cubic acceleration and entrance spin decelerates. Entrance scale and rebound share one elapsed timeline: quintic Hermite paths have matching positive velocity and zero acceleration at full scale, so zoom continues directly into the crest instead of stopping and restarting. The pose reaches idle at that crossing and stays there during rebound. Subsequent smaller extrema use damped amplitude ratios and smooth interpolation, ending at exactly scale 1 with zero velocity. `packageBounceAmount` controls the actual overshoot, `packageBounceSeconds` its duration and `packageSpringDamping` its decay. Setting the amount to 0 skips rebound. Anticipation targets a fixed scale instead of compounding growth during rapid selections. `packageTilt` is an absolute local X rotation (1.3 radians by default), independent of idle yaw/roll.
+Aim and anticipation use minimum-jerk curves. Exit uses cubic acceleration and entrance spin decelerates. Entrance scale and rebound share one elapsed timeline: quintic Hermite paths have matching positive velocity and zero acceleration at full scale, so zoom continues directly into the crest instead of stopping and restarting. The default entrance follows `t^4 × (2.5 − 1.5t)`, keeping most growth late and increasing crossing velocity to 4.95 scale units/second. Tangents remain bounded for persisted/admin timings and amplitudes. The pose reaches idle at that crossing and stays there during rebound. Three progressively smaller crests use damped amplitude ratios and smooth interpolation, ending at exactly scale 1 with zero velocity. `packageBounceAmount` controls the actual overshoot, `packageBounceSeconds` its duration and `packageSpringDamping` its decay. Setting the amount to 0 skips rebound. Anticipation targets a fixed scale instead of compounding growth during rapid selections. `packageTilt` is an absolute local X rotation (1.3 radians by default), independent of idle yaw/roll.
 
 Model decoding starts concurrently with the choreography. The hidden gap extends if the latest asset is not ready; stale loads cannot replace a later selection. A load failure grows the previous product back. Rapid choices during exit retain its trajectory; a choice during entry or bounce starts from its visible pose and scale. Camera fitting includes the canonical cap view, full turn envelope and maximum anticipation/rebound scale, so it does not change during exit/entry/bounce or clip the cap. Durations, anticipation scale, bounce amount, tilt and damping are validated, serializable presentation fields for later admin controls.
 
-Reduced motion and paused viewers switch assets directly. Hidden/offscreen states suspend animation scheduling. The mobile DOM puts the product and flavor selector before secondary notes and stats.
+Reduced motion and paused viewers switch assets directly. Hidden/offscreen states suspend animation scheduling.
+
+## Responsive product stage
+
+On desktop the canvas is 15% wider and taller than the previous stage, around the same center. Camera fitting uses a conservative radial envelope derived from actual can vertices and reserves each visible pose at its real scale. Other packaging and animated meshes retain the generic box envelope. `camera.productScale` and `camera.mobileProductScale` are normalized size requests; the motion envelope limits them before clipping. The default mobile request is 1.55× the old camera silhouette.
+
+Mobile hides the introductory copy/actions visually, retaining an accessible page heading. The full-width product stage occupies the space between the compact header and the flavor dock in the initial viewport. Notes, stats, package options and feature details follow. The flavor dock uses the same seamless loop as desktop, including functional duplicated buttons; reduced motion uses a static scrollable list instead.
 
 The backdrop halo is a radial layer blended with `mix-blend-mode: overlay` inside the background. It affects the color/pattern behind the product, independently of HDRI lighting on the mesh. No water ripple or ellipse stage remains.

@@ -63,19 +63,28 @@ test('package curves provide an upright lid view and a continuously moving entra
   assert.equal(scale(0), 0.01);
   assert.equal(scale(packageInSeconds), 1);
   assert.equal(scale(total), 1, 'Entrance and rebound finish exactly at rest');
-  const crest = scale(packageInSeconds + packageBounceSeconds * 0.24);
-  const trough = scale(packageInSeconds + packageBounceSeconds * 0.58);
-  const finalCrest = scale(packageInSeconds + packageBounceSeconds * 0.82);
+  const crest = scale(packageInSeconds + packageBounceSeconds * 0.14);
+  const trough = scale(packageInSeconds + packageBounceSeconds * 0.36);
+  const secondCrest = scale(packageInSeconds + packageBounceSeconds * 0.57);
+  const secondTrough = scale(packageInSeconds + packageBounceSeconds * 0.74);
+  const finalCrest = scale(packageInSeconds + packageBounceSeconds * 0.87);
   assert.ok(Math.abs(crest - (1 + packageBounceAmount)) < 1e-12, 'Configured amplitude is the exact crest');
-  assert.ok(Math.abs(crest - 1.15) < 1e-12, 'Default crest is visibly stronger at 15%');
-  assert.ok(trough > 0.94 && trough < 0.96, 'Crest has a restrained five-percent recoil');
-  assert.ok(finalCrest > 1.01 && finalCrest < 1.03, 'Smaller final crest settles the rebound');
-  assert.equal(packageMotion.packageMaximumScale(packageAnticipationScale, packageBounceAmount), Math.max(packageAnticipationScale, crest), 'Camera headroom is exact and does not depend on peak sampling');
+  assert.ok(Math.abs(crest - 1.2) < 1e-12, 'Default crest is visibly stronger at 20%');
+  assert.ok(trough > 0.89 && trough < 0.91, 'First recoil preserves a visible spring response');
+  assert.ok(secondCrest > 1.04 && secondCrest < 1.06, 'Second crest visibly rebounds before the extra pulse');
+  assert.ok(secondTrough > 0.97 && secondTrough < 0.98, 'Extra rebound follows a smaller second contraction');
+  assert.ok(finalCrest > 1.01 && finalCrest < 1.02, 'Third crest settles the added rebound');
+  const entranceSamples = [0, 0.25, 0.5, 0.75, 1].map((t) => scale(packageInSeconds * t));
+  for (let index = 1; index < 4; index += 1) {
+    assert.ok(entranceSamples[index + 1] - entranceSamples[index] > entranceSamples[index] - entranceSamples[index - 1], 'Equal intervals grow from slow to fast for a more sudden appearance');
+  }
+  assert.ok(entranceSamples[2] < 0.13 && entranceSamples[3] < 0.46, 'Most visible growth happens late in the entrance');
+  assert.ok(Math.abs(packageMotion.packageMaximumScale(packageAnticipationScale, packageBounceAmount) - Math.max(packageAnticipationScale, crest)) < 1e-12, 'Camera headroom is exact and does not depend on peak sampling');
 
   const epsilon = 1e-6;
   const leftVelocity = (scale(packageInSeconds) - scale(packageInSeconds - epsilon)) / epsilon;
   const rightVelocity = (scale(packageInSeconds + epsilon) - scale(packageInSeconds)) / epsilon;
-  assert.ok(leftVelocity > 1.9 && leftVelocity < 2.0, 'Zoom carries positive momentum through resting scale');
+  assert.ok(leftVelocity > 4.9 && leftVelocity < 5.0, 'Accelerating zoom carries stronger momentum directly into the 20% crest');
   assert.ok(Math.abs(leftVelocity - rightVelocity) < 0.00001, 'No velocity discontinuity between zoom and overshoot');
   const leftAcceleration = (scale(packageInSeconds) - 2 * scale(packageInSeconds - epsilon) + scale(packageInSeconds - 2 * epsilon)) / (epsilon * epsilon);
   const rightAcceleration = (scale(packageInSeconds + 2 * epsilon) - 2 * scale(packageInSeconds + epsilon) + scale(packageInSeconds)) / (epsilon * epsilon);
@@ -86,14 +95,14 @@ test('package curves provide an upright lid view and a continuously moving entra
 
 test('continuous package scale stays bounded across admin timings, amplitudes, damping and failure recovery', () => {
   const defaults = config.DEFAULT_VIEWER_PRESENTATION.motion;
-  for (const entrance of [0.1, 0.5, 2]) for (const bounce of [0.2, 0.48, 1]) {
+  for (const entrance of [0.1, 0.5, 2]) for (const bounce of [0.2, 0.7, 1]) {
     for (const amount of [0, 0.001, 0.15, 0.2]) for (const damping of [0.6, 0.66, 0.9]) {
       for (const inScale of [0.01, 1, 1.1]) {
         const motion = { ...defaults, packageInSeconds: entrance, packageBounceSeconds: bounce,
           packageBounceAmount: amount, packageSpringDamping: damping };
         const total = amount ? entrance + bounce : entrance;
         const maximum = Math.max(inScale, 1 + amount);
-        const minimum = Math.min(inScale, 1 - amount * 0.41);
+        const minimum = Math.min(inScale, 1 - amount * 0.59);
         let previous = inScale;
         for (let step = 0; step <= 1000; step += 1) {
           const elapsed = total * step / 1000;
@@ -108,7 +117,7 @@ test('continuous package scale stays bounded across admin timings, amplitudes, d
         assert.ok(Math.abs(packageMotion.packageEntryScale(total, inScale, motion) - 1) < 1e-12);
         assert.equal(packageMotion.packageEntryScale(total + 1, inScale, motion), 1);
         if (amount && inScale < 1) {
-          const epsilon = Math.min(entrance, bounce * 0.24) * 0.0001;
+          const epsilon = Math.min(entrance, bounce * 0.14) * 0.0001;
           const atBoundary = packageMotion.packageEntryScale(entrance, inScale, motion);
           const left = (atBoundary - packageMotion.packageEntryScale(entrance - epsilon, inScale, motion)) / epsilon;
           const right = (packageMotion.packageEntryScale(entrance + epsilon, inScale, motion) - atBoundary) / epsilon;
@@ -122,8 +131,8 @@ test('continuous package scale stays bounded across admin timings, amplitudes, d
 
 test('presentation preserves bounce defaults and bounds persisted motion settings', () => {
   const defaults = config.resolveViewerPresentation({ motion: { packageInSeconds: 0.5 } }).motion;
-  assert.equal(defaults.packageBounceSeconds, 0.48, 'Older saved configurations receive the rebound defaults');
-  assert.equal(defaults.packageBounceAmount, 0.15);
+  assert.equal(defaults.packageBounceSeconds, 0.7, 'Older saved configurations receive enough duration for the extra rebound');
+  assert.equal(defaults.packageBounceAmount, 0.2);
   const minimum = config.resolveViewerPresentation({ motion: { packageBounceSeconds: -1, packageBounceAmount: -1, packageSpringDamping: -1 } }).motion;
   assert.equal(minimum.packageBounceSeconds, 0.2);
   assert.equal(minimum.packageBounceAmount, 0);
@@ -180,7 +189,7 @@ test('camera keeps varied packages inside the viewport during upright lid turns 
     const maximumScale = packageMotion.packageMaximumScale(anticipationScale, bounceAmount);
     const motion = { ...config.DEFAULT_VIEWER_PRESENTATION.motion, packageBounceAmount: bounceAmount, packageSpringDamping: damping };
     const actualMaximumScale = Math.max(anticipationScale,
-      packageMotion.packageEntryScale(motion.packageInSeconds + motion.packageBounceSeconds * 0.24, 0.01, motion));
+      packageMotion.packageEntryScale(motion.packageInSeconds + motion.packageBounceSeconds * 0.14, 0.01, motion));
     const distance = framing.fitProductCamera(bounds, rest, aspect, fov, fill, rocking, target, radius, capTilt, maximumScale);
     const camera = new THREE.PerspectiveCamera(fov, aspect, 0.0001, 10);
     camera.position.set(target.x, target.y, distance);
@@ -417,7 +426,7 @@ test('packaging grows continuously into a visible upright rebound without a came
   const entranceScales = [];
   const bounceScales = [];
   const entryScales = [];
-  for (let frame = 0; frame < 125; frame += 1) {
+  for (let frame = 0; frame < 150; frame += 1) {
     advance(1 / 120);
     if (['package-in', 'package-bounce'].includes(mount.dataset.transitionPhase)) entryScales.push(product.scale.x);
     if (mount.dataset.transitionPhase === 'package-in') entranceScales.push(product.scale.x);
@@ -429,7 +438,7 @@ test('packaging grows continuously into a visible upright rebound without a came
   }
   assert.ok(entranceScales.length >= 55, 'Entrance retains the configured half-second timing');
   assert.ok(entranceScales.every((value, index) => value <= 1 && (index === 0 || value >= entranceScales[index - 1])), 'Entrance growth is monotonic up to the resting scale');
-  assert.ok(bounceScales.length >= 55, 'Rebound remains visible while the pose stays upright');
+  assert.ok(bounceScales.length >= 80, 'Additional rebound has enough visible frames while the pose stays upright');
   const crossingIndex = entryScales.findIndex((value) => value >= 1);
   assert.ok(crossingIndex > 0 && crossingIndex + 1 < entryScales.length);
   const beforeCrossing = entryScales[crossingIndex] - entryScales[crossingIndex - 1];
@@ -438,9 +447,12 @@ test('packaging grows continuously into a visible upright rebound without a came
   assert.ok(Math.abs(beforeCrossing - afterCrossing) < 0.004, 'Crossing scale speed is continuous at frame boundaries');
   const bouncePeak = Math.max(...bounceScales);
   const peakIndex = bounceScales.indexOf(bouncePeak);
-  assert.ok(bouncePeak > 1.148 && bouncePeak <= 1.15, 'Runtime visibly expands approximately 15% after reaching idle');
-  assert.ok(Math.min(...bounceScales.slice(peakIndex)) > 0.94 && Math.min(...bounceScales.slice(peakIndex)) < 0.96, 'Runtime shows a restrained five-percent contraction after the crest');
-  assert.ok(Math.max(...bounceScales.slice(Math.ceil(bounceScales.length * 2 / 3))) > 1, 'Runtime shows the smaller final rebound before rest');
+  assert.ok(bouncePeak > 1.198 && bouncePeak <= 1.2, 'Runtime visibly expands approximately 20% after reaching idle');
+  assert.ok(Math.min(...bounceScales.slice(peakIndex)) > 0.89 && Math.min(...bounceScales.slice(peakIndex)) < 0.91, 'Runtime shows a visible contraction after the stronger crest');
+  const visibleCrests = bounceScales.filter((value, index) => value > 1 && index > 0 && index < bounceScales.length - 1
+    && value > bounceScales[index - 1] && value > bounceScales[index + 1]);
+  assert.equal(visibleCrests.length, 3, 'Actual rendered frames show three progressively smaller crests');
+  assert.ok(visibleCrests[0] > visibleCrests[1] && visibleCrests[1] > visibleCrests[2], 'Each visible rebound damps toward idle');
   assert.equal(mount.dataset.transitionPhase, 'idle');
   assert.equal(product.scale.x, 1);
   assert.equal(product.visible, true);
@@ -468,7 +480,7 @@ for (const interruptionPhase of ['in', 'bounce']) test(`reselection during ${int
     assert.equal(mount.dataset.transitionPhase, 'package-bounce');
     assert.ok(product.scale.x > 1.08, 'Interrupt at the visible upright rebound crest');
   } else {
-    advance(0.15);
+    advance(0.25);
     assert.ok(product.scale.x > 0.1 && product.scale.x < 0.5, 'Interrupt while the incoming model is still growing');
   }
   const visibleScale = product.scale.x;
@@ -483,7 +495,7 @@ for (const interruptionPhase of ['in', 'bounce']) test(`reselection during ${int
     config.DEFAULT_VIEWER_PRESENTATION.motion.packageAnticipationScale,
     config.DEFAULT_VIEWER_PRESENTATION.motion.packageBounceAmount,
   );
-  for (let frame = 0; frame < 260; frame += 1) {
+  for (let frame = 0; frame < 300; frame += 1) {
     advance(1 / 120);
     assert.ok(product.scale.x <= maximumScale + 0.0001, 'Repeated choices cannot multiply the anticipation scale');
     if (mount.dataset.productId === 'b') assert.ok(Math.abs(renderer.camera.position.z - visibleDistance) < 1e-12, 'Incoming geometry cannot perturb the visible outgoing camera');
@@ -507,10 +519,10 @@ test('packaging holds for a slow latest selection and restores the old package o
   assert.equal(product.visible, false);
   geometryRequests[2].resolve(model(0.08)); await flush(); advance(1 / 120);
   assert.equal(mount.dataset.productId, 'c');
-  advance(1.05);
+  advance(1.3);
   assert.equal(mount.dataset.transitionPhase, 'idle');
   viewer.select(asset('missing')); advance(0.9);
-  geometryRequests[3].reject(new Error('Missing model')); await flush(); advance(1.05);
+  geometryRequests[3].reject(new Error('Missing model')); await flush(); advance(1.3);
   assert.equal(mount.dataset.productId, 'c');
   assert.equal(mount.dataset.transitionPhase, 'idle');
   assert.equal(product.visible, true);

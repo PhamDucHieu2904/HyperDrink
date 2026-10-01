@@ -60,7 +60,7 @@ export interface ViewerPresentation {
   environment: { src: string; intensity: number; rotation: Vector3Tuple };
   lights: ViewerLight[];
   exposure: number;
-  camera: { fov: number; fill: number; mobileFill: number; target: Vector3Tuple };
+  camera: { fov: number; fill: number; mobileFill: number; productScale: number; mobileProductScale: number; target: Vector3Tuple };
   pose: Vector3Tuple;
   motion: {
     idleSpeed: number; transitionSeconds: number; settleSeconds: number; turns: number; rocking: number; returnDelay: number;
@@ -87,13 +87,13 @@ export const DEFAULT_VIEWER_PRESENTATION: ViewerPresentation = {
     { type: 'hemisphere', color: '#ffffff', groundColor: '#b9b5ae', intensity: 0.45, position: [0, 3, 0] },
   ],
   exposure: 1.05,
-  camera: { fov: 30, fill: 0.94, mobileFill: 0.94, target: [0, 0, 0] },
+  camera: { fov: 30, fill: 0.94, mobileFill: 0.94, productScale: 1, mobileProductScale: 1.55, target: [0, 0, 0] },
   pose: [-0.12, 0.15, -0.16],
   motion: {
     idleSpeed: 0.21, transitionSeconds: 0.66, settleSeconds: 0.46, turns: 1, rocking: 0.075, returnDelay: 2,
     packageAimSeconds: 0.3, packageAnticipationSeconds: 0.12, packageAnticipationScale: 1.06,
     packageOutSeconds: 0.4, packageHoldSeconds: 0.2, packageInSeconds: 0.5, packageTilt: 1.3, packageSpringDamping: 0.66,
-    packageBounceSeconds: 0.48, packageBounceAmount: 0.15,
+    packageBounceSeconds: 0.7, packageBounceAmount: 0.2,
   },
   quality: { maxDpr: 1.65, mobileDpr: 1.35, antialias: true, maxFps: 60 },
   decoders: { dracoPath: '/decoders/draco/', basisPath: '/decoders/basis/' },
@@ -133,6 +133,8 @@ export function resolveViewerPresentation(input: ViewerPresentationInput = {}): 
       fov: number(input.camera?.fov, d.camera.fov, 18, 60),
       fill: number(input.camera?.fill, d.camera.fill, 0.4, 0.94),
       mobileFill: number(input.camera?.mobileFill, d.camera.mobileFill, 0.4, 0.94),
+      productScale: number(input.camera?.productScale, d.camera.productScale, 1, 2),
+      mobileProductScale: number(input.camera?.mobileProductScale, d.camera.mobileProductScale, 1, 2),
       target: vector(input.camera?.target, d.camera.target, 1),
     },
     pose: vector(input.pose, d.pose, Math.PI * 2),

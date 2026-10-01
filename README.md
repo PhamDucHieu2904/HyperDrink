@@ -24,6 +24,8 @@ The Pages workflow builds and deploys automatically when `main` changes. In repo
 npm run typecheck
 npm run lint
 npm run test:viewer
+npm run test:background
+npm run test:framing
 npm run build
 ```
 

@@ -8,7 +8,7 @@ import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { ProductAppearance, ProductAsset, ViewerPresentation, assetUrl } from '../viewer-config';
 import { AppearanceHandle, createAppearanceHandle, disposeProduct } from './appearance';
-import { fitProductCamera } from './framing';
+import { createProductFramingFrames, createRadialProductEnvelope, fitProductCamera, interpolatePackageAim } from './framing';
 import { packageCapPose, packageEntryScale, packageExitProgress, packageMaximumScale, packageSpinProgress, smoothstep } from './package-motion';
 
 export interface ViewerStatus {
@@ -25,7 +25,7 @@ export interface ProductViewerController {
   reset(): void;
   dispose(): void;
 }
-type LoadedProduct = { root: THREE.Group; content: THREE.Group; appearance: AppearanceHandle; asset: ProductAsset; bounds: THREE.Box3; radius: number };
+type LoadedProduct = { root: THREE.Group; content: THREE.Group; appearance: AppearanceHandle; asset: ProductAsset; bounds: THREE.Box3; radius: number; framingPoints?: THREE.Vector3[] };
 type Point = { x: number; y: number };
 type Transition = { origin: THREE.Quaternion; angle: number; velocity: number; initialVelocity: number; elapsed: number; swapped: boolean };
 type PackageTransition = {
@@ -123,8 +123,18 @@ export function createProductViewer(
     const fill = window.innerWidth <= 760 ? presentation.camera.mobileFill : presentation.camera.fill;
     const targetOffset = new THREE.Vector3(...presentation.camera.target).multiplyScalar(model.radius);
     const motion = presentation.motion;
+    const maximumScale = packageMaximumScale(motion.packageAnticipationScale, motion.packageBounceAmount);
     fitDistance = fitProductCamera(model.bounds, rest, camera.aspect, camera.fov, fill, motion.rocking, targetOffset, model.radius,
-      motion.packageTilt, packageMaximumScale(motion.packageAnticipationScale, motion.packageBounceAmount));
+      motion.packageTilt, maximumScale, {
+        points: model.framingPoints,
+        frames: createProductFramingFrames(rest, {
+          rocking: motion.rocking, tilt: motion.packageTilt, maximumScale,
+          anticipationScale: motion.packageAnticipationScale, entranceSeconds: motion.packageInSeconds,
+          entryScale: (elapsed) => packageEntryScale(elapsed, 0.01, motion),
+        }, model.radius),
+        sizeMultiplier: window.innerWidth <= 760 ? presentation.camera.mobileProductScale : presentation.camera.productScale,
+        referenceMaximumScale: 1.15,
+      });
     camera.near = Math.max(0.0001, model.radius * 0.01);
     camera.far = Math.max(10, fitDistance * 20);
     camera.position.set(targetOffset.x, targetOffset.y, currentDistance);
@@ -304,7 +314,8 @@ export function createProductViewer(
       content.updateMatrixWorld(true);
       const bounds = new THREE.Box3().setFromObject(content);
       const root = new THREE.Group(); root.add(content);
-      const loaded: LoadedProduct = { root, content, bounds, radius: bounds.getBoundingSphere(new THREE.Sphere()).radius, appearance: createAppearanceHandle(content, asset), asset };
+      const framingPoints = asset.packaging === 'can' ? createRadialProductEnvelope(content, bounds) : undefined;
+      const loaded: LoadedProduct = { root, content, bounds, framingPoints, radius: bounds.getBoundingSphere(new THREE.Sphere()).radius, appearance: createAppearanceHandle(content, asset), asset };
       // A selection can change while an external label texture is downloading.
       // Keep applying the newest desired appearance until a stable revision is
       // ready; do not activate a result from an older flavor/admin edit.
@@ -424,7 +435,7 @@ export function createProductViewer(
       if (move.phase === 'aim') {
         const t = Math.min(1, move.elapsed / motion.packageAimSeconds);
         const eased = smoothstep(t);
-        pose.copy(move.origin).slerp(move.cap, eased);
+        interpolatePackageAim(move.origin, move.cap, eased, pose);
         product.scale.setScalar(move.fromScale);
         product.position.y = move.fromY * (1 - eased);
         if (t === 1) { move.elapsed -= motion.packageAimSeconds; setPackagePhase('anticipate'); }

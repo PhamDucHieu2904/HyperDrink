@@ -29,10 +29,12 @@ export function packageEntryScale(elapsed: number, inScale: number, motion: Entr
   const time = Math.max(0, elapsed);
   if (amount === 0) return interpolate(inScale, 1, Math.min(1, time / entrance));
 
-  const crestSeconds = bounce * 0.24;
-  // Bounds on both Hermite tangents preserve monotonic growth for every allowed
-  // duration/amplitude. Recovery from a failed load above scale 1 eases down first.
-  const velocity = Math.min(1.5 * Math.max(0, 1 - inScale) / entrance, 1.5 * amount / crestSeconds);
+  const crestSeconds = bounce * 0.14;
+  // A normalized end tangent of 2.5 gives t^4 * (2.5 - 1.5t):
+  // near-still at first, then continuously accelerating into the rebound.
+  // Both tangent bounds guarantee monotonic growth for every admin duration /
+  // amplitude. Recovery above scale 1 still eases down before the rebound.
+  const velocity = Math.min(2.5 * Math.max(0, 1 - inScale) / entrance, 2.5 * amount / crestSeconds);
   if (time < entrance) {
     const t = time / entrance;
     return interpolate(inScale, 1, t) + velocity * entrance * endVelocity(t);
@@ -40,16 +42,20 @@ export function packageEntryScale(elapsed: number, inScale: number, motion: Entr
 
   const t = (time - entrance) / bounce;
   if (t >= 1) return 1;
-  if (t <= 0.24) {
-    const u = t / 0.24;
+  if (t <= 0.14) {
+    const u = t / 0.14;
     return 1 + amount * smoothstep(u) + velocity * crestSeconds * startVelocity(u);
   }
-  const recoilRatio = 0.35 * Math.exp(-2.5 * (damping - 0.66));
-  const trough = 1 - amount * recoilRatio;
-  const finalCrest = 1 + amount * recoilRatio * recoilRatio;
-  if (t <= 0.58) return interpolate(1 + amount, trough, (t - 0.24) / 0.34);
-  if (t <= 0.82) return interpolate(trough, finalCrest, (t - 0.58) / 0.24);
-  return interpolate(finalCrest, 1, (t - 0.82) / 0.18);
+  const recoilRatio = 0.5 * Math.exp(-2.5 * (damping - 0.66));
+  const firstTrough = 1 - amount * recoilRatio;
+  const secondCrest = 1 + amount * recoilRatio ** 2;
+  const secondTrough = 1 - amount * recoilRatio ** 3;
+  const finalCrest = 1 + amount * recoilRatio ** 4;
+  if (t <= 0.36) return interpolate(1 + amount, firstTrough, (t - 0.14) / 0.22);
+  if (t <= 0.57) return interpolate(firstTrough, secondCrest, (t - 0.36) / 0.21);
+  if (t <= 0.74) return interpolate(secondCrest, secondTrough, (t - 0.57) / 0.17);
+  if (t <= 0.87) return interpolate(secondTrough, finalCrest, (t - 0.74) / 0.13);
+  return interpolate(finalCrest, 1, (t - 0.87) / 0.13);
 }
 
 /** Reserve the visible rebound as well as anticipation in perspective fitting. */

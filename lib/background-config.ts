@@ -12,6 +12,10 @@ export interface BackgroundConfig {
   /** Constant travel speed in px/s; legacy field name retained for saved configurations. */
   maxSpeed: number;
   dampingSeconds: number;
+  /** Random steering whenever no mouse pointer is controlling the hero. */
+  autoDriftEnabled: boolean;
+  autoDirectionMinSeconds: number;
+  autoDirectionMaxSeconds: number;
   /** Legacy field retained for compatibility; distance no longer gates pointer movement. */
   deadZone: number;
   enabled: boolean;
@@ -22,7 +26,8 @@ export interface BackgroundConfig {
 export const backgroundConfig: BackgroundConfig = {
   version: 1, cellSize: 88, iconSize: 38, iconSpacing: 3,
   lineOpacity: .24, iconOpacity: .65,
-  maxSpeed: 24, dampingSeconds: 1.3, deadZone: .08, enabled: true,
+  maxSpeed: 26.4, dampingSeconds: 1.3, deadZone: .08, enabled: true,
+  autoDriftEnabled: true, autoDirectionMinSeconds: 2, autoDirectionMaxSeconds: 6,
   productGlowOpacity: .82, productGlowWidth: 1.45, productGlowHeight: 1.35,
 };
 export const backgroundThemes: { color: string; icon: FruitIcon }[] = showcaseFlavors.map(flavor => ({ color: flavor.background, icon: flavor.id }));
@@ -32,12 +37,16 @@ export function normalizeBackgroundConfig(input: Partial<BackgroundConfig>): Bac
     return Math.min(max, Math.max(min, typeof value === 'number' && Number.isFinite(value) ? value : backgroundConfig[key] as number));
   };
   const cellSize = bounded('cellSize', 48, 180);
+  const autoDirectionMinSeconds = bounded('autoDirectionMinSeconds', .5, 30);
   return {
     version: 1, cellSize, iconSize: Math.min(cellSize * .7, bounded('iconSize', 16, 100)),
     iconSpacing: Math.round(bounded('iconSpacing', 3, 8)),
     lineOpacity: bounded('lineOpacity', 0, 1), iconOpacity: bounded('iconOpacity', 0, 1),
     maxSpeed: bounded('maxSpeed', 0, 80), dampingSeconds: bounded('dampingSeconds', .1, 5),
-    deadZone: bounded('deadZone', 0, .4), enabled: input.enabled ?? backgroundConfig.enabled,
+    autoDriftEnabled: typeof input.autoDriftEnabled === 'boolean' ? input.autoDriftEnabled : backgroundConfig.autoDriftEnabled,
+    autoDirectionMinSeconds,
+    autoDirectionMaxSeconds: Math.max(autoDirectionMinSeconds, bounded('autoDirectionMaxSeconds', .5, 30)),
+    deadZone: bounded('deadZone', 0, .4), enabled: typeof input.enabled === 'boolean' ? input.enabled : backgroundConfig.enabled,
     productGlowOpacity: bounded('productGlowOpacity', 0, 1),
     productGlowWidth: bounded('productGlowWidth', .5, 2),
     productGlowHeight: bounded('productGlowHeight', .5, 2),

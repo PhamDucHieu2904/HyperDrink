@@ -29,6 +29,8 @@ jobs:
           NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
       - run: npm run lint
       - run: npm run test:viewer
+      - run: npm run test:background
+      - run: npm run test:framing
       - uses: actions/upload-pages-artifact@v4
         with:
           path: .next-pages

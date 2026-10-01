@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:viewer": "node scripts/tests/product-viewer.test.cjs",
+    "test:background": "node scripts/tests/background-motion.test.cjs",
+    "test:framing": "node scripts/tests/framing.test.cjs",
     "convert:model": "node scripts/convert-can-obj-to-glb.mjs"
   },
   "dependencies": {
