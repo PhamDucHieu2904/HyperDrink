@@ -3,6 +3,25 @@ export type PackagingKind = 'can' | 'pet' | 'glass' | 'pouch' | 'other';
 export type Vector3Tuple = [number, number, number];
 export type ViewerToneMapping = 'neutral' | 'agx' | 'aces';
 
+export interface ProceduralEnvironmentConfig {
+  preset: 'soft-daylight';
+  /** Stable arrangement of broad, defocused canopy/cloud reflections. */
+  seed: number;
+  /** Linear radiance, not a display/sRGB brightness value. */
+  skyIntensity: number;
+  groundIntensity: number;
+  canopyStrength: number;
+}
+
+export interface ViewerEnvironment {
+  mode: 'procedural' | 'hdri';
+  /** Retained when switching presets so an uploaded HDRI can be selected again. */
+  src: string;
+  intensity: number;
+  rotation: Vector3Tuple;
+  procedural: ProceduralEnvironmentConfig;
+}
+
 export interface ProductAsset {
   id: string;
   src: string;
@@ -58,7 +77,7 @@ export interface ViewerLight {
 
 export interface ViewerPresentation {
   schemaVersion: 1;
-  environment: { src: string; intensity: number; rotation: Vector3Tuple };
+  environment: ViewerEnvironment;
   lights: ViewerLight[];
   toneMapping: ViewerToneMapping;
   exposure: number;
@@ -74,20 +93,27 @@ export interface ViewerPresentation {
   decoders: { dracoPath: string; basisPath: string };
 }
 
-export type ViewerPresentationInput = {
+export type ViewerPresentationInput = Omit<{
   [K in keyof ViewerPresentation]?: ViewerPresentation[K] extends unknown[]
     ? ViewerPresentation[K]
     : ViewerPresentation[K] extends object ? Partial<ViewerPresentation[K]> : ViewerPresentation[K];
+}, 'environment'> & {
+  environment?: Partial<Omit<ViewerEnvironment, 'procedural'>> & {
+    procedural?: Partial<ProceduralEnvironmentConfig>;
+  };
 };
 
 export const DEFAULT_VIEWER_PRESENTATION: ViewerPresentation = {
   schemaVersion: 1,
-  // Broad, neutral softboxes provide the reflections; direct lights only lift shadows.
-  environment: { src: '/environments/studio-softbox.exr', intensity: 0.85, rotation: [0, 0.75, 0] },
+  // Broad sky and ground illumination avoid harsh studio strips on glossy labels.
+  environment: {
+    mode: 'procedural', src: '/environments/studio-softbox.exr', intensity: 0.85, rotation: [0, 0, 0],
+    procedural: { preset: 'soft-daylight', seed: 2904, skyIntensity: 1.1, groundIntensity: 0.52, canopyStrength: 0.32 },
+  },
   lights: [
-    { type: 'directional', color: '#ffffff', intensity: 0.45, position: [4, 5, 5] },
-    { type: 'directional', color: '#f0f6ff', intensity: 0.25, position: [-4, 3, 4] },
-    { type: 'hemisphere', color: '#ffffff', groundColor: '#aeb5bd', intensity: 0.12, position: [0, 3, 0] },
+    { type: 'directional', color: '#ffffff', intensity: 0.045, position: [-3, 4, 5] },
+    { type: 'directional', color: '#f6f9ff', intensity: 0.03, position: [4, 2, 5] },
+    { type: 'hemisphere', color: '#ffffff', groundColor: '#c5c5bd', intensity: 0.035, position: [0, 3, 0] },
   ],
   toneMapping: 'neutral',
   exposure: 0.95,
@@ -121,9 +147,19 @@ export function resolveViewerPresentation(input: ViewerPresentationInput = {}): 
   return {
     schemaVersion: 1,
     environment: {
+      mode: input.environment?.mode === 'hdri' || input.environment?.mode === 'procedural'
+        ? input.environment.mode
+        : assetUrl(input.environment?.src) ? 'hdri' : d.environment.mode,
       src: assetUrl(input.environment?.src, d.environment.src),
       intensity: number(input.environment?.intensity, d.environment.intensity, 0, 5),
       rotation: vector(input.environment?.rotation, d.environment.rotation, Math.PI * 2),
+      procedural: {
+        preset: 'soft-daylight',
+        seed: Math.floor(number(input.environment?.procedural?.seed, d.environment.procedural.seed, 0, 2147483647)),
+        skyIntensity: number(input.environment?.procedural?.skyIntensity, d.environment.procedural.skyIntensity, 0.1, 3),
+        groundIntensity: number(input.environment?.procedural?.groundIntensity, d.environment.procedural.groundIntensity, 0.05, 2),
+        canopyStrength: number(input.environment?.procedural?.canopyStrength, d.environment.procedural.canopyStrength, 0, 0.65),
+      },
     },
     lights: (Array.isArray(input.lights) ? input.lights : d.lights).slice(0, 6).map((light, index) => ({
       type: light.type === 'hemisphere' ? 'hemisphere' : 'directional',

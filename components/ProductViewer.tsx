@@ -5,6 +5,7 @@ import { publicUrl } from '@/lib/public-url';
 import { Box } from 'lucide-react';
 import { ProductAppearance, ProductAsset, resolveViewerPresentation, ViewerPresentationInput } from '@/lib/viewer-config';
 import { createProductViewer, ProductViewerController, ViewerStatus } from '@/lib/viewer/runtime';
+import type { AccentFlavor, ProductAccentSceneInput } from '@/lib/viewer/accent-config';
 
 export interface ProductViewerProps {
   asset: ProductAsset;
@@ -13,20 +14,24 @@ export interface ProductViewerProps {
   paused?: boolean;
   resetKey?: string | number;
   onStatus?: (status: ViewerStatus) => void;
+  accentScene?: ProductAccentSceneInput;
+  accentFlavor?: AccentFlavor;
 }
 
 /** Generic container: geometry, appearance and lighting are independent data contracts. */
-export default function ProductViewer({ asset, appearance, presentation, paused = false, resetKey, onStatus }: ProductViewerProps) {
+export default function ProductViewer({ asset, appearance, presentation, paused = false, resetKey, onStatus, accentScene, accentFlavor = 'citrus' }: ProductViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const controller = useRef<ProductViewerController | null>(null);
-  const latest = useRef({ asset, appearance, presentation, paused, onStatus });
+  const latest = useRef({ asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor });
   const [status, setStatus] = useState<ViewerStatus>({ phase: 'loading', assetId: asset.id });
   // Plain JSON signatures prevent reinitializing WebGL when parents rebuild objects.
   const assetSignature = JSON.stringify(asset);
   const appearanceSignature = JSON.stringify(appearance ?? null);
   const presentationSignature = JSON.stringify(presentation ?? null);
+  const accentSignature = JSON.stringify(accentScene ?? null);
+  const accentKey = `${asset.id}:${appearance?.id ?? ''}`;
 
-  useEffect(() => { latest.current = { asset, appearance, presentation, paused, onStatus }; });
+  useEffect(() => { latest.current = { asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor }; });
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -39,6 +44,7 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
     };
     try {
       controller.current = createProductViewer(mount, resolveViewerPresentation(latest.current.presentation), publish);
+      controller.current.accents(latest.current.accentScene, `${latest.current.asset.id}:${latest.current.appearance?.id ?? ''}`, latest.current.accentFlavor);
       controller.current.pause(latest.current.paused);
       controller.current.select(latest.current.asset, latest.current.appearance);
     } catch {
@@ -58,6 +64,9 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
   useEffect(() => {
     controller.current?.configure(resolveViewerPresentation(latest.current.presentation));
   }, [presentationSignature]);
+  useEffect(() => {
+    controller.current?.accents(latest.current.accentScene, accentKey, latest.current.accentFlavor);
+  }, [accentSignature, accentKey, accentFlavor]);
   useEffect(() => { controller.current?.pause(paused); }, [paused]);
   useEffect(() => { if (resetKey !== undefined) controller.current?.reset(); }, [resetKey]);
 

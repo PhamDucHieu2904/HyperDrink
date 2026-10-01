@@ -25,6 +25,7 @@ const config = loadSource('lib/viewer-config.ts');
 const backgroundMotion = loadSource('lib/background-motion.ts');
 const packageMotion = loadSource('lib/viewer/package-motion.ts');
 const publicUrls = loadSource('lib/public-url.ts');
+const environments = loadSource('lib/viewer/environment.ts');
 
 test('public asset URLs support repository paths without double prefixes or changing external URLs', () => {
   const previous = process.env.NEXT_PUBLIC_BASE_PATH;
@@ -250,6 +251,7 @@ function runtimeFixture(context, immediateAppearance = false) {
   };
   const geometryRequests = [];
   const appearanceRequests = [];
+  const accentFrames = [];
   const statuses = [];
   const environment = deferred();
   const motionListeners = new Set();
@@ -314,6 +316,12 @@ function runtimeFixture(context, immediateAppearance = false) {
     if (name.endsWith('viewer-config')) return config;
     if (name === './framing') return framing;
     if (name === './package-motion') return packageMotion;
+    if (name === './environment') return environments;
+    if (name === './accent-layer') return { createAccentLayer: () => ({
+      configure() {},
+      update(frame) { accentFrames.push(frame); return { phase: 'waiting', count: 0 }; },
+      dispose() {},
+    }) };
     if (name === './appearance') return {
       createAppearanceHandle(root, asset) {
         return {
@@ -331,7 +339,8 @@ function runtimeFixture(context, immediateAppearance = false) {
     throw new Error(`Unexpected runtime dependency: ${name}`);
   });
   const mount = { clientWidth: 500, clientHeight: 700, dataset: {}, classList: { add() {}, remove() {} }, appendChild() {} };
-  viewer = runtime.createProductViewer(mount, config.DEFAULT_VIEWER_PRESENTATION, (status) => statuses.push(status));
+  // This fixture deliberately exercises asynchronous HDRI loading races.
+  viewer = runtime.createProductViewer(mount, config.resolveViewerPresentation({environment:{mode:'hdri'}}), (status) => statuses.push(status));
   const model = (height = 0.115) => {
     const scene = new THREE.Group();
     scene.add(new THREE.Mesh(new THREE.BoxGeometry(0.065, height, 0.065), new THREE.MeshPhysicalMaterial()));
@@ -345,7 +354,7 @@ function runtimeFixture(context, immediateAppearance = false) {
       renderers[0].frame(frameTime);
     }
   };
-  return { viewer, mount, renderer: renderers[0], geometryRequests, appearanceRequests, environment, statuses,
+  return { viewer, mount, renderer: renderers[0], geometryRequests, appearanceRequests, accentFrames, environment, statuses,
     model, asset, flush, advance, setReducedMotion: (matches) => motionListeners.forEach((listener) => listener({ matches })),
     disposedCount: () => productsDisposed };
 }
@@ -370,7 +379,7 @@ test('live lighting edits update tone mapping and HDRI settings without reloadin
   ].entries()) {
     const pose = product.quaternion.clone();
     const settings = config.resolveViewerPresentation({ toneMapping, exposure: 0.8 + index * 0.15,
-      environment: { intensity: 0.6 + index * 0.1, rotation: [0.1, 0.3 + index * 0.2, -0.1] } });
+      environment: { mode:'hdri', intensity: 0.6 + index * 0.1, rotation: [0.1, 0.3 + index * 0.2, -0.1] } });
     viewer.configure(settings);
     assert.equal(renderer.toneMapping, rendererMode, 'Serialized renderer mode maps to the actual Three.js constant');
     assert.equal(renderer.toneMappingExposure, settings.exposure);
@@ -428,6 +437,73 @@ test('runtime resolves selection races, preserves loading state, respects pause 
   await flush();
   assert.equal(statuses.at(-1).phase, 'loading', 'Disposed viewer must not publish a late ready status');
   assert.ok(disposedCount() >= 3, 'Active, outgoing and late-loading product resources must be released');
+});
+
+test('accent reveal stays gated when a pending package receives a slow newer label texture', async (context) => {
+  const { viewer, mount, geometryRequests, appearanceRequests, accentFrames, model, asset, flush, advance } = runtimeFixture(context);
+  viewer.select(asset('short'), { id: 'citrus' });
+  geometryRequests[0].resolve(model(0.08)); await flush();
+  appearanceRequests[0].resolve(); await flush(); advance(0.05);
+  assert.equal(accentFrames.at(-1).ready, true);
+
+  viewer.select(asset('tall'), { id: 'citrus' });
+  geometryRequests[1].resolve(model(0.18)); await flush();
+  appearanceRequests[1].resolve(); await flush();
+  assert.equal(mount.dataset.productId, 'short', 'Decoded package remains pending during the outgoing trajectory');
+  viewer.select(asset('tall'), { id: 'berry', slots: { label: { baseColorMap: '/slow/berry.png' } } });
+  assert.equal(appearanceRequests[2].value.slots.label.baseColorMap, '/slow/berry.png');
+  advance(2.4);
+  assert.equal(mount.dataset.productId, 'tall');
+  assert.equal(mount.dataset.transitionPhase, 'idle', 'Package zoom and all rebounds have actually completed');
+  assert.equal(accentFrames.at(-1).viewerIdle, true);
+  assert.equal(accentFrames.at(-1).ready, false, 'A newly active model retains its pending appearance readiness');
+  appearanceRequests[2].resolve(); await flush(); advance(1 / 120);
+  assert.equal(accentFrames.at(-1).ready, true, 'The latest texture completion finally releases the reveal gate');
+});
+
+test('an obsolete pending label completion cannot release accents before the latest texture revision', async (context) => {
+  const { viewer, mount, geometryRequests, appearanceRequests, accentFrames, model, asset, flush, advance } = runtimeFixture(context);
+  viewer.select(asset('a'), { id: 'citrus' });
+  geometryRequests[0].resolve(model()); await flush(); appearanceRequests[0].resolve(); await flush(); advance(0.05);
+  viewer.select(asset('b'), { id: 'citrus' });
+  geometryRequests[1].resolve(model(0.18)); await flush(); appearanceRequests[1].resolve(); await flush();
+  viewer.select(asset('b'), { id: 'berry', slots: { label: { baseColorMap: '/slow/berry.png' } } });
+  viewer.select(asset('b'), { id: 'lime', slots: { label: { baseColorMap: '/slow/lime.png' } } });
+  appearanceRequests[2].resolve(); await flush(); advance(2.4);
+  assert.equal(mount.dataset.productId, 'b');
+  assert.equal(mount.dataset.transitionPhase, 'idle');
+  assert.equal(accentFrames.at(-1).ready, false, 'Old berry completion cannot mark the later lime request ready');
+  appearanceRequests[3].reject(new Error('Optional label image unavailable')); await flush(); advance(1 / 120);
+  assert.equal(accentFrames.at(-1).ready, true, 'Documented imported-material fallback releases a failed optional texture gate');
+});
+
+for (const mode of ['paused', 'reduced-motion']) test(`${mode} asset replacement with the same ID waits for new geometry and appearance`, async (context) => {
+  const { viewer, renderer, geometryRequests, appearanceRequests, accentFrames, model, asset, flush, advance, setReducedMotion } = runtimeFixture(context);
+  const original = asset('can');
+  viewer.select(original, { id: 'citrus' });
+  geometryRequests[0].resolve(model(0.08)); await flush(); appearanceRequests[0].resolve(); await flush(); advance(0.05);
+  assert.equal(accentFrames.at(-1).ready, true);
+  const product = renderer.scene.children.find(child => child instanceof THREE.Group);
+  const outgoing = product.children[0];
+  if (mode === 'paused') viewer.pause(true);
+  else setReducedMotion(true);
+  viewer.select(original, { id: 'lime', slots: { label: { baseColorMap: '/slow/old-lime.png' } } });
+  viewer.select({ ...original, src: '/replacement-can.glb' }, { id: 'berry', slots: { label: { baseColorMap: '/slow/replacement-berry.png' } } });
+  assert.equal(geometryRequests[1].src, '/replacement-can.glb');
+  advance(0.05);
+  assert.equal(accentFrames.at(-1).viewerIdle, true, 'Static mode has no package animation to provide a secondary readiness guard');
+  assert.equal(accentFrames.at(-1).ready, false, 'Matching asset ID alone cannot release replacement accents');
+  assert.equal(product.children[0], outgoing, 'The previous model remains visible while its replacement downloads');
+  appearanceRequests[1].resolve(); await flush(); advance(1 / 120);
+  assert.equal(accentFrames.at(-1).ready, false, 'An outgoing model texture completion cannot release the desired replacement gate');
+  geometryRequests[1].resolve(model(0.18)); await flush(); advance(1 / 120);
+  assert.equal(accentFrames.at(-1).ready, false, 'Decoded replacement still waits for its own latest material');
+  assert.equal(product.children[0], outgoing);
+  appearanceRequests[2].resolve(); await flush(); advance(1 / 120);
+  assert.equal(accentFrames.at(-1).ready, true);
+  assert.notEqual(product.children[0], outgoing);
+  const bounds = new THREE.Box3().setFromObject(product.children[0]);
+  assert.ok(bounds.max.y - bounds.min.y > 0.17, 'The real incoming geometry was attached before revealing its accents');
 });
 
 test('packaging grows continuously into a visible upright rebound without a camera jump', async (context) => {

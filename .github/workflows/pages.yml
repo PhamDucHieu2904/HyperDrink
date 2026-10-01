@@ -31,6 +31,8 @@ jobs:
       - run: npm run test:viewer
       - run: npm run test:background
       - run: npm run test:framing
+      - run: npm run test:accents
+      - run: npm run test:environment
       - uses: actions/upload-pages-artifact@v4
         with:
           path: .next-pages

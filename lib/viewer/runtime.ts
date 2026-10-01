@@ -10,6 +10,9 @@ import { ProductAppearance, ProductAsset, ViewerPresentation, assetUrl } from '.
 import { AppearanceHandle, createAppearanceHandle, disposeProduct } from './appearance';
 import { createProductFramingFrames, createRadialProductEnvelope, fitProductCamera, interpolatePackageAim } from './framing';
 import { packageCapPose, packageEntryScale, packageExitProgress, packageMaximumScale, packageSpinProgress, smoothstep } from './package-motion';
+import { createDaylightEnvironment, environmentCacheKey } from './environment';
+import { createAccentLayer } from './accent-layer';
+import type { AccentFlavor, ProductAccentSceneInput } from './accent-config';
 
 export interface ViewerStatus {
   phase: 'loading' | 'ready' | 'error';
@@ -21,11 +24,12 @@ export interface ViewerStatus {
 export interface ProductViewerController {
   select(asset: ProductAsset, appearance?: ProductAppearance): void;
   configure(presentation: ViewerPresentation): void;
+  accents(scene: ProductAccentSceneInput | undefined, key: string, flavor: AccentFlavor): void;
   pause(paused: boolean): void;
   reset(): void;
   dispose(): void;
 }
-type LoadedProduct = { root: THREE.Group; content: THREE.Group; appearance: AppearanceHandle; asset: ProductAsset; bounds: THREE.Box3; radius: number; framingPoints?: THREE.Vector3[] };
+type LoadedProduct = { root: THREE.Group; content: THREE.Group; appearance: AppearanceHandle; asset: ProductAsset; definitionKey: string; bounds: THREE.Box3; radius: number; framingPoints?: THREE.Vector3[] };
 type Point = { x: number; y: number };
 type Transition = { origin: THREE.Quaternion; angle: number; velocity: number; initialVelocity: number; elapsed: number; swapped: boolean };
 type PackageTransition = {
@@ -87,7 +91,9 @@ export function createProductViewer(
   let desiredAppearance: ProductAppearance | undefined;
   let assetRevision = 0;
   const appearanceRevisions = new WeakMap<LoadedProduct, number>();
+  const appearanceReadiness = new WeakMap<LoadedProduct, boolean>();
   let currentAppearanceKey = '';
+  let appearanceReady = true;
   let lights: THREE.Light[] = [];
   let fitDistance = 0.4;
   let currentDistance = 0.4;
@@ -104,6 +110,7 @@ export function createProductViewer(
   const draco = new DRACOLoader().setDecoderPath(publicUrl(presentation.decoders.dracoPath)).setWorkerLimit(2);
   const basis = new KTX2Loader().setTranscoderPath(publicUrl(presentation.decoders.basisPath)).setWorkerLimit(2).detectSupport(renderer);
   loader.setMeshoptDecoder(MeshoptDecoder).setDRACOLoader(draco).setKTX2Loader(basis);
+  const accents = createAccentLayer(scene, loader, () => { dirty = true; });
 
   const emitStatus = (phase: ViewerStatus['phase'], message?: string) => {
     statusPhase = phase; statusMessage = message;
@@ -152,11 +159,15 @@ export function createProductViewer(
     camera.updateProjectionMatrix();
     dirty = true;
   };
-  const loadEnvironment = (src: string) => {
+  const loadEnvironment = (settings: ViewerPresentation['environment']) => {
     const thisRevision = ++environmentRevision;
-    environmentSrc = src;
-    if (!environmentTargets.has(src)) {
-      const pending = (/\.exr(?:\?|$)/i.test(src) ? new EXRLoader() : new HDRLoader()).loadAsync(publicUrl(src)).then((texture) => {
+    const key = environmentCacheKey(settings);
+    environmentSrc = key;
+    if (!environmentTargets.has(key)) {
+      const source = settings.mode === 'procedural'
+        ? Promise.resolve(createDaylightEnvironment(settings.procedural))
+        : (/\.exr(?:\?|$)/i.test(settings.src) ? new EXRLoader() : new HDRLoader()).loadAsync(publicUrl(settings.src));
+      const pending = source.then((texture) => {
         if (disposed) { texture.dispose(); throw new Error('Viewer disposed'); }
         try {
           const target = pmrem.fromEquirectangular(texture);
@@ -164,9 +175,9 @@ export function createProductViewer(
           return target;
         } finally { texture.dispose(); }
       });
-      environmentTargets.set(src, pending);
+      environmentTargets.set(key, pending);
     }
-    environmentTargets.get(src)!.then((target) => {
+    environmentTargets.get(key)!.then((target) => {
       if (disposed || thisRevision !== environmentRevision) return;
       scene.environment = target.texture;
       scene.environmentIntensity = presentation.environment.intensity;
@@ -177,7 +188,7 @@ export function createProductViewer(
       emitStatus(statusPhase, statusMessage);
     }).catch(() => {
       if (disposed || thisRevision !== environmentRevision) return;
-      environmentTargets.delete(src);
+      environmentTargets.delete(key);
       mount.dataset.environment = 'error';
       // Retain an earlier valid environment. Lighting failure does not hide the product.
       emitStatus(statusPhase, statusMessage ?? 'Không tải được HDRI studio; đang dùng ánh sáng dự phòng.');
@@ -204,7 +215,7 @@ export function createProductViewer(
     });
     scene.environmentIntensity = value.environment.intensity;
     scene.environmentRotation.set(...value.environment.rotation);
-    if (value.environment.src !== environmentSrc) loadEnvironment(value.environment.src);
+    if (environmentCacheKey(value.environment) !== environmentSrc) loadEnvironment(value.environment);
     draco.setDecoderPath(publicUrl(value.decoders.dracoPath));
     basis.setTranscoderPath(publicUrl(value.decoders.basisPath));
     if (poseChanged) {
@@ -255,6 +266,7 @@ export function createProductViewer(
     active = pendingProduct;
     pendingProduct = null;
     product.add(active.root);
+    appearanceReady = appearanceReadiness.get(active) ?? true;
     mount.dataset.productId = active.asset.id;
     fitCamera();
     emitStatus('ready');
@@ -262,12 +274,20 @@ export function createProductViewer(
   const applyAppearance = async (loaded: LoadedProduct, appearance: ProductAppearance | undefined) => {
     const thisRevision = (appearanceRevisions.get(loaded) ?? 0) + 1;
     appearanceRevisions.set(loaded, thisRevision);
+    appearanceReadiness.set(loaded, false);
+    if (loaded === active) appearanceReady = false;
     try {
       await loaded.appearance.apply(appearance);
       if (disposed || thisRevision !== appearanceRevisions.get(loaded)) return;
+      appearanceReadiness.set(loaded, true);
+      if (loaded === active) appearanceReady = true;
       dirty = true;
     } catch {
-      if (!disposed && thisRevision === appearanceRevisions.get(loaded)) emitStatus(statusPhase, 'Không tải được texture; giữ vật liệu gốc.');
+      if (!disposed && thisRevision === appearanceRevisions.get(loaded)) {
+        appearanceReadiness.set(loaded, true);
+        if (loaded === active) appearanceReady = true;
+        emitStatus(statusPhase, 'Không tải được texture; giữ vật liệu gốc.');
+      }
     }
   };
   const select = (asset: ProductAsset, appearance?: ProductAppearance) => {
@@ -282,6 +302,7 @@ export function createProductViewer(
       if (currentAppearanceKey === appearanceKey) return;
       currentAppearanceKey = appearanceKey;
       if (active?.asset.id === asset.id && active.asset.src === asset.src) {
+        appearanceReady = false;
         beginCinematic();
         // Resolve appearance immediately while motion turns the print away.
         // It is scoped to this viewer, so multiple viewers never change one another.
@@ -319,7 +340,7 @@ export function createProductViewer(
       const bounds = new THREE.Box3().setFromObject(content);
       const root = new THREE.Group(); root.add(content);
       const framingPoints = asset.packaging === 'can' ? createRadialProductEnvelope(content, bounds) : undefined;
-      const loaded: LoadedProduct = { root, content, bounds, framingPoints, radius: bounds.getBoundingSphere(new THREE.Sphere()).radius, appearance: createAppearanceHandle(content, asset), asset };
+      const loaded: LoadedProduct = { root, content, bounds, framingPoints, radius: bounds.getBoundingSphere(new THREE.Sphere()).radius, appearance: createAppearanceHandle(content, asset), asset, definitionKey: nextAssetDefinitionKey };
       // A selection can change while an external label texture is downloading.
       // Keep applying the newest desired appearance until a stable revision is
       // ready; do not activate a result from an older flavor/admin edit.
@@ -331,6 +352,7 @@ export function createProductViewer(
         catch { /* Keep imported PBR if this optional texture cannot be loaded. */ }
         if (disposed || thisRevision !== assetRevision) { discard(loaded); return; }
       } while (appliedAppearanceKey !== JSON.stringify(desiredAppearance ?? null));
+      appearanceReadiness.set(loaded, true);
       pendingProduct = loaded;
       if (!active || reducedMotion || dragging || paused) {
         clearPackageMotion();
@@ -545,6 +567,13 @@ export function createProductViewer(
     camera.position.z = currentDistance;
     const model = active ?? pendingProduct;
     if (model) camera.lookAt(new THREE.Vector3(...presentation.camera.target).multiplyScalar(model.radius));
+    const accentFrame = accents.update({ deltaSeconds: dt, reducedMotion, paused,
+      ready: Boolean(active && active.definitionKey === assetDefinitionKey && appearanceReady),
+      viewerIdle: !cinematic && !packageTransition,
+      height: active ? active.bounds.max.y - active.bounds.min.y : 0.1, camera });
+    mount.dataset.accentPhase = accentFrame.phase;
+    mount.dataset.accentCount = String(accentFrame.count);
+    if (accentFrame.count > 0 && !paused && !reducedMotion) dirty = true;
     if (dirty && now - lastDrawTime >= 1000 / presentation.quality.maxFps) {
       renderer.render(scene, camera);
       mount.dataset.viewerReady = active ? 'true' : 'false';
@@ -584,6 +613,7 @@ export function createProductViewer(
   return {
     select,
     configure,
+    accents: (value, key, flavor) => accents.configure(value, key, flavor),
     pause(value) {
       paused = value;
       if (paused) {
@@ -610,6 +640,7 @@ export function createProductViewer(
       renderer.domElement.removeEventListener('keydown', keyDown);
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
       discard(active); discard(pendingProduct);
+      accents.dispose();
       ownedEnvironmentTargets.forEach((target) => target.dispose());
       environmentTargets.clear();
       pmrem.dispose(); draco.dispose(); basis.dispose();

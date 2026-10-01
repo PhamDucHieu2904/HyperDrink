@@ -11,6 +11,7 @@ import { backgroundConfig, normalizeBackgroundConfig } from '@/lib/background-co
 import { canAssets } from '@/lib/product-assets';
 import type { ProductAppearance } from '@/lib/viewer-config';
 import { showcaseFlavors as flavors } from '@/lib/showcase-flavors';
+import { DEFAULT_PRODUCT_ACCENT_SCENE } from '@/lib/viewer/accent-config';
 
 const ProductViewer = dynamic(() => import('./ProductViewer'), { ssr: false });
 const backgroundSettings = normalizeBackgroundConfig(backgroundConfig);
@@ -58,7 +59,7 @@ export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
     <button type="button" tabIndex={isClone ? -1 : undefined} onClick={onExplore}><span><LayoutGrid /></span>All flavors</button>
   </div>;
 
-  return <section ref={heroRef} className="showcase-hero" aria-labelledby="showcase-title" style={{
+  return <section ref={heroRef} className="showcase-hero" data-flavor={flavor.id} aria-labelledby="showcase-title" style={{
     '--flavor-accent': flavor.color,
     '--product-glow-opacity': backgroundSettings.productGlowOpacity,
   } as React.CSSProperties}>
@@ -77,7 +78,7 @@ export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
         <button className="btn btn-ghost" onClick={() => setDetail('flavor')}><Play size={18} fill="currentColor" /> Hương vị</button>
       </div>
     </div>
-    <div ref={productRef} className="showcase-product"><ProductViewer asset={asset} appearance={appearance} /></div>
+    <div ref={productRef} className="showcase-product"><ProductViewer asset={asset} appearance={appearance} accentScene={DEFAULT_PRODUCT_ACCENT_SCENE} accentFlavor={flavor.id} /></div>
     <div className="model-picker" role="group" aria-label="Chọn kiểu lon">
       <span className="model-picker-label">Kiểu dáng bao bì</span>
       <div className="model-options">{canAssets.map(item => <button type="button" key={item.id} aria-pressed={item.id === asset.id} onClick={() => setAssetId(item.id)}>{item.name.replace('Lon ', '')}</button>)}</div>

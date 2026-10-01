@@ -11,6 +11,8 @@
     "test:viewer": "node scripts/tests/product-viewer.test.cjs",
     "test:background": "node scripts/tests/background-motion.test.cjs",
     "test:framing": "node scripts/tests/framing.test.cjs",
+    "test:accents": "node scripts/tests/accent-scene.test.cjs && node scripts/tests/accent-layer.test.cjs",
+    "test:environment": "node scripts/tests/viewer-environment.test.cjs",
     "convert:model": "node scripts/convert-can-obj-to-glb.mjs"
   },
   "dependencies": {

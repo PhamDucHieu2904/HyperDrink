@@ -1,6 +1,6 @@
 # ProductViewer and future admin integration
 
-The storefront no longer assumes one can mesh. `ProductViewer` receives three independent, serializable inputs: `ProductAsset`, `ProductAppearance`, and `ViewerPresentationInput`. The same viewer can load can, PET, glass, pouch, or other GLB assets. Bottle and pouch assets still need their own export QA; changing a packaging enum does not manufacture a new model.
+The storefront no longer assumes one can mesh. `ProductViewer` receives independent, serializable inputs: `ProductAsset`, `ProductAppearance`, `ViewerPresentationInput` and optional `ProductAccentSceneInput`. The same viewer can load can, PET, glass, pouch, or other GLB assets. Bottle and pouch assets still need their own export QA; changing a packaging enum does not manufacture a new model.
 
 ## Boundaries
 
@@ -12,18 +12,35 @@ The storefront no longer assumes one can mesh. `ProductViewer` receives three in
 - `lib/viewer/appearance.ts`: explicit material-slot overrides and temporary label artwork.
 - `lib/viewer/runtime.ts`: Three.js loading, lighting, motion, fitting and resource ownership.
 - `lib/viewer/package-motion.ts`: canonical cap pose, accelerating launch and damped scale rebound curves.
+- `lib/viewer/accent-config.ts`, `accent-motion.ts`, `accent-layer.ts`: serializable surrounding composition, product-gated choreography and scene-local assets.
 - `components/ProductViewer.tsx`: React mount, loading/error presentation and controller lifecycle.
 - `components/ShowcaseHero.tsx`: storefront composition and current flavor/model selection.
 
 Geometry is reused across flavors. HDRI is a presentation resource, rather than embedded in every model. New artwork changes a material slot instead of downloading another copy of the geometry. Preserve imported PBR properties unless a particular slot has an explicit override. Printed cans are opaque; transmission/refraction is reserved for appropriate bottle/liquid materials.
 
-## Studio lighting
+## Environment lighting
 
-The default environment is Poly Haven's CC0 [Studio Small 08](https://polyhaven.com/a/studio_small_08), stored locally as `public/environments/studio-softbox.exr` (1K, approximately 1 MB). Its broad softboxes supply diffuse illumination and reflections; the much weaker white/cool fill lights lift shadows without bleaching the print. One cached PMREM environment serves all package and flavor changes. Source and license are recorded in `public/environments/LICENSE.txt`.
+The default `environment.mode` is `procedural`. `lib/viewer/environment.ts` generates a 512 × 256 equirectangular environment in linear HDR radiance and HalfFloat format. Broad, slightly cool sky illumination, neutral ground bounce, two broad sky openings and seeded defocused canopy patches create natural daylight reflections without dark studio walls or narrow white softbox stripes. This lighting resource is not a visible background or an LDR panorama. It uses no stock/reference image and needs no HDRI download. Weak balanced fill lights retain readable print; aluminum retains its imported material.
 
-`toneMapping` is a validated, serializable choice of `neutral`, `agx`, or `aces`, independent of `exposure`. The storefront uses Neutral at exposure 0.95 to preserve label colors while compressing bright reflections. Older records without this field receive the default. The admin can later change this choice, HDRI rotation/intensity and lights through `configure()` without reloading geometry or restarting motion. Renderer output and color textures remain sRGB; HDRI and PBR calculations remain linear.
+`environment.procedural` persists the preset, seed, sky radiance, ground radiance and canopy strength. These are independent of the overall `environment.intensity` and rotation. PMREM generation is cached by radiance configuration, so changing intensity/rotation, product shape or flavor reuses its GPU texture. Source textures are disposed after PMREM creation; all targets belong to the viewer and are disposed with it.
+
+`environment.mode: 'hdri'` still accepts an uploaded/local EXR or HDR via `environment.src`. Older records that provide `src` without `mode` retain HDRI mode. The previous Poly Haven CC0 [Studio Small 08](https://polyhaven.com/a/studio_small_08) remains available as `public/environments/studio-softbox.exr`; its attribution is in `public/environments/LICENSE.txt`.
+
+`toneMapping` is a validated, serializable choice of `neutral`, `agx`, or `aces`, independent of `exposure`. The storefront uses Neutral at exposure 0.95 to preserve label colors while compressing bright reflections. Older records without this field receive the default. The admin can later change this choice, procedural/HDRI selection, sky/ground balance, seed, canopy strength, environment rotation/intensity and lights through `configure()` without reloading geometry or restarting motion. Renderer output and color textures remain sRGB; HDRI and PBR calculations remain linear.
 
 The storefront's demo overrides only a can's explicit `label` slot: metalness 0, roughness 0.15, clearcoat 0.2 and clearcoat roughness 0.3. These remain independent appearance data for future admin controls. Aluminum/tab materials stay as exported, and the generic viewer does not replace bottle or pouch materials. The older `studio.exr` remains an optional environment rather than the default.
+
+Temporary print artwork uses a gentle 22% mix toward neighboring palette colors. This avoids baking a dark side into the artwork. Approved label maps bypass this demo gradient entirely.
+
+## Surrounding objects
+
+The default accent composition contains 2 fruit, 5 leaves, 2 ice cubes and 20 droplets. Their positions and sizes use product-height units, independent of can/bottle/pouch dimensions. Most sit behind the product; a softly blurred leaf sits nearer the camera. Composition is asymmetric and constrained inside the local viewer on narrow screens. It does not expand the product's fitting envelope or cover the UI controls.
+
+Every node has a stable ID, kind, position, rotation, scale, depth, blur, enabled state, optional tint, independent floating amplitude/period/phase and flavor variants. `assetUrl` can assign an approved GLB or image to any node. GLBs are centered and normalized once, preserve their materials and share the viewer's HDR environment; imported lights/cameras are removed. Draft scene records can be edited through `controller.accents()` without reloading the primary model. `normalizeAccentScene()` bounds motion/transforms, limits the count to 48 and validates asset protocols/colors.
+
+The bundled demo uses photographic alpha cutouts on planes positioned in 3D. This avoids opaque fake-glass cubes over a CSS background and keeps the asset payload small. These cutouts do not provide full volumetric refraction; assigned GLBs provide actual geometry. Per-node focus blur is implemented for image cutouts; volumetric GLB depth-of-field would require a later render-pass extension. Demo atlases were generated with the built-in ImageGen tool; see [scene asset provenance](scene-assets.md).
+
+Accents watch actual viewer state: after both the product/appearance and accent assets are ready, and the packaging rebound is complete, they fan out from behind the product on a 0.95s decelerating path with slight staggering. Flavor changes fade the old composition in 0.18s during the product turn; the new composition then repeats its entrance. At rest, each object floats and rocks slowly with its own phase. Rapid changes retain the outgoing transforms while fading and reveal only the latest selection. Paused/reduced-motion viewers use a static settled composition. Hidden/offscreen states share the viewer's suspended render loop. Late asset loads and scene resources are disposed safely.
 
 ## Example data
 
@@ -65,7 +82,7 @@ Do not store frame-by-frame motion or Three.js objects in the database. Asset in
 
 ## Interaction
 
-Category chips step left about every three seconds using a critically damped spring, with hover/keyboard pause. Flavor buttons retain a continuous loop on desktop and a stable touch layout on mobile. Flavor changes turn with acceleration and rocking in 0.66s, then settle in 0.46s (2.5× the previous speed). Rapid flavor changes continue from the visible pose. The former hand overlay is removed; drag and arrow keys remain scoped to the canvas and `R` resets its pose.
+Category chips step left about every three seconds using a critically damped spring, with hover/keyboard pause. Flavor buttons retain a continuous loop on desktop and mobile. Flavor changes turn with acceleration and rocking in 0.66s, then settle in 0.46s (2.5× the previous speed). Rapid flavor changes continue from the visible pose. The former hand overlay is removed; drag and arrow keys remain scoped to the canvas and `R` resets its pose.
 
 Different asset definitions use a separate packaging choreography, independent of flavor rotation:
 

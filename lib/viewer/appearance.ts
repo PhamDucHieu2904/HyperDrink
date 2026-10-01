@@ -14,9 +14,12 @@ function createPrintTexture(label: NonNullable<ProductAppearance['label']>, volu
   if (!context) return null;
   const colors = label.colors.map((entry) => /^#[0-9a-f]{6}$/i.test(entry) ? entry : '#df8850');
   const gradient = context.createLinearGradient(0, 0, canvas.width, 0);
-  gradient.addColorStop(0, colors[0]);
+  // Gentle print variation avoids baking a dark side into the label: form and
+  // reflections are produced by the actual environment as the product rotates.
+  const base = new THREE.Color(colors[1]);
+  gradient.addColorStop(0, base.clone().lerp(new THREE.Color(colors[0]), 0.22).getStyle());
   gradient.addColorStop(0.5, colors[1]);
-  gradient.addColorStop(1, colors[2]);
+  gradient.addColorStop(1, base.clone().lerp(new THREE.Color(colors[2]), 0.22).getStyle());
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = '#f8f5ee';

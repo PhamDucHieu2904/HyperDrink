@@ -14,10 +14,16 @@
 .category-filter-summary { display:flex; align-items:center; gap:16px; margin-bottom:20px; color:#24536a; }
 .category-filter-summary button { display:flex; align-items:center; gap:8px; min-height:44px; padding:8px 14px; border:1px solid #b6d6df; border-radius:24px; background:#fff9; cursor:pointer; }
 @media(prefers-reduced-motion:reduce) { .category-rail { overflow-x:auto; } .category-set[aria-hidden=true] { display:none; } }
-.site-shell:has(.showcase-hero) .main-nav { background:linear-gradient(135deg,rgba(255,255,255,.12),rgba(255,255,255,.03)),rgba(20,20,20,.36); border-color:rgba(255,255,255,.48); box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 8px 24px rgba(0,0,0,.08); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); }
-.site-shell:has(.showcase-hero) .nav-link { color:rgba(255,255,255,.94); }
-.site-shell:has(.showcase-hero) .nav-link:hover { color:#fff; background:rgba(255,255,255,.14); }
-.site-shell:has(.showcase-hero) .nav-link[aria-current='page'] { color:#30302e; background:rgba(255,255,255,.94); box-shadow:0 2px 10px rgba(0,0,0,.1),inset 0 1px 0 #fff; }
+/* The navigation takes its tint from the scene through light frosted glass. */
+.site-shell:has(.showcase-hero) { --nav-active-ink:#754021; }
+.site-shell:has(.showcase-hero[data-flavor='berry']) { --nav-active-ink:#70324e; }
+.site-shell:has(.showcase-hero[data-flavor='peach']) { --nav-active-ink:#7f442e; }
+.site-shell:has(.showcase-hero[data-flavor='lime']) { --nav-active-ink:#355b16; }
+.site-shell:has(.showcase-hero) .main-nav { background:linear-gradient(135deg,rgba(255,255,238,.2),rgba(255,255,255,.08) 55%,rgba(255,255,238,.17)); border-color:rgba(255,255,230,.76); box-shadow:inset 0 1px 2px rgba(255,255,240,.78),inset 0 -1px 2px rgba(255,255,230,.38),0 0 0 3px rgba(255,255,220,.1),0 0 16px rgba(255,255,220,.16); backdrop-filter:blur(18px) saturate(120%); -webkit-backdrop-filter:blur(18px) saturate(120%); }
+.site-shell:has(.showcase-hero) .nav-link { color:#fff; font-weight:600; text-shadow:0 1px 2px color-mix(in srgb,var(--nav-active-ink) 42%,transparent); }
+.site-shell:has(.showcase-hero) .nav-link:hover { color:#fff; background:rgba(255,255,238,.18); }
+.site-shell:has(.showcase-hero) .nav-link[aria-current='page'] { color:var(--nav-active-ink); background:#fbffe6; text-shadow:none; box-shadow:inset 0 1px 0 #fff,0 0 0 1px rgba(255,255,240,.7),0 2px 10px rgba(255,255,212,.26); }
+.site-shell:has(.showcase-hero) .nav-link:focus-visible { outline:2px solid #ffffe9; outline-offset:-3px; }
 .showcase-hero { position:relative; isolation:isolate; width:100%; min-height:760px; height:100svh; max-height:1400px; color:white; background:linear-gradient(90deg,rgba(29,113,155,.46),transparent 47%,rgba(255,174,126,.32)),var(--hero-splash) center/cover; display:grid; grid-template-columns:28% 45% 25%; align-items:center; padding:110px 2.5% 125px 8.5%; gap:1%; }
 .showcase-hero::before { content:''; position:absolute; inset:0; z-index:-1; pointer-events:none; background:radial-gradient(ellipse at 96% 14%,#ffb66d99,transparent 36%),radial-gradient(ellipse at 12% 90%,#ffd4bda0,transparent 32%); }
 .glass-surface { position:relative; overflow:hidden; border:1px solid rgba(255,255,255,.72); /* Let the scene remain visible through the glass while keeping text readable. */ background-color:rgba(69,157,191,.1); background:linear-gradient(145deg,rgba(255,255,255,.18),rgba(157,219,236,.07) 48%,rgba(255,169,121,.11)),rgba(69,157,191,.1); box-shadow:inset 0 1px 0 rgba(255,255,255,.74),inset 0 0 0 1px rgba(255,255,255,.07),0 18px 48px rgba(18,87,119,.17),0 2px 14px rgba(255,134,90,.08); backdrop-filter:blur(28px) saturate(148%) brightness(1.04); -webkit-backdrop-filter:blur(28px) saturate(148%) brightness(1.04); background-clip:padding-box; }
