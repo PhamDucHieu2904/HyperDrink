@@ -35,6 +35,7 @@
 .showcase-copy { z-index:3; align-self:center; text-shadow:0 2px 18px #17649140; }
 .showcase-copy .eyebrow { margin-bottom:16px; font-size:clamp(10px,.76vw,15px); font-weight:500; }
 .showcase-copy h1 { font-family:'Space Grotesk',Arial,sans-serif; font-size:clamp(31px,3.18vw,76px); font-weight:700; letter-spacing:-.045em; line-height:.98; margin:0; white-space:nowrap; }
+.showcase-title-mobile { display:none; }
 .showcase-tagline { font-size:clamp(16px,1.46vw,30px); letter-spacing:.07em; margin:8px 0 25px; white-space:nowrap; }
 .showcase-actions { display:flex; gap:15px; margin-bottom:32px; }
 .showcase-actions .btn { padding:0 22px; font-size:clamp(12px,.95vw,18px); min-height:56px; white-space:nowrap; }
@@ -157,32 +158,32 @@
  .main-nav.is-open { position:absolute; top:106px; left:0; z-index:10; width:100%; }
  .site-header .nav-link { min-height:44px; padding:12px 7px; font-size:12px; }
  .showcase-hero { padding:116px 6% 30px; gap:8px; min-height:100svh; }
- /* Keep the page heading accessible without taking space from the product. */
- .showcase-intro { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+ .showcase-intro { position:relative; order:0; width:100%; height:36px; flex:none; margin:0; padding:0; display:flex; align-items:center; justify-content:center; }
  .showcase-intro .eyebrow,.showcase-intro .showcase-tagline,.showcase-intro .showcase-actions { display:none; }
-
- .showcase-intro .eyebrow { font-size:9px; margin:0 0 9px; }
- .showcase-copy h1 { font-size:clamp(28px,8vw,42px); line-height:1; }
+ .showcase-title-desktop { display:none; }
+ .showcase-title-mobile { display:inline; }
+ .showcase-copy h1 { font-size:clamp(18px,5.2vw,24px); line-height:1.2; letter-spacing:.09em; text-transform:uppercase; }
  .showcase-tagline { font-size:14px; margin:9px 0 16px; letter-spacing:.03em; }
  .showcase-actions { gap:10px; margin:0; }
  .showcase-actions .btn { min-height:44px; padding-inline:15px; font-size:12px; }
- .showcase-product { order:1; align-self:center; height:clamp(350px,calc(100svh - 238px),700px); width:calc(100% + 12vw); }
+ /* Reserve the header, compact title/package rows and moving flavor dock. */
+ .showcase-product { order:1; align-self:center; height:clamp(240px,calc(100svh - 318px),700px); width:calc(100% + 12vw); }
  .showcase-product .scene-shell { height:100%; width:100%; min-height:0; }
- .flavor-dock { order:2; width:calc(100% + 12vw); padding:14px 0 8px; overflow:hidden; -webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent); mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent); }
+ .flavor-dock { order:3; width:calc(100% + 12vw); padding:14px 0 8px; overflow:hidden; -webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent); mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent); }
  .flavor-track { --flavor-gap:16px; width:max-content; animation:flavor-marquee 20s linear infinite; }
  .flavor-set { width:auto; flex:none; gap:var(--flavor-gap); justify-content:flex-start; }
  .flavor-set[aria-hidden=true] { display:flex; }
  .flavor-dock button { min-width:68px; flex:none; font-size:11px; }
  .flavor-dock button { gap:6px; }
  .flavor-dock button>span { width:58px; height:58px; }
- .model-picker { order:3; width:100%; margin:4px 0 8px; }
- .model-options { grid-template-columns:repeat(3,1fr); }
- .model-options button { min-height:44px; }
+ .model-picker { order:2; width:100%; height:36px; flex:none; margin:0; }
+ .model-picker-label { display:none; }
+ .model-options { display:flex; height:36px; gap:6px; overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; scrollbar-width:none; }
+ .model-options::-webkit-scrollbar { display:none; }
+ .model-options button { flex:none; min-height:36px; height:36px; max-height:36px; min-width:72px; padding:0 12px; font-size:12px; line-height:1; white-space:nowrap; }
+ .model-options button:focus-visible { outline-offset:-3px; }
  .showcase-details { order:4; width:100%; margin-top:8px; }
  .showcase-feature { order:5; }
-}
-@media(max-width:760px) and (max-height:700px) {
- .showcase-product { height:max(300px,calc(100svh - 228px)); }
 }
 @media(prefers-reduced-motion:reduce) { .flavor-background-color,.flavor-background-pattern { transition:none; } }
 

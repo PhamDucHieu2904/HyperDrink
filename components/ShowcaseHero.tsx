@@ -48,9 +48,8 @@ export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
   const asset = canAssets.find(item => item.id === assetId) ?? canAssets[0];
   const appearance: ProductAppearance = {
     id: flavor.id,
-    // A softer printed varnish keeps studio reflections from whitening the artwork.
-    // Aluminum, tabs and future bottle/pouch materials retain their imported finish.
-    slots: asset.packaging === 'can' ? { label: { roughness: 0.34, clearcoat: 0.2, clearcoatRoughness: 0.3 } } : undefined,
+    // Demo finish is explicit appearance data, ready for later admin controls.
+    slots: asset.packaging === 'can' ? { label: { metalness: 0, roughness: 0.15, clearcoat: 0.2, clearcoatRoughness: 0.3 } } : undefined,
     label: { name: flavor.name, category: 'SPARKLING DRINK', volumeMl: asset.volumeMl, colors: flavor.labelColors },
   };
   const select = (next: number) => setIndex((next + flavors.length) % flavors.length);
@@ -71,7 +70,7 @@ export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
     </div>
     <div className="showcase-copy showcase-intro">
       <p className="eyebrow">Sparkling drink</p>
-      <h1 id="showcase-title">SPARK YOUR<br />REFRESHMENT</h1>
+      <h1 id="showcase-title"><span className="showcase-title-desktop">SPARK YOUR<br />REFRESHMENT</span><span className="showcase-title-mobile">{flavor.name}</span></h1>
       <p className="showcase-tagline">Fresh taste. Bold energy.</p>
       <div className="showcase-actions">
         <button className="btn btn-primary" onClick={onExplore}>Khám phá ngay <ArrowRight size={20} /></button>
@@ -79,12 +78,12 @@ export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
       </div>
     </div>
     <div ref={productRef} className="showcase-product"><ProductViewer asset={asset} appearance={appearance} /></div>
-    <div className="flavor-dock" aria-label="Chọn hương vị">
-      <div className="flavor-track">{renderFlavorSet()}{renderFlavorSet(true)}</div>
-    </div>
     <div className="model-picker" role="group" aria-label="Chọn kiểu lon">
       <span className="model-picker-label">Kiểu dáng bao bì</span>
       <div className="model-options">{canAssets.map(item => <button type="button" key={item.id} aria-pressed={item.id === asset.id} onClick={() => setAssetId(item.id)}>{item.name.replace('Lon ', '')}</button>)}</div>
+    </div>
+    <div className="flavor-dock" aria-label="Chọn hương vị">
+      <div className="flavor-track">{renderFlavorSet()}{renderFlavorSet(true)}</div>
     </div>
     <div className="showcase-details">
       <div className="notes-stack">

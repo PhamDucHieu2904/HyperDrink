@@ -27,7 +27,7 @@ export default function FlavorBackground({ flavorIndex, config = backgroundConfi
     const autodrift = new BackgroundAutodrift(settings);
     let targetAngle = 0, angle = 0, targetSpeed = 0, speed = 0, x = 0, y = 0;
     let hasDirection = false, pointerPresent = false;
-    let frame = 0, last = 0, visible = true, focused = true;
+    let frame = 0, last = performance.now(), visible = true;
     const releasePointer = () => {
       pointerPresent = false;
       autodrift.reset();
@@ -42,6 +42,8 @@ export default function FlavorBackground({ flavorIndex, config = backgroundConfi
       const velocity = backgroundPointerVelocity(dx, dy, settings.maxSpeed);
       pointerPresent = true;
       targetSpeed = Math.hypot(velocity.x, velocity.y);
+      // At the exact center there is no steering direction, so keep autonomous travel.
+      if (!targetSpeed) { releasePointer(); return; }
       if (targetSpeed) {
         targetAngle = Math.atan2(velocity.y, velocity.x);
         if (!hasDirection) { angle = targetAngle; hasDirection = true; }
@@ -72,7 +74,7 @@ export default function FlavorBackground({ flavorIndex, config = backgroundConfi
     };
     const schedule = () => {
       cancelAnimationFrame(frame);
-      if (visible && focused && !document.hidden && !motion.matches) frame = requestAnimationFrame(tick);
+      if (visible && !document.hidden && !motion.matches) frame = requestAnimationFrame(tick);
       else {
         renderState.advance(performance.now(), motion.matches);
         colorLayers.forEach((layer, i) => { layer.style.opacity = String(renderState.weights[i]); });
@@ -80,11 +82,9 @@ export default function FlavorBackground({ flavorIndex, config = backgroundConfi
       }
     };
     const sync = () => {
-      releasePointer(); last = 0; speed = 0;
+      releasePointer(); last = performance.now(); speed = targetSpeed;
       schedule();
     };
-    const blur = () => { focused = false; sync(); };
-    const focus = () => { focused = true; sync(); };
     // A flavor transition wakes the renderer without stopping background movement.
     renderState.setWake(schedule);
     const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; sync(); });
@@ -92,7 +92,9 @@ export default function FlavorBackground({ flavorIndex, config = backgroundConfi
     hero.addEventListener('pointermove', move, { passive: true });
     hero.addEventListener('pointerleave', releasePointer);
     hero.addEventListener('pointercancel', releasePointer);
-    window.addEventListener('blur', blur); window.addEventListener('focus', focus);
+    // A visible page must drift even before the browser window gains input focus.
+    // Blur relinquishes mouse steering; tab visibility/intersection owns suspension.
+    window.addEventListener('blur', releasePointer);
     document.addEventListener('visibilitychange', sync);
     motion.addEventListener('change', sync); fine.addEventListener('change', sync);
     sync();
@@ -101,7 +103,7 @@ export default function FlavorBackground({ flavorIndex, config = backgroundConfi
       renderState.setWake(undefined);
       hero.removeEventListener('pointermove', move); hero.removeEventListener('pointerleave', releasePointer);
       hero.removeEventListener('pointercancel', releasePointer);
-      window.removeEventListener('blur', blur); window.removeEventListener('focus', focus);
+      window.removeEventListener('blur', releasePointer);
       document.removeEventListener('visibilitychange', sync);
       motion.removeEventListener('change', sync); fine.removeEventListener('change', sync);
     };

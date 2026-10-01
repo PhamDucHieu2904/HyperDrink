@@ -119,7 +119,6 @@ test('coarse-pointer mobile backgrounds drift without input and suspend cleanly 
   const before = f.track.style.transform; f.advance(1);
   assert.notEqual(f.track.style.transform, before, 'Touch input cannot freeze automatic movement');
   for (const [pause, resume] of [
-    [() => f.windowTarget.emit('blur'), () => f.windowTarget.emit('focus')],
     [() => { f.documentTarget.hidden = true; f.documentTarget.emit('visibilitychange'); }, () => { f.documentTarget.hidden = false; f.documentTarget.emit('visibilitychange'); }],
     [() => f.setVisible(false), () => f.setVisible(true)],
     [() => { f.reduced.matches = true; f.reduced.emit('change'); }, () => { f.reduced.matches = false; f.reduced.emit('change'); }],
@@ -133,6 +132,25 @@ test('coarse-pointer mobile backgrounds drift without input and suspend cleanly 
   assert.equal(f.frames.size, 0);
   for (const surface of [f.hero, f.windowTarget, f.documentTarget, f.reduced, f.fine]) assert.equal(surface.listenerCount(), 0);
   assert.equal(f.renderState.wake, undefined);
+});
+
+test('visible backgrounds start at configured speed without focus, clicks or pointer input', (context) => {
+  const f = backgroundFixture(context, { fine: true });
+  // Browser previews and newly opened windows can blur before their first paint.
+  f.windowTarget.emit('blur'); f.setVisible(true);
+  assert.equal(f.frames.size, 1, 'Window focus must not gate visible-page animation');
+  f.advance(0.1);
+  assert.ok(Math.abs(Math.hypot(...f.position()) - config.backgroundConfig.maxSpeed * 0.1) < 0.001,
+    'Autonomous travel begins immediately rather than waiting for an interaction or acceleration ramp');
+  const before = f.track.style.transform;
+  f.windowTarget.emit('blur'); f.advance(0.5);
+  assert.notEqual(f.track.style.transform, before, 'Visible unfocused pages continue autonomous travel');
+  assert.equal(f.frames.size, 1);
+  f.hero.emit('pointermove', { pointerType: 'mouse', clientX: 300, clientY: 300 });
+  const center = f.position(); f.advance(1 / 60);
+  const after = f.position();
+  assert.ok(Math.abs(Math.hypot(after[0] - center[0], after[1] - center[1]) - config.backgroundConfig.maxSpeed / 60) < 0.001,
+    'A cursor at the exact hero center relinquishes steering without stopping travel');
 });
 
 test('mouse-to-autonomous handoff preserves speed and master disable keeps both input modes static', (context) => {

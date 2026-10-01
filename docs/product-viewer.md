@@ -23,7 +23,7 @@ The default environment is Poly Haven's CC0 [Studio Small 08](https://polyhaven.
 
 `toneMapping` is a validated, serializable choice of `neutral`, `agx`, or `aces`, independent of `exposure`. The storefront uses Neutral at exposure 0.95 to preserve label colors while compressing bright reflections. Older records without this field receive the default. The admin can later change this choice, HDRI rotation/intensity and lights through `configure()` without reloading geometry or restarting motion. Renderer output and color textures remain sRGB; HDRI and PBR calculations remain linear.
 
-The storefront gives only a can's explicit `label` slot a softer varnish (roughness 0.34, clearcoat 0.2, clearcoat roughness 0.3). Aluminum/tab materials stay as exported, and the generic viewer does not replace bottle or pouch materials. The older `studio.exr` remains an optional environment rather than the default.
+The storefront's demo overrides only a can's explicit `label` slot: metalness 0, roughness 0.15, clearcoat 0.2 and clearcoat roughness 0.3. These remain independent appearance data for future admin controls. Aluminum/tab materials stay as exported, and the generic viewer does not replace bottle or pouch materials. The older `studio.exr` remains an optional environment rather than the default.
 
 ## Example data
 
@@ -88,6 +88,6 @@ Reduced motion and paused viewers switch assets directly. Hidden/offscreen state
 
 On desktop the canvas is 15% wider and taller than the previous stage, around the same center. Camera fitting uses a conservative radial envelope derived from actual can vertices and reserves each visible pose at its real scale. Other packaging and animated meshes retain the generic box envelope. `camera.productScale` and `camera.mobileProductScale` are normalized size requests; the motion envelope limits them before clipping. The default mobile request is 1.55× the old camera silhouette.
 
-Mobile hides the introductory copy/actions visually, retaining an accessible page heading. The full-width product stage occupies the space between the compact header and the flavor dock in the initial viewport. Notes, stats, package options and feature details follow. The flavor dock uses the same seamless loop as desktop, including functional duplicated buttons; reduced motion uses a static scrollable list instead.
+Mobile shows the selected flavor name in a compact 36px heading row beneath the header. The full-width product stage follows, then a single 36px packaging-button row before the flavor dock. Package choices scroll horizontally without wrapping or increasing the row height. The hero stage reserves room for these controls in the initial viewport; notes, stats and feature details follow. Introductory marketing copy/actions stay hidden on mobile. DOM order matches this control order for keyboard navigation. The flavor dock uses the same seamless loop as desktop, including functional duplicated buttons; reduced motion uses a static scrollable list instead.
 
 The backdrop halo is a radial layer blended with `mix-blend-mode: overlay` inside the background. It affects the color/pattern behind the product, independently of HDRI lighting on the mesh. No water ripple or ellipse stage remains.
