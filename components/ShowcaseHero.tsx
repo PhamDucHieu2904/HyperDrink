@@ -46,7 +46,13 @@ export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
   useEffect(() => { if (detail) dialogRef.current?.showModal(); else dialogRef.current?.close(); }, [detail]);
   const flavor = flavors[index];
   const asset = canAssets.find(item => item.id === assetId) ?? canAssets[0];
-  const appearance: ProductAppearance = { id: flavor.id, label: { name: flavor.name, category: 'SPARKLING DRINK', volumeMl: asset.volumeMl, colors: flavor.labelColors } };
+  const appearance: ProductAppearance = {
+    id: flavor.id,
+    // A softer printed varnish keeps studio reflections from whitening the artwork.
+    // Aluminum, tabs and future bottle/pouch materials retain their imported finish.
+    slots: asset.packaging === 'can' ? { label: { roughness: 0.34, clearcoat: 0.2, clearcoatRoughness: 0.3 } } : undefined,
+    label: { name: flavor.name, category: 'SPARKLING DRINK', volumeMl: asset.volumeMl, colors: flavor.labelColors },
+  };
   const select = (next: number) => setIndex((next + flavors.length) % flavors.length);
   const renderFlavorSet = (isClone = false) => <div className="flavor-set" aria-hidden={isClone || undefined}>
     {flavors.map((item, i) => <button key={item.short} type="button" tabIndex={isClone ? -1 : undefined} aria-pressed={index === i} onPointerDown={() => select(i)} onClick={() => select(i)}><span><Image src={publicUrl('/assets/flavors/' + item.image)} width={64} height={64} alt="" loading="eager" sizes="64px" /></span>{item.short}</button>)}

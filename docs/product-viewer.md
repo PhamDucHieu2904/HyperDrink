@@ -17,6 +17,14 @@ The storefront no longer assumes one can mesh. `ProductViewer` receives three in
 
 Geometry is reused across flavors. HDRI is a presentation resource, rather than embedded in every model. New artwork changes a material slot instead of downloading another copy of the geometry. Preserve imported PBR properties unless a particular slot has an explicit override. Printed cans are opaque; transmission/refraction is reserved for appropriate bottle/liquid materials.
 
+## Studio lighting
+
+The default environment is Poly Haven's CC0 [Studio Small 08](https://polyhaven.com/a/studio_small_08), stored locally as `public/environments/studio-softbox.exr` (1K, approximately 1 MB). Its broad softboxes supply diffuse illumination and reflections; the much weaker white/cool fill lights lift shadows without bleaching the print. One cached PMREM environment serves all package and flavor changes. Source and license are recorded in `public/environments/LICENSE.txt`.
+
+`toneMapping` is a validated, serializable choice of `neutral`, `agx`, or `aces`, independent of `exposure`. The storefront uses Neutral at exposure 0.95 to preserve label colors while compressing bright reflections. Older records without this field receive the default. The admin can later change this choice, HDRI rotation/intensity and lights through `configure()` without reloading geometry or restarting motion. Renderer output and color textures remain sRGB; HDRI and PBR calculations remain linear.
+
+The storefront gives only a can's explicit `label` slot a softer varnish (roughness 0.34, clearcoat 0.2, clearcoat roughness 0.3). Aluminum/tab materials stay as exported, and the generic viewer does not replace bottle or pouch materials. The older `studio.exr` remains an optional environment rather than the default.
+
 ## Example data
 
 ```ts

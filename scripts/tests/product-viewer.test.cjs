@@ -146,6 +146,22 @@ test('presentation preserves bounce defaults and bounds persisted motion setting
   assert.equal(invalid.packageBounceAmount, defaults.packageBounceAmount);
 });
 
+test('persisted presentations retain supported tone mapping and safely upgrade older or invalid settings', () => {
+  const previous = { schemaVersion: 1, exposure: 0.85, environment: { intensity: 0.7 } };
+  const upgraded = config.resolveViewerPresentation(previous);
+  assert.equal(upgraded.toneMapping, 'neutral', 'Existing saved presentations acquire the studio default without a migration');
+  assert.equal(upgraded.exposure, previous.exposure);
+  assert.equal(upgraded.environment.intensity, previous.environment.intensity);
+  for (const toneMapping of ['neutral', 'agx', 'aces']) {
+    const resolved = config.resolveViewerPresentation({ toneMapping });
+    assert.equal(resolved.toneMapping, toneMapping);
+    assert.deepEqual(config.resolveViewerPresentation(JSON.parse(JSON.stringify(resolved))), resolved, 'Admin settings survive a JSON round trip');
+  }
+  for (const toneMapping of [undefined, null, '', 'Neutral', 'linear', 4, {}, ['agx']]) {
+    assert.equal(config.resolveViewerPresentation({ toneMapping }).toneMapping, 'neutral', 'Unrecognized saved values never reach the renderer');
+  }
+});
+
 test('background velocity has one speed at every noncentral pointer position', () => {
   const speed = 24;
   const near = backgroundMotion.backgroundPointerVelocity(0.00001, 0.00002, speed);
@@ -333,6 +349,45 @@ function runtimeFixture(context, immediateAppearance = false) {
     model, asset, flush, advance, setReducedMotion: (matches) => motionListeners.forEach((listener) => listener({ matches })),
     disposedCount: () => productsDisposed };
 }
+
+test('live lighting edits update tone mapping and HDRI settings without reloading geometry or interrupting a flavor turn', async (context) => {
+  const { viewer, mount, renderer, geometryRequests, model, asset, environment, flush, advance } = runtimeFixture(context, true);
+  viewer.select(asset('can'), { id: 'citrus' });
+  geometryRequests[0].resolve(model());
+  environment.resolve(new THREE.Texture());
+  await flush(); advance(0.1);
+  assert.equal(mount.dataset.environment, 'ready');
+  const product = renderer.scene.children.find((node) => node instanceof THREE.Group);
+  const geometry = product.children[0];
+  const hdrTexture = renderer.scene.environment;
+  assert.ok(hdrTexture instanceof THREE.Texture);
+  viewer.select(asset('can'), { id: 'berry' });
+  await flush(); advance(0.2);
+  assert.equal(mount.dataset.transitionPhase, 'flavor');
+
+  for (const [index, [toneMapping, rendererMode]] of [
+    ['neutral', THREE.NeutralToneMapping], ['agx', THREE.AgXToneMapping], ['aces', THREE.ACESFilmicToneMapping],
+  ].entries()) {
+    const pose = product.quaternion.clone();
+    const settings = config.resolveViewerPresentation({ toneMapping, exposure: 0.8 + index * 0.15,
+      environment: { intensity: 0.6 + index * 0.1, rotation: [0.1, 0.3 + index * 0.2, -0.1] } });
+    viewer.configure(settings);
+    assert.equal(renderer.toneMapping, rendererMode, 'Serialized renderer mode maps to the actual Three.js constant');
+    assert.equal(renderer.toneMappingExposure, settings.exposure);
+    assert.equal(renderer.scene.environmentIntensity, settings.environment.intensity);
+    assert.deepEqual(renderer.scene.environmentRotation.toArray().slice(0, 3), settings.environment.rotation);
+    assert.equal(renderer.scene.environment, hdrTexture, 'Editing HDRI strength or rotation reuses the decoded environment');
+    assert.equal(product.children[0], geometry, 'The active geometry remains attached');
+    assert.equal(geometryRequests.length, 1, 'Lighting edits do not trigger another model download');
+    assert.ok(product.quaternion.angleTo(pose) < 1e-7, 'Lighting edits preserve the visible orientation');
+    assert.equal(mount.dataset.transitionPhase, 'flavor', 'Updating presentation does not cancel the in-progress turn');
+    advance(0.04);
+    assert.ok(product.quaternion.angleTo(pose) > 0.001, 'The existing motion continues after the lighting update');
+  }
+  advance(0.4);
+  assert.equal(mount.dataset.transitionPhase, 'idle', 'The same turn still completes normally');
+  assert.equal(mount.dataset.productId, 'can');
+});
 
 test('runtime resolves selection races, preserves loading state, respects pause and disposes late loads', async (context) => {
   const { viewer, mount, geometryRequests, appearanceRequests, environment, statuses, model, asset, flush, disposedCount } = runtimeFixture(context);

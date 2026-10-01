@@ -1,6 +1,7 @@
 /** Serializable contracts shared by the storefront viewer and a future admin. */
 export type PackagingKind = 'can' | 'pet' | 'glass' | 'pouch' | 'other';
 export type Vector3Tuple = [number, number, number];
+export type ViewerToneMapping = 'neutral' | 'agx' | 'aces';
 
 export interface ProductAsset {
   id: string;
@@ -59,6 +60,7 @@ export interface ViewerPresentation {
   schemaVersion: 1;
   environment: { src: string; intensity: number; rotation: Vector3Tuple };
   lights: ViewerLight[];
+  toneMapping: ViewerToneMapping;
   exposure: number;
   camera: { fov: number; fill: number; mobileFill: number; productScale: number; mobileProductScale: number; target: Vector3Tuple };
   pose: Vector3Tuple;
@@ -80,13 +82,15 @@ export type ViewerPresentationInput = {
 
 export const DEFAULT_VIEWER_PRESENTATION: ViewerPresentation = {
   schemaVersion: 1,
-  environment: { src: '/environments/studio.exr', intensity: 1.15, rotation: [0, 0.6, 0] },
+  // Broad, neutral softboxes provide the reflections; direct lights only lift shadows.
+  environment: { src: '/environments/studio-softbox.exr', intensity: 0.85, rotation: [0, 0.75, 0] },
   lights: [
-    { type: 'directional', color: '#fff6ed', intensity: 1.9, position: [4, 5, 5] },
-    { type: 'directional', color: '#edf7ff', intensity: 1.35, position: [-4, 2, -3] },
-    { type: 'hemisphere', color: '#ffffff', groundColor: '#b9b5ae', intensity: 0.45, position: [0, 3, 0] },
+    { type: 'directional', color: '#ffffff', intensity: 0.45, position: [4, 5, 5] },
+    { type: 'directional', color: '#f0f6ff', intensity: 0.25, position: [-4, 3, 4] },
+    { type: 'hemisphere', color: '#ffffff', groundColor: '#aeb5bd', intensity: 0.12, position: [0, 3, 0] },
   ],
-  exposure: 1.05,
+  toneMapping: 'neutral',
+  exposure: 0.95,
   camera: { fov: 30, fill: 0.94, mobileFill: 0.94, productScale: 1, mobileProductScale: 1.55, target: [0, 0, 0] },
   pose: [-0.12, 0.15, -0.16],
   motion: {
@@ -128,6 +132,7 @@ export function resolveViewerPresentation(input: ViewerPresentationInput = {}): 
       intensity: number(light.intensity, d.lights[index]?.intensity ?? 1, 0, 10),
       position: vector(light.position, [3, 3, 3]),
     })),
+    toneMapping: ['neutral', 'agx', 'aces'].includes(input.toneMapping ?? '') ? input.toneMapping! : d.toneMapping,
     exposure: number(input.exposure, d.exposure, 0.1, 3),
     camera: {
       fov: number(input.camera?.fov, d.camera.fov, 18, 60),

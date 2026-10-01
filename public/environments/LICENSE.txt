@@ -1,3 +1,4 @@
+Legacy Blender studio.exr attribution (original Blender notices):
 All HDRIs are licensed as CC0.
 
 These were created by Greg Zaal (Poly Haven https://polyhaven.com).
@@ -13,3 +14,10 @@ Originals used for each HDRI:
 
 1K resolution of each was taken, and compressed with oiiotool:
 oiiotool input.exr --ch R,G,B -d float --compression dwab:300 --clamp:min=0.0:max=32000.0 -o output.exr
+
+Storefront softbox preset:
+- File: studio-softbox.exr (original 1K EXR, 1024 x 512)
+- Asset: Studio Small 08 by Sergej Majboroda, Poly Haven
+- Source: https://polyhaven.com/a/studio_small_08
+- License: CC0 https://polyhaven.com/license
+- Download: https://dl.polyhaven.org/file/ph-assets/HDRIs/exr/1k/studio_small_08_1k.exr

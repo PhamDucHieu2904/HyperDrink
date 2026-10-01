@@ -43,7 +43,6 @@ export function createProductViewer(
   let presentation = initialPresentation;
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: presentation.quality.antialias, powerPreference: 'high-performance' });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.setClearColor('#000000', 0);
   renderer.domElement.setAttribute('aria-hidden', 'true');
   renderer.domElement.tabIndex = 0;
@@ -187,6 +186,11 @@ export function createProductViewer(
   const configure = (value: ViewerPresentation) => {
     const poseChanged = value.pose.some((entry, index) => entry !== presentation.pose[index]);
     presentation = value;
+    renderer.toneMapping = {
+      neutral: THREE.NeutralToneMapping,
+      agx: THREE.AgXToneMapping,
+      aces: THREE.ACESFilmicToneMapping,
+    }[value.toneMapping];
     renderer.toneMappingExposure = value.exposure;
     camera.fov = value.camera.fov;
     rest.setFromEuler(new THREE.Euler(...value.pose, 'YXZ'));
