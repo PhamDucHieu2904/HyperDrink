@@ -481,6 +481,49 @@ test('runtime resolves selection races, preserves loading state, respects pause 
   assert.ok(disposedCount() >= 3, 'Active, outgoing and late-loading product resources must be released');
 });
 
+test('image-cutout storefront without a backdrop allocates no painter or capture pass, including paused repaints', async (context) => {
+  const { viewer, mount, renderer, geometryRequests, backdropResources, waterPassResources, renderEvents,
+    model, asset, flush, advance } = runtimeFixture(context, true);
+  const { DEFAULT_PRODUCT_ACCENT_SCENE } = loadSource('lib/viewer/accent-config.ts', name => name === '../viewer-config' ? config : require(name));
+  const can = asset('can');
+  viewer.accents(DEFAULT_PRODUCT_ACCENT_SCENE, 'can:citrus', 'citrus');
+  viewer.backdrop(undefined);
+  viewer.select(can, { id: 'citrus' });
+  geometryRequests[0].resolve(model()); await flush();
+  advance(0.2);
+  assert.ok(renderer.draws.length > 1, 'The animated image-cutout scene actually renders across multiple frames');
+
+  viewer.pause(true); advance(0.1);
+  const pausedDraws = renderer.draws.length;
+  advance(0.2);
+  assert.equal(renderer.draws.length, pausedDraws, 'An unchanged paused scene spends no GPU draws');
+
+  mount.clientWidth = 360;
+  mount.clientHeight = 620;
+  global.window.innerWidth = 390;
+  viewer.configure(config.resolveViewerPresentation({ quality: { mobileDpr: 1.25 } }));
+  advance(0.1);
+  assert.ok(renderer.draws.length > pausedDraws, 'A paused layout change still repaints the main scene');
+  advance(2); // Allow the existing camera-fit damping to settle after the resize.
+  const resizedDraws = renderer.draws.length;
+  advance(0.2);
+  assert.equal(renderer.draws.length, resizedDraws, 'The paused resize finishes without continuous repainting');
+
+  viewer.accents(DEFAULT_PRODUCT_ACCENT_SCENE, 'can:berry', 'berry');
+  viewer.select(can, { id: 'berry' }); await flush();
+  viewer.backdrop(undefined);
+  advance(0.1);
+  assert.ok(renderer.draws.length > resizedDraws, 'A paused flavor change remains visible without a capture pass');
+  const beforeResume = renderer.draws.length;
+  viewer.pause(false); advance(0.2);
+  assert.ok(renderer.draws.length > beforeResume + 1, 'Idle rendering resumes normally');
+
+  assert.equal(backdropResources.length, 0, 'Image cutouts never allocate a background canvas painter or texture upload source');
+  assert.equal(waterPassResources.length, 0, 'Image cutouts never allocate the optional refraction render target');
+  assert.equal(renderEvents.length, renderer.draws.length, 'Every rendered frame costs one main draw without an offscreen capture');
+  assert.ok(renderEvents.every(event => event.type === 'main'), 'No hidden capture renders occur during animation, resize or pause');
+});
+
 test('viewer backdrop shares live background state, avoids identical recreation and owns replacement/disposal', (context) => {
   const { viewer, mount, backdropResources, backdropBindings, waterPassResources, advance } = runtimeFixture(context, true);
   const state = new backgroundRender.BackgroundRenderState();

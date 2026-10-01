@@ -50,7 +50,7 @@ test('scene data supports replaceable flavor assets, deliberate depth and indepe
   assert.ok(scene.nodes.some(node => node.depth === 'far' && node.blur > 0));
   assert.ok(scene.nodes.every(node => node.position[2] < 0), 'Even the blurred legacy near leaf is behind the product');
   const drops = scene.nodes.filter(node => node.kind === 'droplet');
-  assert.equal(Math.max(...drops.map(node => node.scale)), 0.12);
+  assert.equal(Math.max(...drops.map(node => node.scale)), 0.15);
   assert.equal(Math.min(...drops.map(node => node.scale)), 0.062);
   assert.ok(new Set(drops.map(node => node.scale)).size > 10, 'Larger droplets retain natural size variation');
   assert.deepEqual(drops.map(node => node.id), ['droplet-01','droplet-02','droplet-03','droplet-05','droplet-07','droplet-09','droplet-11','droplet-13','droplet-14','droplet-16','droplet-17','droplet-20']);
@@ -99,6 +99,31 @@ test('composition keeps the larger right fruit and a small leaf peeking from dir
   const outer = scene.nodes.find(node => node.id === 'leaf-left-near');
   assert.equal(outer.blur, 5.5, 'Outer leaf retains a recognizable but clearly defocused silhouette');
   assert.ok(outer.scale > 0 && outer.position[2] < 0);
+});
+
+test('demo water and ice bind the supplied transparent images with deliberate variety and no flavor tint', () => {
+  const normalized = config.normalizeAccentScene();
+  const drops = normalized.nodes.filter(node => node.kind === 'droplet');
+  const usage = drops.reduce((result, node) => ({ ...result, [node.assetUrl]: (result[node.assetUrl] ?? 0) + 1 }), {});
+  assert.deepEqual(usage, {
+    '/assets/scene/droplet-clear-01.webp': 3,
+    '/assets/scene/droplet-clear-03.webp': 3,
+    '/assets/scene/droplet-clear-02.webp': 3,
+    '/assets/scene/droplet-clear-04.webp': 3,
+  });
+  assert.ok(drops.every((node, index) => index === 0 || node.assetUrl !== drops[index - 1].assetUrl),
+    'Adjacent staged droplets do not repeat the same photographic shape');
+  assert.deepEqual(drops.filter(node => node.assetUrl === '/assets/scene/droplet-clear-03.webp').map(node => node.scale),
+    [0.12 * 1.25, 0.066 * 1.25, 0.1 * 1.25],
+    'The smaller image-03 subject gets 25% uniform scale compensation without stretching its bitmap');
+  assert.ok(drops.filter(node => node.assetUrl !== '/assets/scene/droplet-clear-03.webp').every(node => node.scale >= 0.062 && node.scale <= 0.104));
+  const glass = normalized.nodes.filter(node => node.kind === 'droplet' || node.kind === 'ice');
+  assert.ok(glass.every(node => node.color === '#ffffff' && node.tint === undefined && node.variants === undefined));
+  assert.ok(normalized.nodes.filter(node => node.kind === 'ice').every(node => node.assetUrl === '/assets/scene/ice-clear.webp'));
+  for (const flavor of ['citrus', 'berry', 'peach', 'lime']) {
+    assert.deepEqual(config.resolveAccentNodes(normalized, flavor).filter(node => node.kind === 'droplet' || node.kind === 'ice'), glass,
+      'The approved neutral water photographs stay identical across flavors');
+  }
 });
 
 test('persisted malformed sprites, colors, tint and asset URLs are sanitized before rendering', () => {
@@ -254,9 +279,9 @@ test('adaptive spread broadens squat packages using width while preserving reque
   assert.ok(projectedX(broad) > projectedX(narrow) * 1.4, 'Extra depth does not cancel the broader visible composition');
   const dropletIndex = scene.nodes.findIndex(node => node.id === 'droplet-02');
   const droplet = scene.nodes[dropletIndex];
-  const displayed = layout.adaptAccentFrame(sample(state, dropletIndex), droplet, slim, camera, Math.SQRT1_2 * 1.7, [0.85, 0.85, 0]);
+  const displayed = layout.adaptAccentFrame(sample(state, dropletIndex), droplet, slim, camera, Math.SQRT1_2, [0.5, 0.5, 0]);
   const apparentScale = displayed.scale * camera.distance / (camera.distance - displayed.position[2]);
-  assert.ok(Math.abs(apparentScale - 0.12) < 1e-12, 'Depth compensation retains the largest readable droplet size on screen');
+  assert.ok(Math.abs(apparentScale - 0.15) < 1e-12, 'Depth compensation retains the largest readable droplet size on screen');
 });
 
 test('burst and idle geometry stay outside the swept product sphere and inside desktop/mobile viewer bounds', () => {
@@ -274,7 +299,7 @@ test('burst and idle geometry stay outside the swept product sphere and inside d
     for (let tick = 0; tick < 200; tick += 1) {
       state = advance(state);
       for (const [index, node] of scene.nodes.entries()) {
-        const size = node.kind === 'droplet' ? 1.7 : 1;
+        const size = node.kind === 'droplet' && !node.assetUrl ? 1.7 : 1;
         const localExtent = [size * 0.5, size * 0.5, 0];
         const radius = Math.SQRT1_2 * size;
         const adapted = layout.adaptAccentFrame(sample(state, index), node, envelope, viewport, radius, localExtent);

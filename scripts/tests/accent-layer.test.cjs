@@ -134,37 +134,38 @@ test('outgoing flavor keeps its atlas crop through fading and a new flavor reuse
   assert.equal(root.children[0].visible, true);
 }));
 
-test('the complete demo waits for fruit/ice atlases, builds native water and releases every owned texture', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {
+test('the complete image demo shares four distinct water sources, preserves white ice and releases each source once', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {
   const backdrop = fakeTexture();
   let backdropDisposals = 0;
   backdrop.addEventListener('dispose', () => { backdropDisposals += 1; });
   layer.setBackdrop(backdrop);
   layer.configure(DEFAULT_PRODUCT_ACCENT_SCENE, 'can-330:lime', 'lime');
   assert.equal(update().count, 22);
-  assert.equal(textureRequests.length, 2, 'Fruit/leaves and ice share two downloads; water is procedural');
+  assert.equal(textureRequests.length, 6, 'One fruit atlas, one ice and four water images are shared across 22 nodes');
   const atlases = textureRequests.map(() => fakeTexture());
-  const disposals = [0, 0];
+  const disposals = Array(6).fill(0);
   atlases.forEach((atlas, index) => atlas.addEventListener('dispose', () => { disposals[index] += 1; }));
   textureRequests[0].resolve(atlases[0]); await flush();
   assert.equal(update({ reducedMotion: true }).phase, 'waiting');
-  assert.ok(root.children.every(group => !group.visible), 'No partial fruit-only scene before the glass atlas is ready');
-  textureRequests[1].resolve(atlases[1]); await flush();
+  assert.ok(root.children.every(group => !group.visible), 'No partial fruit-only scene before all supplied glass images are ready');
+  textureRequests.slice(1).forEach((request, index) => request.resolve(atlases[index + 1])); await flush();
   assert.equal(update({ reducedMotion: true, resolution: [900, 1400] }).phase, 'idle');
   const ice = root.children.find(group => group.name === 'ice-lower-left').children[0];
   const drop = root.children.find(group => group.name === 'droplet-01').children[0];
-  assert.ok(ice.material instanceof THREE.ShaderMaterial);
-  assert.equal(ice.material.name, 'colorless-refractive-ice');
-  assert.equal(ice.material.uniforms.iceMap.value.repeat.x, 0.5);
-  assert.equal(ice.material.uniforms.iceMap.value.repeat.y, 1);
-  assert.equal(ice.material.uniforms.iceMap.value.offset.x, 0);
-  assert.equal(ice.material.uniforms.backdrop.value, backdrop);
-  assert.deepEqual(ice.material.uniforms.resolution.value.toArray(), [900, 1400]);
-  assert.equal(ice.material.uniforms.opacity.value, ice.material.opacity);
+  assert.ok(ice.material instanceof THREE.MeshBasicMaterial);
+  assert.equal(ice.material.map.repeat.x, 1);
+  assert.equal(ice.material.map.repeat.y, 1);
+  assert.equal(ice.material.color.getHex(), 0xffffff, 'The supplied white reflections are not multiplied by the flavor color');
+  assert.equal(ice.material.toneMapped, false, 'Can exposure cannot burn out the supplied ice artwork');
   let cropDisposals = 0;
-  ice.material.uniforms.iceMap.value.addEventListener('dispose', () => { cropDisposals += 1; });
-  assert.ok(drop.material instanceof THREE.ShaderMaterial);
-  assert.equal(drop.material.name, 'colorless-water-droplet');
-  assert.equal(drop.material.map, undefined, 'Default droplets have no photographic color baked into them');
+  ice.material.map.addEventListener('dispose', () => { cropDisposals += 1; });
+  assert.ok(drop.material instanceof THREE.MeshBasicMaterial);
+  assert.equal(drop.material.color.getHex(), 0xffffff);
+  assert.equal(drop.geometry.parameters.width, 1, 'Preframed square images keep their natural size instead of doubling the old analytic footprint');
+  const waterMeshes = root.children.filter(group => group.name.startsWith('droplet-')).map(group => group.children[0]);
+  assert.equal(new Set(waterMeshes.map(mesh => mesh.material.map.source)).size, 4, 'Water uses four genuinely different source images');
+  assert.equal(new Set(waterMeshes.map(mesh => mesh.material.map)).size, 12, 'Independent transform clones share decoded sources without corrupting each other');
+  assert.ok(waterMeshes.every(mesh => mesh.material.map.colorSpace === THREE.SRGBColorSpace));
   assert.ok(ice.material.transparent && drop.material.transparent);
   const leaf = root.children.find(group => group.name === 'leaf-left-middle').children[0];
   const leafUvs = leaf.geometry.getAttribute('uv');
@@ -180,13 +181,13 @@ test('the complete demo waits for fruit/ice atlases, builds native water and rel
   }
   layer.configure(DEFAULT_PRODUCT_ACCENT_SCENE, 'can-500:berry', 'berry');
   update({ reducedMotion: true }); await flush(); await settle();
-  assert.equal(textureRequests.length, 2);
+  assert.equal(textureRequests.length, 6, 'Flavor changes reuse the same white water and ice images');
   assert.equal(cropDisposals, 1, 'The outgoing ice crop is released when its flavor scene is replaced');
   layer.dispose();
-  assert.deepEqual(disposals, [1, 1]);
+  assert.deepEqual(disposals, Array(6).fill(1));
   layer.dispose();
-  assert.deepEqual(disposals, [1, 1], 'Repeated lifecycle disposal does not release cached textures twice');
-  assert.equal(backdropDisposals, 0, 'Neither native water nor ice owns the viewer backdrop');
+  assert.deepEqual(disposals, Array(6).fill(1), 'Repeated lifecycle disposal does not release cached textures twice');
+  assert.equal(backdropDisposals, 0, 'Image accents do not own the optional viewer backdrop');
 }));
 
 test('changing the explicit flavor prop also updates fruit when appearance IDs are omitted or reused', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {
@@ -201,7 +202,7 @@ test('changing the explicit flavor prop also updates fruit when appearance IDs a
 }));
 
 test('native droplets follow the shared backdrop, real buffer size and existing fade without extra downloads', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {
-  const waterNode = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.find(value => value.id === 'droplet-02');
+  const waterNode = { ...DEFAULT_PRODUCT_ACCENT_SCENE.nodes.find(value => value.id === 'droplet-02'), assetUrl: undefined };
   const configured = sceneConfig([waterNode]);
   const backdrop = fakeTexture();
   let backdropDisposals = 0;
@@ -238,7 +239,7 @@ test('actual layer spreads a squat product more widely without shrinking the enl
   assert.ok(broadX > narrowX * 1.2, 'Width-aware staging reaches further around squat cans in the actual Three scene');
   const droplet = root.children.find(group => group.name === 'droplet-02');
   const projectedScale = droplet.scale.x * 4 / (4 - droplet.position.z);
-  assert.ok(projectedScale >= 0.24 - 1e-10, 'The principal water drop retains its enlarged configured size after depth compensation');
+  assert.ok(projectedScale >= 0.30 - 1e-10, 'The smaller oval artwork retains its compensated size after depth compensation');
 }));
 
 test('rapid retargets never build intermediate flavor assets or reveal an obsolete selection', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {

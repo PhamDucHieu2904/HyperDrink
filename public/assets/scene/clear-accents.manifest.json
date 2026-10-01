@@ -1,0 +1,300 @@
+{
+  "schemaVersion": 1,
+  "source": "User-provided transparent PNG artwork, 2026-10-01",
+  "processing": {
+    "crop": "Only the outer bounds where alpha is exactly zero; interior transparency retained",
+    "outerPaddingFraction": 0.07,
+    "resize": "Premultiplied RGBA Lanczos; artwork aspect preserved inside a centered square canvas",
+    "webp": {
+      "quality": 94,
+      "alphaQuality": 100,
+      "method": 6,
+      "exact": true
+    },
+    "colorChanges": "None; original white highlights and RGB reflections retained"
+  },
+  "assets": [
+    {
+      "id": "droplet-clear-01",
+      "kind": "droplet",
+      "src": "/assets/scene/droplet-clear-01.webp",
+      "width": 192,
+      "height": 192,
+      "bytes": 11548,
+      "sha256": "4b9a51662aca294cb55451796832476771d064eca4a99125288ca56ec6cc2c02",
+      "alpha": {
+        "minimum": 0,
+        "maximum": 255,
+        "transparentPixels": 28055,
+        "partialPixels": 8354,
+        "opaquePixels": 455,
+        "coverageFraction": 0.165819,
+        "contentBounds": [
+          38,
+          32,
+          168,
+          168
+        ]
+      },
+      "qualityCheck": {
+        "premultipliedRgbRmse": 1.845,
+        "premultipliedRgbPsnrDb": 42.811,
+        "alphaExact": true
+      },
+      "source": {
+        "filename": "Giọt nước thủy tinh trong suốt lấp lánh.png",
+        "width": 1272,
+        "height": 1237,
+        "mode": "RGBA",
+        "bytes": 910009,
+        "sha256": "d691b9b6278c9422097d977331c300ade6b575352dab8c22c77e4db765385b0c",
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparentPixels": 1109904,
+          "partialPixels": 463276,
+          "opaquePixels": 284,
+          "coverageFraction": 0.211787,
+          "contentBounds": [
+            0,
+            19,
+            1218,
+            1183
+          ]
+        },
+        "cropBounds": [
+          0,
+          19,
+          1218,
+          1183
+        ]
+      }
+    },
+    {
+      "id": "droplet-clear-02",
+      "kind": "droplet",
+      "src": "/assets/scene/droplet-clear-02.webp",
+      "width": 192,
+      "height": 192,
+      "bytes": 10790,
+      "sha256": "4466760357dc84a682eee223f218e7d8160b5055b5fbcc9f678bb30c1b4f75f9",
+      "alpha": {
+        "minimum": 0,
+        "maximum": 255,
+        "transparentPixels": 29892,
+        "partialPixels": 6435,
+        "opaquePixels": 537,
+        "coverageFraction": 0.148984,
+        "contentBounds": [
+          24,
+          33,
+          172,
+          168
+        ]
+      },
+      "qualityCheck": {
+        "premultipliedRgbRmse": 1.8802,
+        "premultipliedRgbPsnrDb": 42.647,
+        "alphaExact": true
+      },
+      "source": {
+        "filename": "Vòng nước trong suốt lấp lánh.png",
+        "width": 1346,
+        "height": 1169,
+        "mode": "RGBA",
+        "bytes": 806592,
+        "sha256": "f2d234e52e36bcc743f074db2f4481583c72b147601ed372caa665c90cf6b460",
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparentPixels": 1204169,
+          "partialPixels": 369112,
+          "opaquePixels": 193,
+          "coverageFraction": 0.19527,
+          "contentBounds": [
+            59,
+            15,
+            1294,
+            1149
+          ]
+        },
+        "cropBounds": [
+          59,
+          15,
+          1294,
+          1149
+        ]
+      }
+    },
+    {
+      "id": "droplet-clear-03",
+      "kind": "droplet",
+      "src": "/assets/scene/droplet-clear-03.webp",
+      "width": 192,
+      "height": 192,
+      "bytes": 8944,
+      "sha256": "1ddf40f77d7af87b2513ed3138222f9068f88f9768ba2d70fee9caee864bd120",
+      "alpha": {
+        "minimum": 0,
+        "maximum": 255,
+        "transparentPixels": 30194,
+        "partialPixels": 6341,
+        "opaquePixels": 329,
+        "coverageFraction": 0.086338,
+        "contentBounds": [
+          48,
+          43,
+          161,
+          160
+        ]
+      },
+      "qualityCheck": {
+        "premultipliedRgbRmse": 1.0654,
+        "premultipliedRgbPsnrDb": 47.58,
+        "alphaExact": true
+      },
+      "source": {
+        "filename": "Giọt nước trong suốt lấp lánh.png",
+        "width": 1402,
+        "height": 1122,
+        "mode": "RGBA",
+        "bytes": 761360,
+        "sha256": "5d0f598b3efbe29e13630bd29f640fd7016e82277def753d74cfecdece17bb49",
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparentPixels": 1144474,
+          "partialPixels": 428326,
+          "opaquePixels": 244,
+          "coverageFraction": 0.134705,
+          "contentBounds": [
+            27,
+            23,
+            1374,
+            1102
+          ]
+        },
+        "cropBounds": [
+          27,
+          23,
+          1374,
+          1102
+        ]
+      }
+    },
+    {
+      "id": "droplet-clear-04",
+      "kind": "droplet",
+      "src": "/assets/scene/droplet-clear-04.webp",
+      "width": 192,
+      "height": 192,
+      "bytes": 12186,
+      "sha256": "8fc5bd0234d2ca3f2a5c261d1d99f16f5ea58f323650e8866e41654f4871ae30",
+      "alpha": {
+        "minimum": 0,
+        "maximum": 255,
+        "transparentPixels": 28066,
+        "partialPixels": 8326,
+        "opaquePixels": 472,
+        "coverageFraction": 0.184154,
+        "contentBounds": [
+          30,
+          30,
+          180,
+          174
+        ]
+      },
+      "qualityCheck": {
+        "premultipliedRgbRmse": 2.1386,
+        "premultipliedRgbPsnrDb": 41.528,
+        "alphaExact": true
+      },
+      "source": {
+        "filename": "Vòng nước trong suốt lấp lánh (1).png",
+        "width": 1275,
+        "height": 1233,
+        "mode": "RGBA",
+        "bytes": 934124,
+        "sha256": "5f8878a08c148472a7b88054d13ad7fd115ecaf6e11f2eb7633ac56d8f6f507d",
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparentPixels": 1136859,
+          "partialPixels": 435066,
+          "opaquePixels": 150,
+          "coverageFraction": 0.22195,
+          "contentBounds": [
+            0,
+            35,
+            1183,
+            1153
+          ]
+        },
+        "cropBounds": [
+          0,
+          35,
+          1183,
+          1153
+        ]
+      }
+    },
+    {
+      "id": "ice-clear",
+      "kind": "ice",
+      "src": "/assets/scene/ice-clear.webp",
+      "width": 384,
+      "height": 384,
+      "bytes": 51632,
+      "sha256": "27cb67a56dcaca30ff52aa6dadb4657a5a7fc79027777d322bf58ac52a3695a6",
+      "alpha": {
+        "minimum": 0,
+        "maximum": 255,
+        "transparentPixels": 93140,
+        "partialPixels": 53733,
+        "opaquePixels": 583,
+        "coverageFraction": 0.331796,
+        "contentBounds": [
+          57,
+          34,
+          354,
+          357
+        ]
+      },
+      "qualityCheck": {
+        "premultipliedRgbRmse": 3.4026,
+        "premultipliedRgbPsnrDb": 37.495,
+        "alphaExact": true
+      },
+      "source": {
+        "filename": "Khối băng trong suốt lấp lánh.png",
+        "width": 1254,
+        "height": 1254,
+        "mode": "RGBA",
+        "bytes": 1819731,
+        "sha256": "1f940284dc921d3b7f74227d7b5af3acf9548a3bfe25ed987432d2c7b4791bd5",
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparentPixels": 850016,
+          "partialPixels": 722345,
+          "opaquePixels": 155,
+          "coverageFraction": 0.415236,
+          "contentBounds": [
+            69,
+            49,
+            1253,
+            1254
+          ]
+        },
+        "cropBounds": [
+          69,
+          49,
+          1253,
+          1254
+        ]
+      }
+    }
+  ],
+  "totalSourceBytes": 5231816,
+  "totalOutputBytes": 95100
+}

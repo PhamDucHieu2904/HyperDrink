@@ -12,6 +12,9 @@ type AccentObject = { node: ProductAccentNode; group: THREE.Group; materials: TH
 type AccentFrame = { deltaSeconds: number; ready: boolean; viewerIdle: boolean; reducedMotion: boolean; paused: boolean; height: number; width: number; productRadius: number; maximumProductScale: number; camera: THREE.PerspectiveCamera; resolution?: [number, number] };
 const ATLAS = '/assets/scene/fruit-leaf-atlas.webp';
 const GLASS_ATLAS = '/assets/scene/ice-droplet-atlas.webp';
+// Analytic water retains its legacy footprint; supplied square image canvases
+// have already been framed and preserve their distinct natural silhouettes.
+const planeSize = (node: ProductAccentNode) => node.kind === 'droplet' && !node.assetUrl ? 1.7 : 1;
 const CELLS: Record<string, [number, number]> = { orange: [0, 1], lime: [1, 1], berry: [2, 1], peach: [0, 0], mint: [1, 0], 'citrus-leaf': [2, 0] };
 // Subject bounds in local cell UVs. Generated fruit crosses a nominal cell edge;
 // leaf crops must exclude those neighbouring peel fragments, including blur taps.
@@ -33,17 +36,17 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
   let objects: AccentObject[] = [];
   let disposed = false, revision = 0;
   let backdrop: THREE.Texture | null = null;
-  const atlases = new Set<THREE.Texture>();
-  const atlasRequests = new Map<string, Promise<THREE.Texture>>();
+  const textures = new Set<THREE.Texture>();
+  const textureRequests = new Map<string, Promise<THREE.Texture>>();
   const colorMaps = new THREE.TextureLoader();
-  const getAtlas = (src: string) => {
-    if (!atlasRequests.has(src)) atlasRequests.set(src, colorMaps.loadAsync(publicUrl(src)).then(texture => {
+  const getTexture = (src: string) => {
+    if (!textureRequests.has(src)) textureRequests.set(src, colorMaps.loadAsync(publicUrl(src)).then(texture => {
       if (disposed) { texture.dispose(); throw new Error('Accent layer disposed'); }
       texture.colorSpace = THREE.SRGBColorSpace;
-      atlases.add(texture);
+      textures.add(texture);
       return texture;
-    }));
-    return atlasRequests.get(src)!;
+    }).catch(error => { textureRequests.delete(src); throw error; }));
+    return textureRequests.get(src)!;
   };
   const clear = () => {
     revision += 1;
@@ -98,7 +101,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       material.customProgramCacheKey = () => 'accent-gaussian-focus-v2';
     }
     trackMaterial(item, material);
-    const size = item.node.kind === 'droplet' ? 1.7 : 1;
+    const size = planeSize(item.node);
     const geometry = new THREE.PlaneGeometry(size, size);
     if (crop) {
       const uv = geometry.getAttribute('uv');
@@ -152,12 +155,13 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       } else {
         const glass = node.kind === 'ice';
         const cellName = node.sprite ?? (node.kind === 'leaf' ? 'mint' : flavor === 'citrus' ? 'orange' : flavor);
-        const request = node.assetUrl ? colorMaps.loadAsync(publicUrl(node.assetUrl)) : getAtlas(glass ? GLASS_ATLAS : ATLAS);
+        const request = getTexture(node.assetUrl ?? (glass ? GLASS_ATLAS : ATLAS));
         request.then(texture => {
-          if (disposed || thisRevision !== revision) { if (node.assetUrl) texture.dispose(); return; }
+          // The cache owns shared source textures, including late or temporarily
+          // unused images. Each sprite owns only its transform clone/material.
+          if (disposed || thisRevision !== revision) return;
           texture.colorSpace = THREE.SRGBColorSpace;
           sprite(item, texture, node.assetUrl ? undefined : glass ? [node.kind === 'ice' ? 0 : 1, 0] : CELLS[cellName], glass ? 2 : 3, glass ? 1 : 2);
-          if (node.assetUrl) item.resources.push(texture);
           item.ready = true; invalidate();
         }).catch(() => { item.ready = true; invalidate(); });
       }
@@ -191,8 +195,8 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       }
       objects.forEach((item, index) => {
         const geometryRadius = item.node.assetUrl && /\.glb(?:\?|$)/i.test(item.node.assetUrl)
-          ? Math.sqrt(3) / 2 : Math.SQRT1_2 * (item.node.kind === 'droplet' ? 1.7 : 1);
-        const geometrySize = item.node.kind === 'droplet' ? 1.7 : 1;
+          ? Math.sqrt(3) / 2 : Math.SQRT1_2 * planeSize(item.node);
+        const geometrySize = planeSize(item.node);
         const geometryExtent: [number, number, number] = item.node.assetUrl && /\.glb(?:\?|$)/i.test(item.node.assetUrl)
           ? [0.5, 0.5, 0.5] : [geometrySize * 0.5, geometrySize * 0.5, 0];
         const sample = adaptAccentFrame(sampleAccentNode(item.node, state, index, config!.motion), item.node,
@@ -219,7 +223,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     },
     dispose() {
       if (disposed) return;
-      disposed = true; clear(); atlases.forEach(texture => texture.dispose()); atlases.clear(); atlasRequests.clear(); root.removeFromParent();
+      disposed = true; clear(); textures.forEach(texture => texture.dispose()); textures.clear(); textureRequests.clear(); root.removeFromParent();
     },
   };
 }
