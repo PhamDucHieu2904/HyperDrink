@@ -4,7 +4,7 @@ import { publicUrl } from '../public-url';
 import { disposeProduct } from './appearance';
 import { normalizeAccentScene, resolveAccentNodes, type AccentFlavor, type ProductAccentNode, type ProductAccentScene, type ProductAccentSceneInput } from './accent-config';
 import { advanceAccentMotion, createAccentMotion, sampleAccentNode } from './accent-motion';
-import { adaptAccentFrame } from './accent-layout';
+import { accentImageExtent, adaptAccentFrame } from './accent-layout';
 import { createDropletMaterial, updateDropletMaterial } from './droplet-material';
 import { createIceMaterial, updateIceMaterial } from './ice-material';
 
@@ -57,7 +57,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     objects = [];
   };
   const trackMaterial = (item: AccentObject, material: THREE.Material, baseOpacity = 1) => {
-    material.userData.accentOpacity = baseOpacity;
+    material.userData.accentOpacity = baseOpacity * (item.node.opacity ?? 1);
     item.materials.push(material); item.resources.push(material);
     return material;
   };
@@ -111,7 +111,11 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       uv.needsUpdate = true;
     }
     item.resources.push(map, geometry);
-    item.group.add(new THREE.Mesh(geometry, material));
+    const mesh = new THREE.Mesh(geometry, material);
+    // Water is a rear photographic layer; blend it before the smaller cutouts.
+    // Its actual depth is also solved behind those objects in update().
+    if (item.node.kind === 'splash') mesh.renderOrder = -10;
+    item.group.add(mesh);
   };
   const build = (flavor: AccentFlavor) => {
     clear();
@@ -134,8 +138,9 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
           gltf.scene.position.sub(box.getCenter(new THREE.Vector3())); normalized.add(gltf.scene); normalized.scale.setScalar(1 / extent);
           gltf.scene.traverse(child => {
             if (!(child instanceof THREE.Mesh)) return;
+            if (node.kind === 'splash') child.renderOrder = -10;
             (Array.isArray(child.material) ? child.material : [child.material]).forEach(material => {
-              material.transparent = true; material.userData.accentOpacity = material.opacity;
+              material.transparent = true; material.userData.accentOpacity = material.opacity * (node.opacity ?? 1);
               if (node.tint && 'color' in material && material.color instanceof THREE.Color) material.color.multiply(new THREE.Color(node.tint));
               item.materials.push(material);
             });
@@ -151,6 +156,9 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
         trackMaterial(item, material);
         item.resources.push(geometry);
         item.group.add(new THREE.Mesh(geometry, material));
+        item.ready = true;
+      } else if (node.kind === 'splash' && !node.assetUrl) {
+        // An empty future admin splash slot stays empty, never becomes fruit.
         item.ready = true;
       } else {
         const glass = node.kind === 'ice';
@@ -193,16 +201,29 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
         build(desiredFlavor); renderedSignature = desiredKey;
         state = createAccentMotion(desiredKey);
       }
-      objects.forEach((item, index) => {
+      const envelope = { height: frame.height, width: frame.width, productRadius: frame.productRadius, maximumProductScale: frame.maximumProductScale };
+      const viewport = { distance: frame.camera.position.z, fov: frame.camera.fov, aspect: frame.camera.aspect,
+        center: [frame.camera.position.x, frame.camera.position.y, 0] as [number, number, number] };
+      const samples = objects.map((item, index) => {
         const geometryRadius = item.node.assetUrl && /\.glb(?:\?|$)/i.test(item.node.assetUrl)
           ? Math.sqrt(3) / 2 : Math.SQRT1_2 * planeSize(item.node);
         const geometrySize = planeSize(item.node);
         const geometryExtent: [number, number, number] = item.node.assetUrl && /\.glb(?:\?|$)/i.test(item.node.assetUrl)
-          ? [0.5, 0.5, 0.5] : [geometrySize * 0.5, geometrySize * 0.5, 0];
-        const sample = adaptAccentFrame(sampleAccentNode(item.node, state, index, config!.motion), item.node,
-          { height: frame.height, width: frame.width, productRadius: frame.productRadius, maximumProductScale: frame.maximumProductScale },
-          { distance: frame.camera.position.z, fov: frame.camera.fov, aspect: frame.camera.aspect,
-            center: [frame.camera.position.x, frame.camera.position.y, 0] }, geometryRadius, geometryExtent);
+          ? [0.5, 0.5, 0.5] : accentImageExtent(item.node, geometrySize);
+        const raw = sampleAccentNode(item.node, state, index, config!.motion);
+        const sample = adaptAccentFrame(raw, item.node, envelope, viewport, geometryRadius, geometryExtent);
+        return { raw, sample, geometryRadius, geometryExtent };
+      });
+      // Two passes keep the full splash sphere behind the deepest other accent,
+      // independently of array order, burst progress, rotation or admin depth.
+      const rearDepth = samples.reduce((depth, entry, index) => objects[index].node.kind === 'splash' ? depth
+        : Math.max(depth, -entry.sample.position[2] + entry.geometryRadius * entry.sample.scale), 0)
+        + Math.max(frame.height * 0.03, 0.0001);
+      objects.forEach((item, index) => {
+        const entry = samples[index];
+        const sample = item.node.kind === 'splash'
+          ? adaptAccentFrame(entry.raw, item.node, envelope, viewport, entry.geometryRadius, entry.geometryExtent, rearDepth)
+          : entry.sample;
         item.group.position.set(...sample.position);
         item.group.rotation.set(...sample.rotation);
         item.group.scale.setScalar(sample.scale);

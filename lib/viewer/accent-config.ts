@@ -2,13 +2,18 @@ import { assetUrl, type Vector3Tuple } from '../viewer-config';
 
 /** Serializable scene dressing. All dimensions are relative to product height,
  * independent of whether the primary product is a can, bottle or pouch. */
-export type ProductAccentKind = 'fruit' | 'leaf' | 'ice' | 'droplet';
+export type ProductAccentKind = 'fruit' | 'leaf' | 'ice' | 'droplet' | 'splash';
 export type AccentFlavor = 'citrus' | 'berry' | 'peach' | 'lime';
 export type AccentSprite = 'orange' | 'lime' | 'berry' | 'peach' | 'mint' | 'citrus-leaf';
 
 export interface ProductAccentVariant {
   /** Optional approved GLB or image asset; an empty slot uses the demo cutout. */
   assetUrl?: string;
+  /** Visible alpha bounds in normalized image coordinates: left/top/right/bottom.
+   * Optional export metadata lets transparent padding sit outside the viewport. */
+  imageBounds?: [number, number, number, number];
+  /** Multiplier over image alpha/imported material opacity; absent means 1. */
+  opacity?: number;
   sprite?: AccentSprite;
   color: string;
   secondaryColor?: string;
@@ -80,7 +85,7 @@ function accent(
 // Deliberate asymmetry, clear silhouette, varied focus and scale. The central
 // product occupies roughly x ±0.19; opaque fruit/leaf/ice slots sit outside it.
 const composition: ProductAccentNode[] = [
-  accent('fruit-upper-left', 'fruit', [-0.40, 0.25, -0.10], 0.31, [0.18, -0.24, -0.55], 0.3),
+  accent('fruit-upper-left', 'fruit', [-0.40, 0.45, -0.10], 0.31, [0.18, -0.24, -0.55], 0.3),
   accent('fruit-lower-right', 'fruit', [0.39, -0.27, -0.09], 0.32 * 1.1, [-0.1, 0.22, 0.65], 2.6),
   accent('leaf-left-middle', 'leaf', [-0.32, 0.09, -0.13], 0.17, [0.15, 0.2, 0.45], 1.3),
   accent('leaf-upper-right', 'leaf', [0.34, 0.37, -0.21], 0.14, [0.3, -0.4, -0.65], 3.7),
@@ -103,7 +108,7 @@ const composition: ProductAccentNode[] = [
 // Each shape appears three times, with neighboring entries using a different
 // shape and size. No flavor tint or substitute water shader is assigned here.
 const droplets: Array<[number, number, number, number, number, number]> = [
-  [1, -0.34, 0.47, -0.05, 0.088, 1], [2, -0.23, 0.32, -0.28, 0.120 * 1.25, 3],
+  [1, -0.22, 0.56, -0.05, 0.088, 1], [2, -0.23, 0.32, -0.28, 0.120 * 1.25, 3],
   [3, -0.41, 0.05, -0.16, 0.062, 2], [5, -0.27, -0.11, -0.14, 0.104, 4],
   [7, -0.34, -0.46, -0.10, 0.080, 2], [9, 0.43, 0.30, -0.10, 0.092, 1],
   [11, 0.29, 0.23, -0.18, 0.075, 4], [13, 0.47, 0.10, -0.35, 0.066 * 1.25, 3],
@@ -114,6 +119,16 @@ const droplets: Array<[number, number, number, number, number, number]> = [
 export const DEFAULT_PRODUCT_ACCENT_SCENE: ProductAccentScene = {
   schemaVersion: 1, enabled: true, opacity: 1,
   nodes: [
+    // A separate rear image slot lets an admin replace/tune the splash without
+    // changing fruit or droplet choreography. Runtime keeps its full bounds
+    // behind every other accent, even on a short or wide package.
+    {
+      ...accent('water-splash-back', 'splash', [0, 0.015, -0.8], 1.5, [0, 0, -0.12], 0.7, 'far'),
+      assetUrl: '/assets/scene/water-splash-clear.webp',
+      imageBounds: [114 / 768, 54 / 768, 667 / 768, 708 / 768],
+      opacity: 0.85,
+      idle: { phase: 0.7, floatAmplitude: 0.003, rockAmplitude: 0.012, periodSeconds: 14 },
+    },
     ...composition,
     ...droplets.map(([id, x, y, z, size, image]) => ({
       ...accent(`droplet-${String(id).padStart(2, '0')}`, 'droplet', [x, y, z], size,
@@ -145,6 +160,13 @@ const validColor = (value: unknown) => typeof value === 'string' && /^#[0-9a-f]{
 const sanitizeVariant = (value: Partial<ProductAccentVariant>): Partial<ProductAccentVariant> => {
   const result = { ...value };
   if (value.assetUrl !== undefined) result.assetUrl = assetUrl(value.assetUrl);
+  if (value.opacity !== undefined) result.opacity = bound(value.opacity, 1, 0, 1);
+  if (value.imageBounds !== undefined) {
+    const bounds = value.imageBounds;
+    result.imageBounds = Array.isArray(bounds) && bounds.length === 4
+      && bounds.every(component => typeof component === 'number' && Number.isFinite(component) && component >= 0 && component <= 1)
+      && bounds[0] < bounds[2] && bounds[1] < bounds[3] ? [...bounds] : undefined;
+  }
   if (value.sprite !== undefined && !['orange','lime','berry','peach','mint','citrus-leaf'].includes(value.sprite)) result.sprite = undefined;
   if (value.color !== undefined) result.color = validColor(value.color) ?? '#ffffff';
   if (value.secondaryColor !== undefined) result.secondaryColor = validColor(value.secondaryColor);
@@ -163,7 +185,7 @@ export function normalizeAccentScene(input: ProductAccentSceneInput = {}): Produ
   const nodes = (input.nodes ?? defaults.nodes).slice(0, 48).filter(node => {
     if (!node.id || seen.has(node.id)) return false;
     seen.add(node.id);
-    return ['fruit', 'leaf', 'ice', 'droplet'].includes(node.kind);
+    return ['fruit', 'leaf', 'ice', 'droplet', 'splash'].includes(node.kind);
   }).map(node => ({
     ...node,
     ...sanitizeVariant(node),
@@ -171,7 +193,7 @@ export function normalizeAccentScene(input: ProductAccentSceneInput = {}): Produ
     enabled: node.enabled !== false,
     position: vector(node.position, [0, 0, -0.15], -1.5, 1.5),
     rotation: vector(node.rotation, [0, 0, 0], -Math.PI * 4, Math.PI * 4),
-    scale: bound(node.scale, 0.1, 0.002, 0.5),
+    scale: bound(node.scale, 0.1, 0.002, node.kind === 'splash' ? 1.6 : 0.5),
     blur: bound(node.blur, 0, 0, 12),
     idle: {
       phase: phase(node.idle?.phase),

@@ -5,6 +5,7 @@ Generated with the built-in ImageGen tool, October 1, 2026. The user supplied im
 - `public/assets/scene/fruit-leaf-atlas.webp`: 1536 × 1024, 3 columns × 2 rows. Top: orange, lime, berry cluster. Bottom: peach, mint, citrus leaf.
 - `public/assets/scene/ice-droplet-atlas.webp`: 1774 × 887, 2 columns × 1 row. Retained for optional analytic presets without assigned artwork; unused by the default storefront.
 - Default water and ice now use five optimized, user-supplied transparent WebPs. See [source mapping, alpha checks and export pipeline](clear-accent-assets.md).
+- `public/assets/scene/water-splash-clear.webp` is a separate generated transparent water splash, placed behind all fruit, leaves, ice, droplets and the primary product. See [splash asset provenance and export](water-splash-asset.md).
 
 Both are temporary presentation assets. Individual approved image/GLB replacements can be assigned through each scene node's `assetUrl` without changing animation code.
 

@@ -20,6 +20,14 @@ export interface AccentViewport {
 const positive = (value: number, fallback: number) => Number.isFinite(value) && value > 0 ? value : fallback;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+/** Alpha-bound extents only affect image framing. The full plane sphere remains
+ * the conservative geometry radius for product clearance and rear ordering. */
+export function accentImageExtent(node: ProductAccentNode, planeSize = 1): Vector3Tuple {
+  const [left, top, right, bottom] = node.imageBounds ?? [0, 0, 1, 1];
+  return [Math.max(Math.abs(left - 0.5), Math.abs(right - 0.5)) * planeSize,
+    Math.max(Math.abs(top - 0.5), Math.abs(bottom - 0.5)) * planeSize, 0];
+}
+
 /** Width carries more weight on squat packages: a short 250ml can needs a
  * broader composition than a slim package of the same visible height. */
 export function accentLayoutMetrics(envelope: AccentProductEnvelope) {
@@ -41,7 +49,7 @@ export function accentLayoutMetrics(envelope: AccentProductEnvelope) {
  * geometryRadius is the accent's normalized local geometry radius before scale. */
 export function adaptAccentFrame(
   sample: AccentNodeFrame, node: ProductAccentNode, envelope: AccentProductEnvelope,
-  viewport: AccentViewport, geometryRadius: number, geometryExtent?: Vector3Tuple,
+  viewport: AccentViewport, geometryRadius: number, geometryExtent?: Vector3Tuple, minimumRearDepth = 0,
 ): AccentNodeFrame {
   const metrics = accentLayoutMetrics(envelope);
   const distance = positive(viewport.distance, metrics.height * 2);
@@ -53,18 +61,8 @@ export function adaptAccentFrame(
   // leaves a small viewport margin on narrow screens, without moving UI layers.
   const angle = tangent * Math.min(1, aspect) * 0.94;
   const maximumBaseRadius = distance * angle / (1 + angle);
-  const sizeAdjustment = Math.min(1, maximumBaseRadius / Math.max(baseRadius, 0.000001));
-  const adjustedRadius = baseRadius * sizeAdjustment;
-  const clearance = Math.max(metrics.height * 0.05, metrics.sweptRadius * 0.06);
-  const artisticDepth = Math.max(0, -sample.position[2]) * metrics.height * 0.45;
-  const compensation = (distance + metrics.sweptRadius + clearance + artisticDepth) / (distance - adjustedRadius);
-  const depth = distance * (compensation - 1);
-  const fullRadius = adjustedRadius * compensation;
-  const worldScale = sample.scale * metrics.sizeMetric * sizeAdjustment * compensation;
-  // Use the closest possible point of each bounding sphere for a conservative
-  // frustum fit. All imagery stays within this viewer rather than spilling over
-  // the title, packaging row or neighboring desktop cards.
-  let extent: Vector3Tuple = [fullRadius, fullRadius, fullRadius];
+  let maximumRadius = maximumBaseRadius;
+  let rotatedExtent: Vector3Tuple | undefined;
   if (geometryExtent) {
     const [x, y, z] = sample.rotation;
     const cx = Math.cos(x), sx = Math.sin(x), cy = Math.cos(y), sy = Math.sin(y), cz = Math.cos(z), sz = Math.sin(z);
@@ -73,8 +71,34 @@ export function adaptAccentFrame(
       [cx * sz + sx * sy * cz, cx * cz - sx * sy * sz, -sx * cy],
       [sx * sz - cx * sy * cz, sx * cz + cx * sy * sz, cx * cy],
     ];
-    extent = matrix.map(row => row.reduce((sum, value, axis) => sum + Math.abs(value) * geometryExtent[axis], 0) * worldScale) as Vector3Tuple;
+    rotatedExtent = matrix.map(row => row.reduce((sum, value, axis) => sum + Math.abs(value) * geometryExtent[axis], 0)) as Vector3Tuple;
+    if (node.kind === 'splash') {
+      // A broad, almost face-on splash is a plane rather than a solid sphere.
+      // Fit its actual rotated extents so narrow screens keep a useful broad
+      // splash instead of reducing it to a small ring behind the can center.
+      const [ex, ey, ez] = rotatedExtent;
+      const maximumScale = Math.min(
+        distance * tangent * aspect / Math.max(ex + ez * tangent * aspect, 0.000001),
+        distance * tangent / Math.max(ey + ez * tangent, 0.000001),
+        distance / (radius * 1.02),
+      ) * 0.94;
+      maximumRadius = maximumScale * radius;
+    }
   }
+  const sizeAdjustment = Math.min(1, maximumRadius / Math.max(baseRadius, 0.000001));
+  const adjustedRadius = baseRadius * sizeAdjustment;
+  const clearance = Math.max(metrics.height * 0.05, metrics.sweptRadius * 0.06);
+  const artisticDepth = Math.max(0, -sample.position[2]) * metrics.height * 0.45;
+  const rearDepth = Math.max(metrics.sweptRadius + clearance + artisticDepth, minimumRearDepth);
+  const compensation = (distance + rearDepth) / (distance - adjustedRadius);
+  const depth = distance * (compensation - 1);
+  const fullRadius = adjustedRadius * compensation;
+  const worldScale = sample.scale * metrics.sizeMetric * sizeAdjustment * compensation;
+  // Use the closest possible point of each bounding sphere for a conservative
+  // frustum fit. All imagery stays within this viewer rather than spilling over
+  // the title, packaging row or neighboring desktop cards.
+  let extent: Vector3Tuple = [fullRadius, fullRadius, fullRadius];
+  if (rotatedExtent) extent = rotatedExtent.map(value => value * worldScale) as Vector3Tuple;
   const nearDistance = distance + depth - extent[2];
   const halfWidth = Math.max(0, nearDistance * tangent * aspect - extent[0]);
   const halfHeight = Math.max(0, nearDistance * tangent - extent[1]);

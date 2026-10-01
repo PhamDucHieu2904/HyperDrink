@@ -43,7 +43,7 @@ test('scene data supports replaceable flavor assets, deliberate depth and indepe
   assert.deepEqual(JSON.parse(JSON.stringify(scene)), scene, 'Saved scene contains only JSON data');
   assert.equal(new Set(scene.nodes.map(node => node.id)).size, scene.nodes.length);
   const counts = scene.nodes.reduce((result, node) => ({ ...result, [node.kind]: (result[node.kind] ?? 0) + 1 }), {});
-  assert.deepEqual(counts, { fruit: 2, leaf: 6, ice: 2, droplet: 12 });
+  assert.deepEqual(counts, { splash: 1, fruit: 2, leaf: 6, ice: 2, droplet: 12 });
   const fruit = scene.nodes.filter(node => node.kind === 'fruit');
   assert.ok(fruit.every(node => Math.abs(node.position[0]) > 0.3 && node.position[2] < 0));
   assert.ok(scene.nodes.some(node => node.depth === 'near' && node.blur >= 3));
@@ -64,7 +64,7 @@ test('scene data supports replaceable flavor assets, deliberate depth and indepe
   assert.equal(resolved.assetUrl, '/models/props/lime.glb');
   assert.equal(resolved.sprite, 'lime');
   assert.equal(assigned.assetUrl, '/models/props/fruit.glb');
-  assert.equal(config.resolveAccentNodes(scene, 'berry')[0].sprite, 'berry');
+  assert.equal(config.resolveAccentNodes(scene, 'berry').find(node => node.kind === 'fruit').sprite, 'berry');
   const normalized = config.normalizeAccentScene({
     opacity: 2, motion: { burstSeconds: Number.NaN, staggerSeconds: -5 },
     nodes: [{ ...assigned, scale: 100, blur: -2, position: [Infinity, 10, -10] }, assigned],
@@ -80,7 +80,9 @@ test('scene data supports replaceable flavor assets, deliberate depth and indepe
 });
 
 test('composition keeps the larger right fruit and a small leaf peeking from directly behind the left edge', () => {
-  assert.equal(scene.nodes.length, 22);
+  assert.equal(scene.nodes.length, 23);
+  const leftFruit = scene.nodes.find(node => node.id === 'fruit-upper-left');
+  assert.equal(leftFruit.position[1], 0.45, 'Left fruit is raised by 0.2 relative product heights without moving the right fruit');
   const rightFruit = scene.nodes.find(node => node.id === 'fruit-lower-right');
   assert.equal(rightFruit.scale, 0.32 * 1.1, 'Right fruit is exactly 10% larger than the previous 0.32 composition');
   const peek = scene.nodes.find(node => node.id === 'leaf-left-peek');
@@ -99,6 +101,33 @@ test('composition keeps the larger right fruit and a small leaf peeking from dir
   const outer = scene.nodes.find(node => node.id === 'leaf-left-near');
   assert.equal(outer.blur, 5.5, 'Outer leaf retains a recognizable but clearly defocused silhouette');
   assert.ok(outer.scale > 0 && outer.position[2] < 0);
+});
+
+test('rear splash is a replaceable independent image with broad scale and neutral photographic colors', () => {
+  const splash = scene.nodes.find(node => node.kind === 'splash');
+  assert.equal(splash.assetUrl, '/assets/scene/water-splash-clear.webp');
+  assert.equal(splash.depth, 'far');
+  assert.ok(splash.position[2] < Math.min(...scene.nodes.filter(node => node.kind !== 'splash').map(node => node.position[2])));
+  assert.ok(splash.scale >= 1 && splash.scale <= 1.6);
+  assert.equal(splash.color, '#ffffff');
+  assert.equal(splash.tint, undefined);
+  assert.equal(splash.opacity, 0.85);
+  assert.equal(splash.variants, undefined);
+  assert.deepEqual(splash.imageBounds, [114 / 768, 54 / 768, 667 / 768, 708 / 768]);
+  const extent = layout.accentImageExtent(splash);
+  assert.ok(Math.abs(extent[0] - 283 / 768) < 1e-12);
+  assert.deepEqual(extent.slice(1), [330 / 768, 0]);
+  assert.ok(splash.idle.floatAmplitude < 0.006 && splash.idle.rockAmplitude < 0.018);
+  assert.equal(config.normalizeAccentScene().nodes.find(node => node.kind === 'splash').scale, splash.scale,
+    'Large splash is not clamped to the small object scale limit');
+  assert.equal(config.normalizeAccentScene({ nodes: [{ ...splash, scale: 10 }] }).nodes[0].scale, 1.6);
+  for (const flavor of ['citrus', 'berry', 'peach', 'lime']) assert.deepEqual(config.resolveAccentNodeForFlavor(splash, flavor), splash);
+  for (const invalid of [null, [0, 0, 1], [0, 0, 2, 1], [0.5, 0, 0.4, 1], [0, Number.NaN, 1, 1]]) {
+    assert.equal(config.normalizeAccentScene({ nodes: [{ ...splash, imageBounds: invalid }] }).nodes[0].imageBounds, undefined);
+  }
+  for (const [opacity, expected] of [[Number.NaN, 1], [Infinity, 1], [-0.5, 0], [1.5, 1], [0.6, 0.6]]) {
+    assert.equal(config.normalizeAccentScene({ nodes: [{ ...splash, opacity }] }).nodes[0].opacity, expected);
+  }
 });
 
 test('demo water and ice bind the supplied transparent images with deliberate variety and no flavor tint', () => {
@@ -300,7 +329,7 @@ test('burst and idle geometry stay outside the swept product sphere and inside d
       state = advance(state);
       for (const [index, node] of scene.nodes.entries()) {
         const size = node.kind === 'droplet' && !node.assetUrl ? 1.7 : 1;
-        const localExtent = [size * 0.5, size * 0.5, 0];
+        const localExtent = layout.accentImageExtent(node, size);
         const radius = Math.SQRT1_2 * size;
         const adapted = layout.adaptAccentFrame(sample(state, index), node, envelope, viewport, radius, localExtent);
         assert.ok(adapted.position[2] + radius * adapted.scale < -sweptRadius,

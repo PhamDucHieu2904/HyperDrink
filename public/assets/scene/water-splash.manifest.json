@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "source": "Original water splash generated with built-in image_gen, 2026-10-01",
+  "promptDocument": "docs/water-splash-asset.md",
+  "processing": {
+    "crop": "Only fully transparent outer margins",
+    "resize": "768px square, premultiplied RGBA Lanczos, natural aspect preserved, 7% transparent padding",
+    "webp": {
+      "quality": 92,
+      "alphaQuality": 100,
+      "method": 6,
+      "exact": true
+    },
+    "colorChanges": "None"
+  },
+  "asset": {
+    "src": "/assets/scene/water-splash-clear.webp",
+    "width": 768,
+    "height": 768,
+    "bytes": 152216,
+    "sha256": "54e01899d6bd5bc3559adf84fd173411a97f29cbe51f9035e6473ee614f787b7",
+    "alpha": {
+      "minimum": 0,
+      "maximum": 255,
+      "transparentPixels": 454311,
+      "partialPixels": 134649,
+      "opaquePixels": 864,
+      "coverageFraction": 0.155577,
+      "contentBounds": [
+        114,
+        54,
+        667,
+        708
+      ]
+    },
+    "qualityCheck": {
+      "premultipliedRgbRmse": 1.2172,
+      "premultipliedRgbPsnrDb": 46.424,
+      "alphaExact": true
+    }
+  },
+  "original": {
+    "width": 1168,
+    "height": 1346,
+    "bytes": 1469189,
+    "sha256": "0ff7ad5fab48b43588ffea1c6859538c125b2ab40106096ff18e612f347cb097",
+    "cropBounds": [
+      0,
+      0,
+      1154,
+      1346
+    ]
+  }
+}

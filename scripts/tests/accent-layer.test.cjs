@@ -27,7 +27,7 @@ function loadSource(relativePath) {
 
 const { DEFAULT_PRODUCT_ACCENT_SCENE } = loadSource('lib/viewer/accent-config.ts');
 const { createAccentLayer } = loadSource('lib/viewer/accent-layer.ts');
-const baseNode = DEFAULT_PRODUCT_ACCENT_SCENE.nodes[0];
+const baseNode = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.find(node => node.kind === 'fruit');
 const node = (id, overrides = {}) => ({ ...baseNode, id, variants: undefined, ...overrides });
 const sceneConfig = nodes => ({ ...DEFAULT_PRODUCT_ACCENT_SCENE, nodes });
 const frame = overrides => ({
@@ -140,14 +140,14 @@ test('the complete image demo shares four distinct water sources, preserves whit
   backdrop.addEventListener('dispose', () => { backdropDisposals += 1; });
   layer.setBackdrop(backdrop);
   layer.configure(DEFAULT_PRODUCT_ACCENT_SCENE, 'can-330:lime', 'lime');
-  assert.equal(update().count, 22);
-  assert.equal(textureRequests.length, 6, 'One fruit atlas, one ice and four water images are shared across 22 nodes');
+  assert.equal(update().count, 23);
+  assert.equal(textureRequests.length, 7, 'One splash, one fruit atlas, one ice and four water images are shared across 23 nodes');
   const atlases = textureRequests.map(() => fakeTexture());
-  const disposals = Array(6).fill(0);
+  const disposals = Array(7).fill(0);
   atlases.forEach((atlas, index) => atlas.addEventListener('dispose', () => { disposals[index] += 1; }));
   textureRequests[0].resolve(atlases[0]); await flush();
   assert.equal(update({ reducedMotion: true }).phase, 'waiting');
-  assert.ok(root.children.every(group => !group.visible), 'No partial fruit-only scene before all supplied glass images are ready');
+  assert.ok(root.children.every(group => !group.visible), 'No partial scene before all supplied glass and splash images are ready');
   textureRequests.slice(1).forEach((request, index) => request.resolve(atlases[index + 1])); await flush();
   assert.equal(update({ reducedMotion: true, resolution: [900, 1400] }).phase, 'idle');
   const ice = root.children.find(group => group.name === 'ice-lower-left').children[0];
@@ -167,6 +167,14 @@ test('the complete image demo shares four distinct water sources, preserves whit
   assert.equal(new Set(waterMeshes.map(mesh => mesh.material.map)).size, 12, 'Independent transform clones share decoded sources without corrupting each other');
   assert.ok(waterMeshes.every(mesh => mesh.material.map.colorSpace === THREE.SRGBColorSpace));
   assert.ok(ice.material.transparent && drop.material.transparent);
+  const splash = root.children.find(group => group.name === 'water-splash-back').children[0];
+  assert.ok(splash.material instanceof THREE.MeshBasicMaterial);
+  assert.equal(splash.material.color.getHex(), 0xffffff);
+  assert.equal(splash.material.toneMapped, false);
+  assert.ok(splash.material.transparent && !splash.material.depthWrite);
+  assert.equal(splash.material.map.colorSpace, THREE.SRGBColorSpace);
+  assert.equal(splash.material.opacity, 0.85, 'Splash has an independent opacity multiplier without changing other artwork');
+  assert.equal(splash.renderOrder, -10, 'Rear splash blends before subsidiary fruit, leaves and glass');
   const leaf = root.children.find(group => group.name === 'leaf-left-middle').children[0];
   const leafUvs = leaf.geometry.getAttribute('uv');
   assert.ok(Math.min(...Array.from({ length: leafUvs.count }, (_, index) => leafUvs.getX(index))) > 0.1,
@@ -181,12 +189,12 @@ test('the complete image demo shares four distinct water sources, preserves whit
   }
   layer.configure(DEFAULT_PRODUCT_ACCENT_SCENE, 'can-500:berry', 'berry');
   update({ reducedMotion: true }); await flush(); await settle();
-  assert.equal(textureRequests.length, 6, 'Flavor changes reuse the same white water and ice images');
+  assert.equal(textureRequests.length, 7, 'Flavor changes reuse the same white water, ice and splash images');
   assert.equal(cropDisposals, 1, 'The outgoing ice crop is released when its flavor scene is replaced');
   layer.dispose();
-  assert.deepEqual(disposals, Array(6).fill(1));
+  assert.deepEqual(disposals, Array(7).fill(1));
   layer.dispose();
-  assert.deepEqual(disposals, Array(6).fill(1), 'Repeated lifecycle disposal does not release cached textures twice');
+  assert.deepEqual(disposals, Array(7).fill(1), 'Repeated lifecycle disposal does not release cached textures twice');
   assert.equal(backdropDisposals, 0, 'Image accents do not own the optional viewer backdrop');
 }));
 
@@ -242,6 +250,47 @@ test('actual layer spreads a squat product more widely without shrinking the enl
   assert.ok(projectedScale >= 0.30 - 1e-10, 'The smaller oval artwork retains its compensated size after depth compensation');
 }));
 
+test('splash stays behind every accent throughout burst and idle while fitting broad/slim desktop/mobile frames', async () => harness(async ({ layer, root, textureRequests, update }) => {
+  // Put a deep, larger admin-assigned object last so rear ordering cannot rely
+  // on the default array order or simply on the saved splash Z coordinate.
+  const extra = node('admin-rear-fruit', { position: [0.3, 0.1, -1.5], scale: 0.45 });
+  layer.configure(sceneConfig([...DEFAULT_PRODUCT_ACCENT_SCENE.nodes, extra]), 'can-330:lime', 'lime');
+  update(); textureRequests.forEach(request => request.resolve(fakeTexture())); await flush();
+  for (const aspect of [0.55, 1, 1.8]) for (const width of [0.4, 0.85]) {
+    const camera = new THREE.PerspectiveCamera(30, aspect, 0.01, 40);
+    camera.position.z = 2.4;
+    update({ viewerIdle: false, camera, height: 1, width, productRadius: 0.78, deltaSeconds: 0.25 });
+    const tangent = Math.tan(camera.fov * Math.PI / 360);
+    for (let tick = 0; tick < 100; tick += 1) {
+      update({ camera, height: 1, width, productRadius: 0.78, deltaSeconds: 1 / 60 });
+      const splash = root.children.find(group => group.name === 'water-splash-back');
+      const frontEdge = splash.position.z + Math.SQRT1_2 * splash.scale.x;
+      for (const group of root.children.filter(group => group !== splash)) {
+        assert.ok(frontEdge < group.position.z - Math.SQRT1_2 * group.scale.x,
+          `${aspect}/${width}/${tick}: Splash comes in front of ${group.name}`);
+      }
+      for (const x of [-283 / 768, 283 / 768]) for (const y of [-330 / 768, 330 / 768]) {
+        const corner = new THREE.Vector3(x, y, 0).applyEuler(splash.rotation).multiplyScalar(splash.scale.x).add(splash.position);
+        const distance = camera.position.z - corner.z;
+        assert.ok(Math.abs(corner.x) <= distance * tangent * aspect + 1e-10, 'Splash cannot overlap adjacent UI outside the viewer');
+        assert.ok(Math.abs(corner.y) <= distance * tangent + 1e-10);
+      }
+      if (tick === 99 && aspect === 0.55) {
+        const apparentScale = splash.scale.x * camera.position.z / (camera.position.z - splash.position.z);
+        assert.ok(apparentScale > 0.75, 'Alpha-bound planar fitting preserves broad mobile water instead of a tiny center ring');
+      }
+    }
+  }
+}));
+
+test('an empty configurable splash slot does not fall back to an unrelated fruit image', async () => harness(async ({ layer, root, textureRequests, update }) => {
+  const splash = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.find(node => node.kind === 'splash');
+  layer.configure(sceneConfig([{ ...splash, assetUrl: undefined }]), 'can-330:lime', 'lime');
+  assert.equal(update({ reducedMotion: true }).phase, 'idle');
+  assert.equal(textureRequests.length, 0);
+  assert.equal(root.children[0].children.length, 0);
+}));
+
 test('rapid retargets never build intermediate flavor assets or reveal an obsolete selection', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {
   const configured = sceneConfig([node('fruit', {
     assetUrl: '/demo/orange.png',
@@ -290,17 +339,35 @@ test('late GLBs and external images are disposed after scene replacement or view
   assert.equal(root.children.length, 0);
 }));
 
-test('scene enabled/node enabled/opacity controls apply to the real layer', async () => harness(async ({ layer, root, textureRequests, update }) => {
+test('scene enabled/node enabled/opacity controls apply to the real layer', async () => harness(async ({ layer, root, textureRequests, gltfRequests, update, settle }) => {
   const configured = { ...sceneConfig([
-    node('enabled'), node('disabled', { enabled: false }),
+    node('enabled', { opacity: 0.25 }), node('disabled', { enabled: false }),
+    node('native-water', { kind: 'droplet', opacity: 0.5 }),
+    node('model', { assetUrl: '/demo/opacity.glb', opacity: 0.5 }),
   ]), opacity: 0.4 };
   layer.configure(configured, 'can-330:citrus', 'citrus');
-  assert.equal(update().count, 1);
+  assert.equal(update().count, 3);
   textureRequests[0].resolve(fakeTexture()); await flush();
+  const model = modelWithResources();
+  const importedMaterial = model.scene.children[0].material;
+  importedMaterial.opacity = 0.6;
+  gltfRequests[0].resolve(model); await flush();
   const result = update({ reducedMotion: true });
   assert.equal(result.phase, 'idle');
-  assert.equal(root.children.length, 1);
-  assert.equal(root.children[0].children[0].material.opacity, 0.4);
+  assert.equal(root.children.length, 3);
+  const imageMaterial = root.children[0].children[0].material;
+  const nativeMaterial = root.children[1].children[0].material;
+  assert.equal(imageMaterial.opacity, 0.4 * 0.25, 'Image alpha receives the scene and node opacity multipliers');
+  assert.equal(nativeMaterial.opacity, 0.4 * 0.5);
+  assert.equal(nativeMaterial.uniforms.opacity.value, nativeMaterial.opacity);
+  assert.equal(importedMaterial.opacity, 0.4 * 0.5 * 0.6, 'Imported GLB base opacity is retained rather than replaced');
+  await settle();
+  layer.configure(configured, 'can-330:berry', 'berry');
+  update({ viewerIdle: false, deltaSeconds: 0.04 });
+  assert.ok(imageMaterial.opacity > 0 && imageMaterial.opacity < 0.4 * 0.25);
+  assert.ok(Math.abs(nativeMaterial.opacity / imageMaterial.opacity - 2) < 1e-12);
+  assert.ok(Math.abs(importedMaterial.opacity / imageMaterial.opacity - 1.2) < 1e-12,
+    'Flavor fade multiplies all independent opacities without restarting or discarding GLB alpha');
   layer.configure({ ...configured, enabled: false }, 'can-330:citrus', 'citrus');
   assert.equal(root.visible, false);
   assert.equal(update().count, 0);
