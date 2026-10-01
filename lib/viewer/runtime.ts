@@ -570,7 +570,11 @@ export function createProductViewer(
     const accentFrame = accents.update({ deltaSeconds: dt, reducedMotion, paused,
       ready: Boolean(active && active.definitionKey === assetDefinitionKey && appearanceReady),
       viewerIdle: !cinematic && !packageTransition,
-      height: active ? active.bounds.max.y - active.bounds.min.y : 0.1, camera });
+      height: active ? active.bounds.max.y - active.bounds.min.y : 0.1,
+      width: active ? Math.max(active.bounds.max.x - active.bounds.min.x, active.bounds.max.z - active.bounds.min.z) : 0.05,
+      productRadius: active?.radius ?? 0.1,
+      maximumProductScale: packageMaximumScale(presentation.motion.packageAnticipationScale, presentation.motion.packageBounceAmount),
+      camera });
     mount.dataset.accentPhase = accentFrame.phase;
     mount.dataset.accentCount = String(accentFrame.count);
     if (accentFrame.count > 0 && !paused && !reducedMotion) dirty = true;

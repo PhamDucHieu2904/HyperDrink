@@ -5,6 +5,7 @@ const path = require('node:path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const ts = require('typescript');
+const THREE = require('three');
 
 const projectRoot = path.resolve(__dirname, '../..');
 const sourceCache = new Map();
@@ -27,6 +28,7 @@ function loadSource(relativePath) {
 
 const config = loadSource('lib/viewer/accent-config.ts');
 const motion = loadSource('lib/viewer/accent-motion.ts');
+const layout = loadSource('lib/viewer/accent-layout.ts');
 const scene = config.DEFAULT_PRODUCT_ACCENT_SCENE;
 const input = { key: 'can-330:lime', ready: true, viewerIdle: true, reducedMotion: false, deltaSeconds: 1 / 60, nodeCount: scene.nodes.length };
 const advance = (state, overrides = {}) => motion.advanceAccentMotion(state, { ...input, ...overrides }, scene.motion);
@@ -46,6 +48,11 @@ test('scene data supports replaceable flavor assets, deliberate depth and indepe
   assert.ok(fruit.every(node => Math.abs(node.position[0]) > 0.3 && node.position[2] < 0));
   assert.ok(scene.nodes.some(node => node.depth === 'near' && node.blur >= 3));
   assert.ok(scene.nodes.some(node => node.depth === 'far' && node.blur > 0));
+  assert.ok(scene.nodes.every(node => node.position[2] < 0), 'Even the blurred legacy near leaf is behind the product');
+  const drops = scene.nodes.filter(node => node.kind === 'droplet');
+  assert.equal(Math.max(...drops.map(node => node.scale)), 0.1);
+  assert.equal(Math.min(...drops.map(node => node.scale)), 0.03);
+  assert.ok(new Set(drops.map(node => node.scale)).size > 10, 'Larger droplets retain natural size variation');
   const phaseValues = new Set(config.normalizeAccentScene().nodes.map(node => node.idle.phase));
   assert.ok(phaseValues.size > 20, 'Sanitizing phases must not collapse varied droplet phases to one maximum');
 
@@ -205,4 +212,66 @@ test('reduced motion shows the settled composition without burst, drift or hidde
   assert.equal(motion.sampleAccentNode({ ...scene.nodes[0], enabled: false }, state, 0, scene.motion).visible, false);
   state = advance(state, { reducedMotion: true, key: 'can-500:berry', ready: false });
   assert.equal(sample(state).visible, false);
+});
+
+test('adaptive spread broadens squat packages using width while preserving requested on-screen droplet size', () => {
+  const slim = { height: 1, width: 0.4, productRadius: 0.575, maximumProductScale: 1.2 };
+  const squat = { height: 1, width: 0.85, productRadius: 0.78, maximumProductScale: 1.2 };
+  assert.ok(layout.accentLayoutMetrics(squat).horizontalSpan > layout.accentLayoutMetrics(slim).horizontalSpan * 1.4);
+  const state = advance(motion.createAccentMotion(input.key), { reducedMotion: true });
+  const leafIndex = scene.nodes.findIndex(node => node.id === 'leaf-upper-right');
+  const node = scene.nodes[leafIndex];
+  const camera = { distance: 3, fov: 30, aspect: 2, center: [0, 0, 0] };
+  const original = sample(state, leafIndex);
+  const narrow = layout.adaptAccentFrame(original, node, slim, camera, Math.SQRT1_2, [0.5, 0.5, 0]);
+  const broad = layout.adaptAccentFrame(original, node, squat, camera, Math.SQRT1_2, [0.5, 0.5, 0]);
+  const projectedX = frame => frame.position[0] / (camera.distance - frame.position[2]) * camera.distance;
+  assert.ok(projectedX(broad) > projectedX(narrow) * 1.4, 'Extra depth does not cancel the broader visible composition');
+  const dropletIndex = scene.nodes.findIndex(node => node.id === 'droplet-02');
+  const droplet = scene.nodes[dropletIndex];
+  const displayed = layout.adaptAccentFrame(sample(state, dropletIndex), droplet, slim, camera, Math.SQRT1_2 * 1.7, [0.85, 0.85, 0]);
+  const apparentScale = displayed.scale * camera.distance / (camera.distance - displayed.position[2]);
+  assert.ok(Math.abs(apparentScale - 0.1) < 1e-12, 'Depth compensation retains the enlarged 2.5× droplet size on screen');
+});
+
+test('burst and idle geometry stay outside the swept product sphere and inside desktop/mobile viewer bounds', () => {
+  const cases = [
+    { height: 1, width: 0.4, productRadius: 0.575, maximumProductScale: 1.2 },
+    { height: 1, width: 0.85, productRadius: 0.78, maximumProductScale: 1.2 },
+    { height: 1, width: 1.1, productRadius: 0.93, maximumProductScale: 1.2 },
+  ];
+  let checked = 0;
+  for (const envelope of cases) for (const aspect of [0.55, 1, 1.8]) {
+    let state = motion.createAccentMotion(input.key);
+    const viewport = { distance: 2.4, fov: 30, aspect, center: [0.04, -0.03, 0] };
+    const tangent = Math.tan(viewport.fov * Math.PI / 360);
+    const sweptRadius = layout.accentLayoutMetrics(envelope).sweptRadius;
+    for (let tick = 0; tick < 200; tick += 1) {
+      state = advance(state);
+      for (const [index, node] of scene.nodes.entries()) {
+        const size = node.kind === 'droplet' ? 1.7 : 1;
+        const localExtent = [size * 0.5, size * 0.5, 0];
+        const radius = Math.SQRT1_2 * size;
+        const adapted = layout.adaptAccentFrame(sample(state, index), node, envelope, viewport, radius, localExtent);
+        assert.ok(adapted.position[2] + radius * adapted.scale < -sweptRadius,
+          `${node.id} intersects a possible rotated/overshooting product at tick ${tick}`);
+        const rotation = new THREE.Euler(...adapted.rotation, 'XYZ');
+        for (const x of [-localExtent[0], localExtent[0]]) for (const y of [-localExtent[1], localExtent[1]]) {
+          const corner = new THREE.Vector3(x, y, 0).applyEuler(rotation).multiplyScalar(adapted.scale).add(new THREE.Vector3(...adapted.position));
+          const depth = viewport.distance - corner.z;
+          assert.ok(Math.abs(corner.x - viewport.center[0]) <= depth * tangent * aspect + 1e-10,
+            `${node.id} leaks outside the viewer horizontally`);
+          assert.ok(Math.abs(corner.y - viewport.center[1]) <= depth * tangent + 1e-10,
+            `${node.id} leaks outside the viewer vertically`);
+        }
+        checked += 1;
+      }
+    }
+  }
+  assert.equal(checked, 52200);
+  const state = advance(motion.createAccentMotion(input.key), { reducedMotion: true });
+  const node = scene.nodes[0];
+  const adapted = layout.adaptAccentFrame(sample(state), node, cases[1], { distance: 2.4, fov: 30, aspect: 1, center: [0, 0, 0] }, Math.sqrt(3) / 2, [0.5, 0.5, 0.5]);
+  assert.ok(adapted.position[2] + Math.sqrt(3) / 2 * adapted.scale < -layout.accentLayoutMetrics(cases[1]).sweptRadius,
+    'Approved normalized GLBs receive the same conservative rotation-safe clearance');
 });

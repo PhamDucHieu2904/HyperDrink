@@ -32,7 +32,8 @@ const node = (id, overrides = {}) => ({ ...baseNode, id, variants: undefined, ..
 const sceneConfig = nodes => ({ ...DEFAULT_PRODUCT_ACCENT_SCENE, nodes });
 const frame = overrides => ({
   deltaSeconds: 1 / 60, ready: true, viewerIdle: true, reducedMotion: false,
-  paused: false, height: 2, camera: new THREE.PerspectiveCamera(30, 1, 0.01, 10), ...overrides,
+  paused: false, height: 2, width: 1.1, productRadius: 1.27, maximumProductScale: 1.2,
+  camera: new THREE.PerspectiveCamera(30, 1, 0.01, 10), ...overrides,
 });
 const flush = async () => { for (let index = 0; index < 5; index += 1) await Promise.resolve(); };
 function fakeTexture() {
@@ -152,6 +153,18 @@ test('the complete demo waits for both shared atlases, reuses them and releases 
   assert.equal(ice.material.map.offset.x, 0);
   assert.equal(drop.material.map.offset.x, 0.5);
   assert.ok(ice.material.transparent && drop.material.transparent);
+  const leaf = root.children.find(group => group.name === 'leaf-left-middle').children[0];
+  const leafUvs = leaf.geometry.getAttribute('uv');
+  assert.ok(Math.min(...Array.from({ length: leafUvs.count }, (_, index) => leafUvs.getX(index))) > 0.1,
+    'Leaf subject UVs exclude the orange peel fragment beside its atlas cell');
+  assert.equal(leaf.material.map.repeat.x, 1 / 3);
+  assert.equal(leaf.material.map.offset.x, 1 / 3, 'Subject cropping retains the original mint atlas cell');
+  for (const group of root.children) {
+    const mesh = group.children[0];
+    mesh.geometry.computeBoundingSphere();
+    assert.ok(group.position.z + mesh.geometry.boundingSphere.radius * group.scale.x < -1.27 * 1.2,
+      `${group.name} enters the real viewer product's swept sphere`);
+  }
   layer.configure(DEFAULT_PRODUCT_ACCENT_SCENE, 'can-500:berry', 'berry');
   update({ reducedMotion: true }); await flush(); await settle();
   assert.equal(textureRequests.length, 2);
@@ -170,6 +183,22 @@ test('changing the explicit flavor prop also updates fruit when appearance IDs a
   update(); await flush(); await settle();
   assert.notEqual(root.children[0], outgoing, 'A standalone flavor edit invalidates the rendered asset variant');
   assert.equal(root.children[0].children[0].material.map.offset.x, 1 / 3);
+}));
+
+test('actual layer spreads a squat product more widely without shrinking the enlarged droplets in projection', async () => harness(async ({ layer, root, textureRequests, update }) => {
+  layer.configure(DEFAULT_PRODUCT_ACCENT_SCENE, 'can-250-short:lime', 'lime');
+  update(); textureRequests.forEach(request => request.resolve(fakeTexture())); await flush();
+  const camera = new THREE.PerspectiveCamera(30, 2, 0.01, 10);
+  camera.position.z = 4;
+  update({ camera, reducedMotion: true, width: 0.8, productRadius: 1.16 });
+  const leaf = root.children.find(group => group.name === 'leaf-upper-right');
+  const narrowX = leaf.position.x / (4 - leaf.position.z) * 4;
+  update({ camera, reducedMotion: true, width: 1.7, productRadius: 1.56 });
+  const broadX = leaf.position.x / (4 - leaf.position.z) * 4;
+  assert.ok(broadX > narrowX * 1.2, 'Width-aware staging reaches further around squat cans in the actual Three scene');
+  const droplet = root.children.find(group => group.name === 'droplet-02');
+  const projectedScale = droplet.scale.x * 4 / (4 - droplet.position.z);
+  assert.ok(projectedScale > 0.19, 'The 2.5× droplet remains visible after moving behind the product');
 }));
 
 test('rapid retargets never build intermediate flavor assets or reveal an obsolete selection', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {

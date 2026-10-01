@@ -86,7 +86,9 @@ const composition: ProductAccentNode[] = [
   accent('leaf-upper-right', 'leaf', [0.34, 0.37, -0.21], 0.14, [0.3, -0.4, -0.65], 3.7),
   accent('leaf-right-middle', 'leaf', [0.33, -0.05, -0.13], 0.19, [0.1, 0.2, -0.3], 4.4),
   accent('leaf-lower-right', 'leaf', [0.27, -0.46, -0.16], 0.11, [-0.3, -0.3, 0.8], 0.8),
-  accent('leaf-left-near', 'leaf', [-0.43, -0.07, 0.12], 0.12, [0.5, 0.8, -0.55], 5.1, 'near', 3.2),
+  // The legacy ID is stable for saved layouts; even this blurred depth cue now
+  // sits behind the product rather than floating in its rotation path.
+  accent('leaf-left-near', 'leaf', [-0.46, -0.07, -0.26], 0.12, [0.5, 0.8, -0.55], 5.1, 'near', 3.2),
   accent('ice-lower-left', 'ice', [-0.41, -0.27, -0.11], 0.20, [0.14, 0.16, 0.3], 2.1),
   accent('ice-middle-right', 'ice', [0.44, 0.015, -0.23], 0.11, [0.12, 0.16, 0.7], 4.8, 'far', 0.7),
 ];
@@ -109,7 +111,7 @@ export const DEFAULT_PRODUCT_ACCENT_SCENE: ProductAccentScene = {
   nodes: [
     ...composition,
     ...droplets.map(([x, y, z, size], index) => accent(
-      `droplet-${String(index + 1).padStart(2, '0')}`, 'droplet', [x, y, z], size,
+      `droplet-${String(index + 1).padStart(2, '0')}`, 'droplet', [x, y, z], size * 2.5,
       [0, 0, index * 0.26], index * 0.83, z < -0.28 ? 'far' : 'mid', z < -0.28 ? 0.8 : 0,
     )),
   ],

@@ -20,10 +20,10 @@ const environment = loadSource('lib/viewer/environment.ts');
 
 test('environment records retain uploaded HDRIs and bound partial procedural admin settings', () => {
   const defaults = config.resolveViewerPresentation().environment;
-  assert.equal(defaults.mode, 'procedural');
+  assert.equal(defaults.mode, 'hdri');
   assert.equal(config.resolveViewerPresentation({ environment: { src: '/environments/custom.exr' } }).environment.mode, 'hdri', 'Old HDRI records must keep their existing asset without an explicit mode');
-  assert.equal(config.resolveViewerPresentation({ environment: { src: 'javascript:alert(1)' } }).environment.mode, 'procedural');
-  const edited = config.resolveViewerPresentation({ environment: { procedural: { seed: 45.8, skyIntensity: 99, groundIntensity: -4, canopyStrength: Infinity } } }).environment;
+  assert.equal(config.resolveViewerPresentation({ environment: { src: 'javascript:alert(1)' } }).environment.mode, 'hdri');
+  const edited = config.resolveViewerPresentation({ environment: { mode: 'procedural', procedural: { seed: 45.8, skyIntensity: 99, groundIntensity: -4, canopyStrength: Infinity } } }).environment;
   assert.equal(edited.procedural.seed, 45);
   assert.equal(edited.procedural.skyIntensity, 3);
   assert.equal(edited.procedural.groundIntensity, 0.05);
@@ -72,7 +72,7 @@ test('generated daylight is finite linear HDR with smooth radiance and a seamles
 });
 
 test('seeded lighting is deterministic and cache keys separate radiance from live rotation/intensity edits', () => {
-  const defaults = config.resolveViewerPresentation().environment;
+  const defaults = config.resolveViewerPresentation({ environment: { mode: 'procedural' } }).environment;
   const first = environment.createDaylightEnvironment(defaults.procedural);
   const second = environment.createDaylightEnvironment(defaults.procedural);
   const alternate = environment.createDaylightEnvironment({ ...defaults.procedural, seed: defaults.procedural.seed + 1 });

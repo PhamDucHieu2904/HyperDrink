@@ -105,15 +105,15 @@ export type ViewerPresentationInput = Omit<{
 
 export const DEFAULT_VIEWER_PRESENTATION: ViewerPresentation = {
   schemaVersion: 1,
-  // Broad sky and ground illumination avoid harsh studio strips on glossy labels.
+  // Broad, neutral softboxes provide the reflections; direct lights only lift shadows.
   environment: {
-    mode: 'procedural', src: '/environments/studio-softbox.exr', intensity: 0.85, rotation: [0, 0, 0],
+    mode: 'hdri', src: '/environments/studio-softbox.exr', intensity: 0.85, rotation: [0, 0.75, 0],
     procedural: { preset: 'soft-daylight', seed: 2904, skyIntensity: 1.1, groundIntensity: 0.52, canopyStrength: 0.32 },
   },
   lights: [
-    { type: 'directional', color: '#ffffff', intensity: 0.045, position: [-3, 4, 5] },
-    { type: 'directional', color: '#f6f9ff', intensity: 0.03, position: [4, 2, 5] },
-    { type: 'hemisphere', color: '#ffffff', groundColor: '#c5c5bd', intensity: 0.035, position: [0, 3, 0] },
+    { type: 'directional', color: '#ffffff', intensity: 0.45, position: [4, 5, 5] },
+    { type: 'directional', color: '#f0f6ff', intensity: 0.25, position: [-4, 3, 4] },
+    { type: 'hemisphere', color: '#ffffff', groundColor: '#aeb5bd', intensity: 0.12, position: [0, 3, 0] },
   ],
   toneMapping: 'neutral',
   exposure: 0.95,

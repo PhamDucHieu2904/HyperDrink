@@ -131,7 +131,7 @@
 /* The background controller owns theme opacity transitions. */
 .flavor-background-track { position:absolute; will-change:transform; }
 .flavor-background-light { background:radial-gradient(ellipse at 58% 35%,#ffffff0d,transparent 64%); }
-.product-backlight { position:absolute; top:var(--backlight-y,50%); left:var(--backlight-x,55%); transform:translate(-50%,-50%); width:var(--backlight-w,65%); height:var(--backlight-h,85%); pointer-events:none; mix-blend-mode:overlay; opacity:var(--product-glow-opacity); background:radial-gradient(ellipse,white 0%,rgba(255,255,255,.72) 25%,rgba(255,255,255,.25) 52%,transparent 73%); }
+.product-backlight { position:absolute; top:var(--backlight-y,50%); left:var(--backlight-x,55%); transform:translate(-50%,-50%); width:var(--backlight-w,65%); height:var(--backlight-h,85%); pointer-events:none; mix-blend-mode:overlay; opacity:var(--product-glow-opacity); background:radial-gradient(ellipse,white 0%,rgba(255,255,255,.88) 29%,rgba(255,255,255,.36) 55%,transparent 75%); }
 .model-picker { margin-top:20px; width:92%; }
 .model-picker-label { display:block; font-size:10px; letter-spacing:.15em; text-transform:uppercase; margin-bottom:9px; opacity:.85; }
 .model-options { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }

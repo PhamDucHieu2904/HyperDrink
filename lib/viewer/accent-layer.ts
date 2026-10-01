@@ -4,12 +4,20 @@ import { publicUrl } from '../public-url';
 import { disposeProduct } from './appearance';
 import { normalizeAccentScene, resolveAccentNodes, type AccentFlavor, type ProductAccentNode, type ProductAccentScene, type ProductAccentSceneInput } from './accent-config';
 import { advanceAccentMotion, createAccentMotion, sampleAccentNode } from './accent-motion';
+import { adaptAccentFrame } from './accent-layout';
 
 type AccentObject = { node: ProductAccentNode; group: THREE.Group; materials: THREE.Material[]; resources: Array<{ dispose(): void }>; ready: boolean };
-type AccentFrame = { deltaSeconds: number; ready: boolean; viewerIdle: boolean; reducedMotion: boolean; paused: boolean; height: number; camera: THREE.PerspectiveCamera };
+type AccentFrame = { deltaSeconds: number; ready: boolean; viewerIdle: boolean; reducedMotion: boolean; paused: boolean; height: number; width: number; productRadius: number; maximumProductScale: number; camera: THREE.PerspectiveCamera };
 const ATLAS = '/assets/scene/fruit-leaf-atlas.webp';
 const GLASS_ATLAS = '/assets/scene/ice-droplet-atlas.webp';
 const CELLS: Record<string, [number, number]> = { orange: [0, 1], lime: [1, 1], berry: [2, 1], peach: [0, 0], mint: [1, 0], 'citrus-leaf': [2, 0] };
+// Subject bounds in local cell UVs. Generated fruit crosses a nominal cell edge;
+// leaf crops must exclude those neighbouring peel fragments, including blur taps.
+const SUBJECT_UVS: Record<string, [number, number, number, number]> = {
+  orange: [0.10, 0.04, 1.08, 0.96], lime: [0.10, 0.04, 0.98, 0.96],
+  berry: [0.02, 0.04, 0.98, 0.98], peach: [0.10, 0.04, 1.08, 0.96],
+  mint: [0.13, 0.04, 0.98, 0.98], 'citrus-leaf': [0.12, 0.04, 0.98, 0.98],
+};
 
 /** Scene-local resources; never parented to the spinning product. Approved GLBs
  * can replace each demo sprite/mesh without changing choreography or layout. */
@@ -77,6 +85,15 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     trackMaterial(item, material);
     const size = item.node.kind === 'droplet' ? 1.7 : 1;
     const geometry = new THREE.PlaneGeometry(size, size);
+    const crop = cell && !['ice', 'droplet'].includes(item.node.kind)
+      ? SUBJECT_UVS[item.node.sprite ?? (item.node.kind === 'leaf' ? 'mint' : desiredFlavor === 'citrus' ? 'orange' : desiredFlavor)] : undefined;
+    if (crop) {
+      const uv = geometry.getAttribute('uv');
+      for (let index = 0; index < uv.count; index += 1) {
+        uv.setXY(index, crop[0] + uv.getX(index) * (crop[2] - crop[0]), crop[1] + uv.getY(index) * (crop[3] - crop[1]));
+      }
+      uv.needsUpdate = true;
+    }
     item.resources.push(map, geometry);
     item.group.add(new THREE.Mesh(geometry, material));
   };
@@ -147,15 +164,18 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
         state = createAccentMotion(desiredKey);
       }
       objects.forEach((item, index) => {
-        const sample = sampleAccentNode(item.node, state, index, config!.motion);
-        const height = frame.height;
-        item.group.position.set(...sample.position).multiplyScalar(height);
-        // Keep edge objects inside the local viewer on narrow mobile stages.
-        const halfWidth = Math.tan(THREE.MathUtils.degToRad(frame.camera.fov / 2)) * (frame.camera.position.z - item.group.position.z) * frame.camera.aspect;
-        const limit = Math.max(height * 0.2, halfWidth - sample.scale * height * 0.35);
-        item.group.position.x = THREE.MathUtils.clamp(item.group.position.x, -limit, limit);
+        const geometryRadius = item.node.assetUrl && /\.glb(?:\?|$)/i.test(item.node.assetUrl)
+          ? Math.sqrt(3) / 2 : Math.SQRT1_2 * (item.node.kind === 'droplet' ? 1.7 : 1);
+        const geometrySize = item.node.kind === 'droplet' ? 1.7 : 1;
+        const geometryExtent: [number, number, number] = item.node.assetUrl && /\.glb(?:\?|$)/i.test(item.node.assetUrl)
+          ? [0.5, 0.5, 0.5] : [geometrySize * 0.5, geometrySize * 0.5, 0];
+        const sample = adaptAccentFrame(sampleAccentNode(item.node, state, index, config!.motion), item.node,
+          { height: frame.height, width: frame.width, productRadius: frame.productRadius, maximumProductScale: frame.maximumProductScale },
+          { distance: frame.camera.position.z, fov: frame.camera.fov, aspect: frame.camera.aspect,
+            center: [frame.camera.position.x, frame.camera.position.y, 0] }, geometryRadius, geometryExtent);
+        item.group.position.set(...sample.position);
         item.group.rotation.set(...sample.rotation);
-        item.group.scale.setScalar(sample.scale * height);
+        item.group.scale.setScalar(sample.scale);
         item.group.visible = item.ready && sample.visible;
         item.materials.forEach(material => { material.opacity = sample.opacity * (config!.opacity ?? 1) * material.userData.accentOpacity; });
       });

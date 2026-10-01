@@ -28,7 +28,7 @@ export const backgroundConfig: BackgroundConfig = {
   lineOpacity: .24, iconOpacity: .65,
   maxSpeed: 26.4, dampingSeconds: 1.3, deadZone: .08, enabled: true,
   autoDriftEnabled: true, autoDirectionMinSeconds: 2, autoDirectionMaxSeconds: 6,
-  productGlowOpacity: .82, productGlowWidth: 1.45, productGlowHeight: 1.35,
+  productGlowOpacity: .96, productGlowWidth: 1.45, productGlowHeight: 1.35,
 };
 export const backgroundThemes: { color: string; icon: FruitIcon }[] = showcaseFlavors.map(flavor => ({ color: flavor.background, icon: flavor.id }));
 export function normalizeBackgroundConfig(input: Partial<BackgroundConfig>): BackgroundConfig {
