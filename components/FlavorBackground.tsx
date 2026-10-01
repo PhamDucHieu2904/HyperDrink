@@ -26,6 +26,7 @@ export default function FlavorBackground({ flavorIndex, config = backgroundConfi
     const fine = matchMedia('(pointer: fine)');
     const autodrift = new BackgroundAutodrift(settings);
     let targetAngle = 0, angle = 0, targetSpeed = 0, speed = 0, x = 0, y = 0;
+    renderState.setPatternOffset(0, 0);
     let hasDirection = false, pointerPresent = false;
     let frame = 0, last = performance.now(), visible = true;
     const releasePointer = () => {
@@ -66,6 +67,7 @@ export default function FlavorBackground({ flavorIndex, config = backgroundConfi
       speed += (targetSpeed - speed) * blend;
       x = (x + Math.cos(angle) * speed * dt) % period;
       y = (y + Math.sin(angle) * speed * dt) % period;
+      renderState.setPatternOffset(x, y);
       renderState.advance(now, motion.matches);
       colorLayers.forEach((layer, i) => { layer.style.opacity = String(renderState.weights[i]); });
       patternLayers.forEach((layer, i) => { layer.style.opacity = String(renderState.weights[i]); });

@@ -26,6 +26,9 @@ const backgroundMotion = loadSource('lib/background-motion.ts');
 const packageMotion = loadSource('lib/viewer/package-motion.ts');
 const publicUrls = loadSource('lib/public-url.ts');
 const environments = loadSource('lib/viewer/environment.ts');
+const backgroundRender = loadSource('lib/background-render-state.ts');
+const backgrounds = loadSource('lib/background-config.ts', name => name === './showcase-flavors'
+  ? loadSource('lib/showcase-flavors.ts') : require(name));
 
 test('public asset URLs support repository paths without double prefixes or changing external URLs', () => {
   const previous = process.env.NEXT_PUBLIC_BASE_PATH;
@@ -242,7 +245,7 @@ test('camera keeps varied packages inside the viewport during upright lid turns 
   assert.ok(maximumNdc <= config.DEFAULT_VIEWER_PRESENTATION.camera.fill + 0.015, 'Framing lost its requested edge clearance');
 });
 
-function runtimeFixture(context, immediateAppearance = false) {
+function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
   const deferred = () => {
     let resolve;
     let reject;
@@ -252,6 +255,10 @@ function runtimeFixture(context, immediateAppearance = false) {
   const geometryRequests = [];
   const appearanceRequests = [];
   const accentFrames = [];
+  const backdropResources = [];
+  const backdropBindings = [];
+  const waterPassResources = [];
+  const renderEvents = [];
   const statuses = [];
   const environment = deferred();
   const motionListeners = new Set();
@@ -268,10 +275,20 @@ function runtimeFixture(context, immediateAppearance = false) {
     getBoundingClientRect() { return { left: 0, top: 0, width: 500, height: 700 }; },
   };
   class Renderer {
-    constructor() { this.domElement = canvas; renderers.push(this); }
-    setClearColor() {} setPixelRatio() {} setSize() {} dispose() {}
+    constructor() { this.domElement = canvas; this.resolutionTargets = new Set(); this.draws = []; renderers.push(this); }
+    setClearColor() {} dispose() {}
+    setPixelRatio(value) { this.pixelRatio = value; }
+    setSize(width, height) { this.width = width; this.height = height; }
+    getDrawingBufferSize(target) {
+      this.resolutionTargets.add(target);
+      return target.set(Math.floor(this.width * this.pixelRatio), Math.floor(this.height * this.pixelRatio));
+    }
     setAnimationLoop(frame) { this.frame = frame; }
-    render(scene, camera) { this.scene = scene; this.camera = camera; scene.updateMatrixWorld(); camera.updateMatrixWorld(); }
+    render(scene, camera) {
+      this.scene = scene; this.camera = camera;
+      this.draws.push({ scene, camera }); renderEvents.push({ type: 'main', scene, camera });
+      scene.updateMatrixWorld(); camera.updateMatrixWorld();
+    }
   }
   class PMREM {
     compileEquirectangularShader() {} dispose() {}
@@ -291,7 +308,7 @@ function runtimeFixture(context, immediateAppearance = false) {
   let frameTime = 0;
   global.performance = { now: () => frameTime };
   global.window = {
-    devicePixelRatio: 1, innerWidth: 1440,
+    devicePixelRatio: pixelRatio, innerWidth: 1440,
     matchMedia() { return { matches: false, addEventListener(_type, listener) { motionListeners.add(listener); },
       removeEventListener(_type, listener) { motionListeners.delete(listener); } }; },
   };
@@ -317,8 +334,33 @@ function runtimeFixture(context, immediateAppearance = false) {
     if (name === './framing') return framing;
     if (name === './package-motion') return packageMotion;
     if (name === './environment') return environments;
+    if (name === './backdrop-texture') return {
+      createBackdropTexture(state, config, mount) {
+        const resource = { state, config, mount, texture: new THREE.Texture(), updates: 0, disposals: 0, paintNext: true };
+        resource.update = () => {
+          resource.updates += 1;
+          if (resource.paintNext) { resource.texture.needsUpdate = true; resource.paintNext = false; }
+        };
+        resource.dispose = () => { resource.disposals += 1; resource.texture.dispose(); };
+        backdropResources.push(resource);
+        return resource;
+      },
+    };
+    if (name === './water-backdrop-pass') return {
+      createWaterBackdropPass(renderer, scene, product) {
+        const resource = { renderer, scene, product, texture: new THREE.Texture(), renders: [], disposals: 0 };
+        resource.render = (background, camera) => {
+          resource.renders.push({ background, camera });
+          renderEvents.push({ type: 'water-pass', resource, background, camera });
+        };
+        resource.dispose = () => { resource.disposals += 1; resource.texture.dispose(); };
+        waterPassResources.push(resource);
+        return resource;
+      },
+    };
     if (name === './accent-layer') return { createAccentLayer: () => ({
       configure() {},
+      setBackdrop(texture) { backdropBindings.push(texture); },
       update(frame) { accentFrames.push(frame); return { phase: 'waiting', count: 0 }; },
       dispose() {},
     }) };
@@ -354,7 +396,7 @@ function runtimeFixture(context, immediateAppearance = false) {
       renderers[0].frame(frameTime);
     }
   };
-  return { viewer, mount, renderer: renderers[0], geometryRequests, appearanceRequests, accentFrames, environment, statuses,
+  return { viewer, mount, renderer: renderers[0], geometryRequests, appearanceRequests, accentFrames, backdropResources, backdropBindings, waterPassResources, renderEvents, environment, statuses,
     model, asset, flush, advance, setReducedMotion: (matches) => motionListeners.forEach((listener) => listener({ matches })),
     disposedCount: () => productsDisposed };
 }
@@ -437,6 +479,110 @@ test('runtime resolves selection races, preserves loading state, respects pause 
   await flush();
   assert.equal(statuses.at(-1).phase, 'loading', 'Disposed viewer must not publish a late ready status');
   assert.ok(disposedCount() >= 3, 'Active, outgoing and late-loading product resources must be released');
+});
+
+test('viewer backdrop shares live background state, avoids identical recreation and owns replacement/disposal', (context) => {
+  const { viewer, mount, backdropResources, backdropBindings, waterPassResources, advance } = runtimeFixture(context, true);
+  const state = new backgroundRender.BackgroundRenderState();
+  const settings = { ...backgrounds.backgroundConfig };
+  viewer.backdrop({ state, config: settings });
+  assert.equal(backdropResources.length, 1);
+  assert.equal(waterPassResources.length, 1);
+  const first = backdropResources[0];
+  const firstPass = waterPassResources[0];
+  assert.equal(first.state, state, 'Backdrop consumes the same live motion/theme state as the decorative DOM');
+  assert.equal(first.mount, mount);
+  assert.equal(backdropBindings.at(-1), firstPass.texture, 'All droplets sample the shared offscreen composition rather than bare CSS beneath fruit');
+  assert.notEqual(backdropBindings.at(-1), first.texture);
+  advance(0.1);
+  assert.ok(first.updates > 0, 'Owning viewer drives canvas updates from its existing render lifecycle');
+
+  state.setPatternOffset(37, -21);
+  state.setFlavor(3, 100, false);
+  viewer.backdrop({ state, config: { ...settings } });
+  assert.equal(backdropResources.length, 1, 'Fresh prop objects with identical config do not recreate the canvas');
+  assert.equal(waterPassResources.length, 1, 'Identical config also retains the lightweight offscreen render target');
+  assert.equal(first.disposals, 0);
+  const updates = first.updates;
+  advance(0.1);
+  assert.ok(first.updates > updates);
+  assert.equal(first.state.patternOffset.x, 37, 'Shared state remains live after movement changes');
+
+  settings.lineOpacity = 0.1;
+  viewer.backdrop({ state, config: settings });
+  assert.equal(backdropResources.length, 2, 'Even in-place config edits are detected through the saved JSON signature');
+  assert.equal(waterPassResources.length, 2);
+  assert.equal(first.disposals, 1);
+  assert.equal(firstPass.disposals, 1);
+  const second = backdropResources[1];
+  assert.equal(backdropBindings.at(-1), waterPassResources[1].texture);
+  const stoppedAt = first.updates;
+  advance(0.1);
+  assert.equal(first.updates, stoppedAt, 'Replaced resources no longer receive frame callbacks');
+  assert.ok(second.updates > 0);
+
+  viewer.backdrop();
+  assert.equal(second.disposals, 1);
+  assert.equal(waterPassResources[1].disposals, 1);
+  assert.equal(backdropBindings.at(-1), null, 'Clearing the optional source removes the disposed sampler from droplet materials');
+  const bindingsAfterClear = backdropBindings.length;
+  viewer.backdrop(undefined);
+  assert.equal(backdropBindings.length, bindingsAfterClear, 'Clearing twice is a no-op');
+  const nextState = new backgroundRender.BackgroundRenderState();
+  viewer.backdrop({ state: nextState, config: { ...settings } });
+  assert.equal(backdropResources.length, 3);
+  assert.equal(waterPassResources.length, 3);
+  assert.equal(backdropResources[2].state, nextState, 'An independent source identity creates its own live canvas');
+  viewer.dispose();
+  assert.deepEqual(backdropResources.map(resource => resource.disposals), [1, 1, 1]);
+  assert.deepEqual(waterPassResources.map(resource => resource.disposals), [1, 1, 1]);
+  viewer.dispose();
+  viewer.backdrop({ state, config: settings });
+  assert.equal(backdropResources.length, 3, 'A disposed viewer cannot create another background resource');
+  assert.deepEqual(backdropResources.map(resource => resource.disposals), [1, 1, 1]);
+  assert.deepEqual(waterPassResources.map(resource => resource.disposals), [1, 1, 1]);
+});
+
+test('water composition renders once before each actual main draw using the same camera and CSS texture', (context) => {
+  const { viewer, renderer, backdropResources, waterPassResources, renderEvents, advance } = runtimeFixture(context, true);
+  viewer.backdrop({ state: new backgroundRender.BackgroundRenderState(), config: { ...backgrounds.backgroundConfig } });
+  advance(0.2);
+  const pass = waterPassResources[0];
+  assert.equal(pass.renderer, renderer);
+  assert.equal(pass.scene, renderer.scene);
+  assert.ok(pass.product.parent === renderer.scene, 'The offscreen module receives the real product group for exclusion');
+  assert.ok(renderer.draws.length > 0 && renderer.draws.length < 24, 'Main drawing remains capped below the 120Hz fixture RAF rate');
+  assert.equal(pass.renders.length, renderer.draws.length, 'Skipped main frames do not spend an additional offscreen pass');
+  for (const [index, call] of pass.renders.entries()) {
+    assert.equal(call.background, backdropResources[0].texture);
+    assert.equal(call.camera, renderer.draws[index].camera);
+    assert.equal(renderEvents[index * 2].type, 'water-pass', 'The complete backdrop is available before water is drawn');
+    assert.equal(renderEvents[index * 2 + 1].type, 'main');
+  }
+  viewer.pause(true); advance(0.05);
+  const atRest = renderer.draws.length;
+  advance(0.2);
+  assert.equal(renderer.draws.length, atRest, 'Unchanged paused scenes do not repaint the water composition');
+  backdropResources[0].paintNext = true;
+  advance(0.05);
+  assert.ok(renderer.draws.length > atRest, 'A real backdrop texture repaint wakes refraction even when object motion is paused');
+  assert.equal(pass.renders.length, renderer.draws.length);
+});
+
+test('droplet frames receive physical drawing-buffer resolution after DPR and viewer size changes', (context) => {
+  const { viewer, mount, renderer, accentFrames, advance } = runtimeFixture(context, true, 2);
+  viewer.configure(config.resolveViewerPresentation({ quality: { maxDpr: 2 } }));
+  advance(1 / 120);
+  const first = accentFrames.at(-1);
+  assert.deepEqual(first.resolution, [1000, 1400], 'Shader gl_FragCoord uses physical pixels instead of CSS dimensions');
+  mount.clientWidth = 360;
+  mount.clientHeight = 620;
+  global.window.innerWidth = 390;
+  viewer.configure(config.resolveViewerPresentation({ quality: { mobileDpr: 1.25 } }));
+  advance(1 / 120);
+  assert.deepEqual(accentFrames.at(-1).resolution, [450, 775]);
+  assert.deepEqual(first.resolution, [1000, 1400], 'Earlier frame resolutions remain stable after resizing');
+  assert.equal(renderer.resolutionTargets.size, 1, 'Resize reuses the same drawing-buffer Vector2');
 });
 
 test('accent reveal stays gated when a pending package receives a slow newer label texture', async (context) => {

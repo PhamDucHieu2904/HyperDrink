@@ -3,7 +3,7 @@
 Generated with the built-in ImageGen tool, October 1, 2026. The user supplied imagery was visual reference only, not copied into these assets. Original generated alpha was retained while encoding WebP at quality 92; UV cells separate the subjects at runtime.
 
 - `public/assets/scene/fruit-leaf-atlas.webp`: 1536 × 1024, 3 columns × 2 rows. Top: orange, lime, berry cluster. Bottom: peach, mint, citrus leaf.
-- `public/assets/scene/ice-droplet-atlas.webp`: 1774 × 887, 2 columns × 1 row. Left: ice. Right: droplet.
+- `public/assets/scene/ice-droplet-atlas.webp`: 1774 × 887, 2 columns × 1 row. Left: ice (active). Right: the former droplet image (unused by the default scene). Default droplets now use an analytic shader over the live backdrop, avoiding the photograph's baked blue/gray lighting.
 
 Both are temporary presentation assets. Individual approved image/GLB replacements can be assigned through each scene node's `assetUrl` without changing animation code.
 

@@ -23,11 +23,18 @@ export function backgroundTileUrl(icon: FruitIcon, config: BackgroundConfig) {
 export class BackgroundRenderState {
   readonly weights = [1, 0, 0, 0];
   readonly fromWeights = [1, 0, 0, 0];
+  /** Same CSS-pixel translation consumed by decorative DOM and water refraction. */
+  readonly patternOffset = { x: 0, y: 0 };
   flavorIndex = 0;
   transitionAt = -Infinity;
   wake: (() => void) | undefined;
 
   setWake(callback: (() => void) | undefined) { this.wake = callback; }
+
+  setPatternOffset(x: number, y: number) {
+    this.patternOffset.x = x;
+    this.patternOffset.y = y;
+  }
 
   setFlavor(index: number, now: number, reducedMotion: boolean) {
     if (index === this.flavorIndex) return;

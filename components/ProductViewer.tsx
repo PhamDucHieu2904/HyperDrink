@@ -6,6 +6,7 @@ import { Box } from 'lucide-react';
 import { ProductAppearance, ProductAsset, resolveViewerPresentation, ViewerPresentationInput } from '@/lib/viewer-config';
 import { createProductViewer, ProductViewerController, ViewerStatus } from '@/lib/viewer/runtime';
 import type { AccentFlavor, ProductAccentSceneInput } from '@/lib/viewer/accent-config';
+import type { ProductViewerBackdropInput } from '@/lib/viewer/backdrop-texture';
 
 export interface ProductViewerProps {
   asset: ProductAsset;
@@ -16,13 +17,14 @@ export interface ProductViewerProps {
   onStatus?: (status: ViewerStatus) => void;
   accentScene?: ProductAccentSceneInput;
   accentFlavor?: AccentFlavor;
+  backdrop?: ProductViewerBackdropInput;
 }
 
 /** Generic container: geometry, appearance and lighting are independent data contracts. */
-export default function ProductViewer({ asset, appearance, presentation, paused = false, resetKey, onStatus, accentScene, accentFlavor = 'citrus' }: ProductViewerProps) {
+export default function ProductViewer({ asset, appearance, presentation, paused = false, resetKey, onStatus, accentScene, accentFlavor = 'citrus', backdrop }: ProductViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const controller = useRef<ProductViewerController | null>(null);
-  const latest = useRef({ asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor });
+  const latest = useRef({ asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop });
   const [status, setStatus] = useState<ViewerStatus>({ phase: 'loading', assetId: asset.id });
   // Plain JSON signatures prevent reinitializing WebGL when parents rebuild objects.
   const assetSignature = JSON.stringify(asset);
@@ -30,8 +32,9 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
   const presentationSignature = JSON.stringify(presentation ?? null);
   const accentSignature = JSON.stringify(accentScene ?? null);
   const accentKey = `${asset.id}:${appearance?.id ?? ''}`;
+  const backdropSignature = JSON.stringify(backdrop?.config ?? null);
 
-  useEffect(() => { latest.current = { asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor }; });
+  useEffect(() => { latest.current = { asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop }; });
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -44,6 +47,7 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
     };
     try {
       controller.current = createProductViewer(mount, resolveViewerPresentation(latest.current.presentation), publish);
+      controller.current.backdrop(latest.current.backdrop);
       controller.current.accents(latest.current.accentScene, `${latest.current.asset.id}:${latest.current.appearance?.id ?? ''}`, latest.current.accentFlavor);
       controller.current.pause(latest.current.paused);
       controller.current.select(latest.current.asset, latest.current.appearance);
@@ -67,6 +71,7 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
   useEffect(() => {
     controller.current?.accents(latest.current.accentScene, accentKey, latest.current.accentFlavor);
   }, [accentSignature, accentKey, accentFlavor]);
+  useEffect(() => { controller.current?.backdrop(latest.current.backdrop); }, [backdrop?.state, backdropSignature]);
   useEffect(() => { controller.current?.pause(paused); }, [paused]);
   useEffect(() => { if (resetKey !== undefined) controller.current?.reset(); }, [resetKey]);
 

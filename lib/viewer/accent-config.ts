@@ -70,9 +70,9 @@ function accent(
         },
       } : {}),
     idle: {
-      phase, floatAmplitude: kind === 'droplet' ? 0.012 : 0.008,
-      rockAmplitude: kind === 'droplet' ? 0.035 : 0.06,
-      periodSeconds: 5.4 + phase * 0.45,
+      phase, floatAmplitude: kind === 'droplet' ? 0.006 : 0.008,
+      rockAmplitude: kind === 'droplet' ? 0.018 : 0.06,
+      periodSeconds: kind === 'droplet' ? 9 + (phase % 6) * 0.5 : 5.4 + phase * 0.45,
     },
   };
 }
@@ -93,26 +93,25 @@ const composition: ProductAccentNode[] = [
   accent('ice-middle-right', 'ice', [0.44, 0.015, -0.23], 0.11, [0.12, 0.16, 0.7], 4.8, 'far', 0.7),
 ];
 
-const droplets: Array<[number, number, number, number]> = [
-  [-0.34, 0.47, -0.05, 0.027], [-0.23, 0.32, -0.28, 0.04],
-  [-0.41, 0.05, -0.16, 0.017], [-0.37, -0.035, -0.08, 0.019],
-  [-0.27, -0.11, -0.14, 0.03], [-0.40, -0.38, -0.22, 0.012],
-  [-0.34, -0.46, -0.10, 0.025], [-0.25, -0.40, -0.31, 0.014],
-  [0.43, 0.30, -0.10, 0.025], [0.35, 0.22, -0.30, 0.014],
-  [0.29, 0.23, -0.18, 0.021], [0.37, 0.12, -0.17, 0.016],
-  [0.47, 0.10, -0.35, 0.013], [0.30, 0.02, -0.25, 0.016],
-  [0.34, -0.15, -0.27, 0.018], [0.24, -0.32, -0.15, 0.023],
-  [0.42, -0.38, -0.13, 0.026], [0.28, -0.37, -0.29, 0.012],
-  [-0.20, 0.43, -0.40, 0.012], [0.24, 0.43, -0.32, 0.013],
+// Fewer, readable water shapes replace the old scatter of tiny points. Retained
+// IDs preserve admin bindings and deterministic phases while empty spaces let
+// each larger drop read clearly against both warm and green backgrounds.
+const droplets: Array<[number, number, number, number, number]> = [
+  [1, -0.34, 0.47, -0.05, 0.088], [2, -0.23, 0.32, -0.28, 0.120],
+  [3, -0.41, 0.05, -0.16, 0.062], [5, -0.27, -0.11, -0.14, 0.104],
+  [7, -0.34, -0.46, -0.10, 0.080], [9, 0.43, 0.30, -0.10, 0.092],
+  [11, 0.29, 0.23, -0.18, 0.075], [13, 0.47, 0.10, -0.35, 0.066],
+  [14, 0.30, 0.02, -0.25, 0.064], [16, 0.24, -0.32, -0.15, 0.086],
+  [17, 0.42, -0.38, -0.13, 0.100], [20, 0.24, 0.43, -0.32, 0.069],
 ];
 
 export const DEFAULT_PRODUCT_ACCENT_SCENE: ProductAccentScene = {
   schemaVersion: 1, enabled: true, opacity: 1,
   nodes: [
     ...composition,
-    ...droplets.map(([x, y, z, size], index) => accent(
-      `droplet-${String(index + 1).padStart(2, '0')}`, 'droplet', [x, y, z], size * 2.5,
-      [0, 0, index * 0.26], index * 0.83, z < -0.28 ? 'far' : 'mid', z < -0.28 ? 0.8 : 0,
+    ...droplets.map(([id, x, y, z, size]) => accent(
+      `droplet-${String(id).padStart(2, '0')}`, 'droplet', [x, y, z], size,
+      [0, 0, (id - 1) * 0.26], (id - 1) * 0.83, z < -0.28 ? 'far' : 'mid', z < -0.28 ? 0.8 : 0,
     )),
   ],
   motion: { fadeSeconds: 0.18, burstSeconds: 0.95, staggerSeconds: 0.008, origin: [0, 0, -0.2], startScale: 0.35 },

@@ -5,9 +5,10 @@ import { disposeProduct } from './appearance';
 import { normalizeAccentScene, resolveAccentNodes, type AccentFlavor, type ProductAccentNode, type ProductAccentScene, type ProductAccentSceneInput } from './accent-config';
 import { advanceAccentMotion, createAccentMotion, sampleAccentNode } from './accent-motion';
 import { adaptAccentFrame } from './accent-layout';
+import { createDropletMaterial, updateDropletMaterial } from './droplet-material';
 
 type AccentObject = { node: ProductAccentNode; group: THREE.Group; materials: THREE.Material[]; resources: Array<{ dispose(): void }>; ready: boolean };
-type AccentFrame = { deltaSeconds: number; ready: boolean; viewerIdle: boolean; reducedMotion: boolean; paused: boolean; height: number; width: number; productRadius: number; maximumProductScale: number; camera: THREE.PerspectiveCamera };
+type AccentFrame = { deltaSeconds: number; ready: boolean; viewerIdle: boolean; reducedMotion: boolean; paused: boolean; height: number; width: number; productRadius: number; maximumProductScale: number; camera: THREE.PerspectiveCamera; resolution?: [number, number] };
 const ATLAS = '/assets/scene/fruit-leaf-atlas.webp';
 const GLASS_ATLAS = '/assets/scene/ice-droplet-atlas.webp';
 const CELLS: Record<string, [number, number]> = { orange: [0, 1], lime: [1, 1], berry: [2, 1], peach: [0, 0], mint: [1, 0], 'citrus-leaf': [2, 0] };
@@ -30,6 +31,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
   let state = createAccentMotion('');
   let objects: AccentObject[] = [];
   let disposed = false, revision = 0;
+  let backdrop: THREE.Texture | null = null;
   const atlases = new Set<THREE.Texture>();
   const atlasRequests = new Map<string, Promise<THREE.Texture>>();
   const colorMaps = new THREE.TextureLoader();
@@ -127,8 +129,17 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
           item.resources.push({ dispose: () => disposeProduct(gltf.scene) });
           item.group.add(normalized); item.ready = true; invalidate();
         }).catch(() => { item.ready = true; invalidate(); });
+      } else if (node.kind === 'droplet' && !node.assetUrl) {
+        // Default water is a neutral lens over the live background, rather than
+        // an opaque photo carrying the lighting/color of a different scene.
+        const geometry = new THREE.PlaneGeometry(1.7, 1.7);
+        const material = createDropletMaterial(backdrop);
+        trackMaterial(item, material);
+        item.resources.push(geometry);
+        item.group.add(new THREE.Mesh(geometry, material));
+        item.ready = true;
       } else {
-        const glass = node.kind === 'ice' || node.kind === 'droplet';
+        const glass = node.kind === 'ice';
         const cellName = node.sprite ?? (node.kind === 'leaf' ? 'mint' : flavor === 'citrus' ? 'orange' : flavor);
         const request = node.assetUrl ? colorMaps.loadAsync(publicUrl(node.assetUrl)) : getAtlas(glass ? GLASS_ATLAS : ATLAS);
         request.then(texture => {
@@ -143,6 +154,10 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     });
   };
   return {
+    setBackdrop(texture: THREE.Texture | null) {
+      backdrop = texture;
+      invalidate();
+    },
     configure(value: ProductAccentSceneInput | undefined, key: string, flavor: AccentFlavor) {
       const selectionKey = `${key}/${flavor}`;
       const next = value ? normalizeAccentScene(value) : undefined;
@@ -177,7 +192,14 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
         item.group.rotation.set(...sample.rotation);
         item.group.scale.setScalar(sample.scale);
         item.group.visible = item.ready && sample.visible;
-        item.materials.forEach(material => { material.opacity = sample.opacity * (config!.opacity ?? 1) * material.userData.accentOpacity; });
+        item.materials.forEach(material => {
+          const opacity = sample.opacity * (config!.opacity ?? 1) * material.userData.accentOpacity;
+          material.opacity = opacity;
+          if (material instanceof THREE.ShaderMaterial && material.name === 'colorless-water-droplet') {
+            updateDropletMaterial(material, { opacity, blur: item.node.blur,
+              resolution: frame.resolution ?? [1, 1], background: backdrop });
+          }
+        });
       });
       return { phase: state.phase, count: objects.length };
     },

@@ -2,7 +2,7 @@
 
 `components/FlavorBackground.tsx` owns decorative rendering and motion. It takes a flavor index, a JSON-serializable `config` prop and the stable `BackgroundRenderState` created by `ShowcaseHero`. `lib/background-config.ts` defines the version 1 contract, defaults, bounds and flavor palette. No animation state is stored in React and no extra WebGL context is created.
 
-`lib/background-render-state.ts` supplies the SVG artwork registry and theme transition controller. Transitions use a 900 ms smoothstep blend and start from the current weights when interrupted. The CSS layers consume the same weights rather than running a separate transition clock. The background is independent of the can's WebGL scene; the water ripple effect and its GPU simulation have been removed.
+`lib/background-render-state.ts` supplies the SVG artwork registry, theme transition controller and current pattern offset. Transitions use a 900 ms smoothstep blend and start from the current weights when interrupted. CSS layers and the optional droplet backdrop sampler consume the same weights/offsets rather than running separate animation clocks. `lib/viewer/backdrop-texture.ts` reconstructs these authored layers for clear floating water refraction inside the existing product renderer. The water ripple effect and its GPU simulation remain removed.
 
 ## Parameters for a future admin
 
@@ -18,7 +18,7 @@
 | autoDirectionMinSeconds / autoDirectionMaxSeconds | 2 / 6 | Choose a new random heading after a uniformly random interval in this range; clamped .5–30s with maximum ≥ minimum |
 | deadZone | .08 | Legacy saved field; ignored by constant-speed pointer steering |
 | enabled | true | Enable pointer and autonomous motion; false retains a static pattern |
-| productGlowOpacity | .82 | Product backdrop light strength, 0–1; 0 turns it off |
+| productGlowOpacity | .96 | Product backdrop light strength, 0–1; 0 turns it off |
 | productGlowWidth / productGlowHeight | 1.45 / 1.35 | Light size relative to the product container; clamped .5–2 |
 
 Themes currently select a color and a controlled SVG icon ID. Extend the icon registry for new fruit artwork. Do not accept arbitrary SVG/HTML from an admin field. When adding an API, validate the version and palette there, persist these fields, and pass normalized data into the component. Admin UI, persistence and authentication are not implemented here.

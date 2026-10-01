@@ -13,6 +13,8 @@ import { packageCapPose, packageEntryScale, packageExitProgress, packageMaximumS
 import { createDaylightEnvironment, environmentCacheKey } from './environment';
 import { createAccentLayer } from './accent-layer';
 import type { AccentFlavor, ProductAccentSceneInput } from './accent-config';
+import { createBackdropTexture, type ProductViewerBackdropInput } from './backdrop-texture';
+import { createWaterBackdropPass } from './water-backdrop-pass';
 
 export interface ViewerStatus {
   phase: 'loading' | 'ready' | 'error';
@@ -25,6 +27,7 @@ export interface ProductViewerController {
   select(asset: ProductAsset, appearance?: ProductAppearance): void;
   configure(presentation: ViewerPresentation): void;
   accents(scene: ProductAccentSceneInput | undefined, key: string, flavor: AccentFlavor): void;
+  backdrop(source?: ProductViewerBackdropInput): void;
   pause(paused: boolean): void;
   reset(): void;
   dispose(): void;
@@ -111,6 +114,32 @@ export function createProductViewer(
   const basis = new KTX2Loader().setTranscoderPath(publicUrl(presentation.decoders.basisPath)).setWorkerLimit(2).detectSupport(renderer);
   loader.setMeshoptDecoder(MeshoptDecoder).setDRACOLoader(draco).setKTX2Loader(basis);
   const accents = createAccentLayer(scene, loader, () => { dirty = true; });
+  const drawingBufferSize = new THREE.Vector2(1, 1);
+  let backdrop: ReturnType<typeof createBackdropTexture> | undefined;
+  let waterBackdrop: ReturnType<typeof createWaterBackdropPass> | undefined;
+  let backdropSource: ProductViewerBackdropInput | undefined;
+  let backdropSignature = '';
+  const setBackdrop = (source?: ProductViewerBackdropInput) => {
+    if (disposed) return;
+    const signature = JSON.stringify(source?.config ?? null);
+    if (source?.state === backdropSource?.state && signature === backdropSignature) return;
+    accents.setBackdrop(null);
+    backdrop?.dispose();
+    waterBackdrop?.dispose(); waterBackdrop = undefined;
+    backdrop = undefined; backdropSource = source; backdropSignature = signature;
+    if (source) {
+      try {
+        backdrop = createBackdropTexture(source.state, source.config, mount);
+        waterBackdrop = createWaterBackdropPass(renderer, scene, product);
+        accents.setBackdrop(waterBackdrop.texture);
+      } catch {
+        // Optional decorative refraction must not prevent the product loading.
+        backdrop?.dispose(); backdrop = undefined;
+        waterBackdrop?.dispose(); waterBackdrop = undefined;
+      }
+    }
+    dirty = true;
+  };
 
   const emitStatus = (phase: ViewerStatus['phase'], message?: string) => {
     statusPhase = phase; statusMessage = message;
@@ -154,6 +183,7 @@ export function createProductViewer(
     const height = Math.max(1, mount.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth <= 760 ? presentation.quality.mobileDpr : presentation.quality.maxDpr));
     renderer.setSize(width, height, false);
+    renderer.getDrawingBufferSize(drawingBufferSize);
     camera.aspect = width / height;
     fitCamera();
     camera.updateProjectionMatrix();
@@ -567,6 +597,11 @@ export function createProductViewer(
     camera.position.z = currentDistance;
     const model = active ?? pendingProduct;
     if (model) camera.lookAt(new THREE.Vector3(...presentation.camera.target).multiplyScalar(model.radius));
+    if (backdrop) {
+      const version = backdrop.texture.version;
+      backdrop.update();
+      if (backdrop.texture.version !== version) dirty = true;
+    }
     const accentFrame = accents.update({ deltaSeconds: dt, reducedMotion, paused,
       ready: Boolean(active && active.definitionKey === assetDefinitionKey && appearanceReady),
       viewerIdle: !cinematic && !packageTransition,
@@ -574,11 +609,12 @@ export function createProductViewer(
       width: active ? Math.max(active.bounds.max.x - active.bounds.min.x, active.bounds.max.z - active.bounds.min.z) : 0.05,
       productRadius: active?.radius ?? 0.1,
       maximumProductScale: packageMaximumScale(presentation.motion.packageAnticipationScale, presentation.motion.packageBounceAmount),
-      camera });
+      camera, resolution: [drawingBufferSize.x, drawingBufferSize.y] });
     mount.dataset.accentPhase = accentFrame.phase;
     mount.dataset.accentCount = String(accentFrame.count);
     if (accentFrame.count > 0 && !paused && !reducedMotion) dirty = true;
     if (dirty && now - lastDrawTime >= 1000 / presentation.quality.maxFps) {
+      if (backdrop && waterBackdrop) waterBackdrop.render(backdrop.texture, camera);
       renderer.render(scene, camera);
       mount.dataset.viewerReady = active ? 'true' : 'false';
       lastDrawTime = now; dirty = false;
@@ -617,6 +653,7 @@ export function createProductViewer(
   return {
     select,
     configure,
+    backdrop: setBackdrop,
     accents: (value, key, flavor) => accents.configure(value, key, flavor),
     pause(value) {
       paused = value;
@@ -645,6 +682,8 @@ export function createProductViewer(
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
       discard(active); discard(pendingProduct);
       accents.dispose();
+      backdrop?.dispose(); backdrop = undefined;
+      waterBackdrop?.dispose(); waterBackdrop = undefined;
       ownedEnvironmentTargets.forEach((target) => target.dispose());
       environmentTargets.clear();
       pmrem.dispose(); draco.dispose(); basis.dispose();

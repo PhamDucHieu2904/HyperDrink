@@ -33,6 +33,7 @@ jobs:
       - run: npm run test:framing
       - run: npm run test:accents
       - run: npm run test:environment
+      - run: npm run test:water
       - uses: actions/upload-pages-artifact@v4
         with:
           path: .next-pages

@@ -43,18 +43,21 @@ test('scene data supports replaceable flavor assets, deliberate depth and indepe
   assert.deepEqual(JSON.parse(JSON.stringify(scene)), scene, 'Saved scene contains only JSON data');
   assert.equal(new Set(scene.nodes.map(node => node.id)).size, scene.nodes.length);
   const counts = scene.nodes.reduce((result, node) => ({ ...result, [node.kind]: (result[node.kind] ?? 0) + 1 }), {});
-  assert.deepEqual(counts, { fruit: 2, leaf: 5, ice: 2, droplet: 20 });
+  assert.deepEqual(counts, { fruit: 2, leaf: 5, ice: 2, droplet: 12 });
   const fruit = scene.nodes.filter(node => node.kind === 'fruit');
   assert.ok(fruit.every(node => Math.abs(node.position[0]) > 0.3 && node.position[2] < 0));
   assert.ok(scene.nodes.some(node => node.depth === 'near' && node.blur >= 3));
   assert.ok(scene.nodes.some(node => node.depth === 'far' && node.blur > 0));
   assert.ok(scene.nodes.every(node => node.position[2] < 0), 'Even the blurred legacy near leaf is behind the product');
   const drops = scene.nodes.filter(node => node.kind === 'droplet');
-  assert.equal(Math.max(...drops.map(node => node.scale)), 0.1);
-  assert.equal(Math.min(...drops.map(node => node.scale)), 0.03);
+  assert.equal(Math.max(...drops.map(node => node.scale)), 0.12);
+  assert.equal(Math.min(...drops.map(node => node.scale)), 0.062);
   assert.ok(new Set(drops.map(node => node.scale)).size > 10, 'Larger droplets retain natural size variation');
+  assert.deepEqual(drops.map(node => node.id), ['droplet-01','droplet-02','droplet-03','droplet-05','droplet-07','droplet-09','droplet-11','droplet-13','droplet-14','droplet-16','droplet-17','droplet-20']);
+  assert.ok(drops.every(node => node.idle.floatAmplitude <= 0.006 && node.idle.rockAmplitude <= 0.018));
+  assert.ok(drops.every(node => node.idle.periodSeconds >= 9 && node.idle.periodSeconds <= 12));
   const phaseValues = new Set(config.normalizeAccentScene().nodes.map(node => node.idle.phase));
-  assert.ok(phaseValues.size > 20, 'Sanitizing phases must not collapse varied droplet phases to one maximum');
+  assert.ok(phaseValues.size >= 20, 'Sanitizing phases must not collapse varied droplet phases to one maximum');
 
   const assigned = { ...fruit[0], assetUrl: '/models/props/fruit.glb', variants: { lime: { sprite: 'lime', assetUrl: '/models/props/lime.glb' } } };
   const resolved = config.resolveAccentNodeForFlavor(assigned, 'lime');
@@ -126,7 +129,7 @@ test('accents stay hidden until all assets are ready and package zoom plus rebou
   state = advance(state);
   assert.equal(state.phase, 'entering');
   assert.ok(sample(state).opacity > 0);
-  assert.equal(sample(state, 28).visible, false, 'Later droplets are staggered rather than appearing in a rigid ring');
+  assert.equal(sample(state, scene.nodes.length - 1).visible, false, 'Later droplets are staggered rather than appearing in a rigid ring');
   state = settle(state);
   assert.ok(scene.nodes.every((node, index) => motion.sampleAccentNode(node, state, index, scene.motion).visible));
 });
@@ -139,12 +142,12 @@ test('fan burst decelerates into slow floating idle without a transform jump', (
     assert.ok(positions[index + 1] - positions[index] < positions[index] - positions[index - 1]);
   }
   let state = motion.createAccentMotion(input.key);
-  let previousFrame = sample(state, 28);
+  let previousFrame = sample(state, scene.nodes.length - 1);
   let crossedIdle = false;
   for (let index = 0; index < 160; index += 1) {
     const previousPhase = state.phase;
     state = advance(state, { deltaSeconds: 1 / 120 });
-    const frame = sample(state, 28);
+    const frame = sample(state, scene.nodes.length - 1);
     if (previousPhase === 'entering' && state.phase === 'idle') {
       crossedIdle = true;
       assert.ok(Math.hypot(...frame.position.map((value, axis) => value - previousFrame.position[axis])) < 0.001);
@@ -231,7 +234,7 @@ test('adaptive spread broadens squat packages using width while preserving reque
   const droplet = scene.nodes[dropletIndex];
   const displayed = layout.adaptAccentFrame(sample(state, dropletIndex), droplet, slim, camera, Math.SQRT1_2 * 1.7, [0.85, 0.85, 0]);
   const apparentScale = displayed.scale * camera.distance / (camera.distance - displayed.position[2]);
-  assert.ok(Math.abs(apparentScale - 0.1) < 1e-12, 'Depth compensation retains the enlarged 2.5× droplet size on screen');
+  assert.ok(Math.abs(apparentScale - 0.12) < 1e-12, 'Depth compensation retains the largest readable droplet size on screen');
 });
 
 test('burst and idle geometry stay outside the swept product sphere and inside desktop/mobile viewer bounds', () => {
@@ -268,7 +271,7 @@ test('burst and idle geometry stay outside the swept product sphere and inside d
       }
     }
   }
-  assert.equal(checked, 52200);
+  assert.equal(checked, cases.length * 3 * 200 * scene.nodes.length);
   const state = advance(motion.createAccentMotion(input.key), { reducedMotion: true });
   const node = scene.nodes[0];
   const adapted = layout.adaptAccentFrame(sample(state), node, cases[1], { distance: 2.4, fov: 30, aspect: 1, center: [0, 0, 0] }, Math.sqrt(3) / 2, [0.5, 0.5, 0.5]);
