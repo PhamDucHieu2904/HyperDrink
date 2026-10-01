@@ -44,7 +44,7 @@ function deferredRequest(url) {
   const promise = new Promise((success, failure) => { resolve = success; reject = failure; });
   return { url, promise, resolve, reject };
 }
-async function harness(run) {
+async function harness(run, mount) {
   const textureRequests = [], gltfRequests = [];
   const loadTexture = THREE.TextureLoader.prototype.loadAsync;
   THREE.TextureLoader.prototype.loadAsync = url => {
@@ -54,7 +54,7 @@ async function harness(run) {
   let invalidations = 0;
   const layer = createAccentLayer(scene, {
     loadAsync(url) { const request = deferredRequest(url); gltfRequests.push(request); return request.promise; },
-  }, () => { invalidations += 1; });
+  }, () => { invalidations += 1; }, mount);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 10);
   camera.position.z = 4;
   const update = overrides => layer.update(frame({ camera, ...overrides }));
@@ -70,6 +70,79 @@ async function harness(run) {
     THREE.TextureLoader.prototype.loadAsync = loadTexture;
   }
 }
+
+const { projectAccentImage } = loadSource('lib/viewer/blended-accent.ts');
+test('CSS splash projection is invertible and matches real Three perspective at every image corner', () => {
+  for (const [width, height] of [[390, 560], [800, 700]]) {
+    const camera = new THREE.PerspectiveCamera(30, width / height, 0.01, 40);
+    camera.position.set(0.1, -0.05, 4); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
+    const world = new THREE.Matrix4().compose(new THREE.Vector3(0.2, 0.1, -3),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0.1, 0.2, -0.12)), new THREE.Vector3(3, 3, 3));
+    const css = projectAccentImage(world, camera, width, height);
+    assert.ok(Math.abs(css.determinant()) > 1e-10, 'Browsers discard singular matrix3d images');
+    for (const x of [0, 384, 768]) for (const y of [0, 384, 768]) {
+      const actual = new THREE.Vector3(x, y, 0).applyMatrix4(css);
+      const projected = new THREE.Vector3(x / 768 - 0.5, 0.5 - y / 768, 0).applyMatrix4(world).project(camera);
+      assert.ok(Math.abs(actual.x - (projected.x + 1) * width / 2) < 1e-9);
+      assert.ok(Math.abs(actual.y - (1 - projected.y) * height / 2) < 1e-9);
+      assert.equal(actual.z, 0);
+    }
+  }
+});
+
+test('Hard Light shares product readiness, fades continuously, resizes and disposes without a duplicate WebGL splash', async () => {
+  const previousDocument = global.document, previousObserver = global.ResizeObserver;
+  const element = () => ({ style: {}, dataset: {}, children: [], setAttribute() {},
+    appendChild(child) { this.children.push(child); child.parent = this; },
+    remove() { if (this.parent) this.parent.children = this.parent.children.filter(value => value !== this); },
+  });
+  let size = { left: 120, top: 80, width: 800, height: 700 }, observer;
+  const hero = element(); hero.getBoundingClientRect = () => ({ left: 20, top: 10 });
+  const mount = { closest: () => hero, getBoundingClientRect: () => size };
+  global.document = { createElement: element };
+  global.ResizeObserver = class {
+    constructor(callback) {
+      this.callback = callback;
+      // eslint-disable-next-line @typescript-eslint/no-this-alias -- Capture the actual fake observer for resize/disposal assertions.
+      observer = this;
+    }
+    observe() {} disconnect() { this.disconnected = true; }
+  };
+  try {
+    await harness(async ({ layer, root, textureRequests, update, settle }) => {
+      const splash = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.find(node => node.kind === 'splash');
+      const configured = { ...sceneConfig([{ ...splash, opacity: 0.8 }]), opacity: 0.5 };
+      layer.configure(configured, 'can-330:lime', 'lime');
+      update(); textureRequests[0].resolve(fakeTexture()); await flush();
+      const host = hero.children[0], image = host.children[0];
+      assert.equal(image.style.mixBlendMode, 'hard-light');
+      assert.equal(host.style.zIndex, 'auto', 'Wrapper must not isolate the image from the live flavor background');
+      assert.equal(update().phase, 'waiting', 'Decoded Three texture alone cannot reveal a pending DOM image');
+      image.onload();
+      assert.equal(update({ viewerIdle: false }).phase, 'waiting');
+      await settle();
+      assert.equal(image.style.display, 'block');
+      assert.equal(Number(image.style.opacity), 0.4);
+      assert.equal(root.children[0].children[0].visible, false, 'Splash is composited only once');
+      const oldTransform = image.style.transform;
+      size = { left: 25, top: 110, width: 390, height: 560 }; observer.callback(); update();
+      assert.equal(host.style.left, '5px'); assert.equal(host.style.top, '100px');
+      assert.equal(host.style.width, '390px'); assert.notEqual(image.style.transform, oldTransform);
+      layer.configure(configured, 'can-500:berry', 'berry');
+      update({ viewerIdle: false, deltaSeconds: 0.04 });
+      assert.ok(Number(image.style.opacity) > 0 && Number(image.style.opacity) < 0.4);
+      update({ viewerIdle: false, deltaSeconds: 0.2 }); await flush();
+      assert.equal(image.onload, null); assert.equal(host.children.length, 1);
+      const replacement = host.children[0]; replacement.onerror();
+      assert.equal(update({ reducedMotion: true }).phase, 'idle', 'Missing decoration cannot block the product');
+      assert.equal(replacement.style.display, 'none', 'Failed image cannot expose a broken-image glyph');
+      layer.configure({ ...configured, enabled: false }, 'can-500:berry', 'berry');
+      assert.equal(host.children.length, 0);
+      layer.dispose(); layer.dispose();
+      assert.equal(hero.children.length, 0); assert.equal(observer.disconnected, true);
+    }, mount);
+  } finally { global.document = previousDocument; global.ResizeObserver = previousObserver; }
+});
 function modelWithResources() {
   const scene = new THREE.Group();
   const geometry = new THREE.BoxGeometry(1, 2, 1);
@@ -173,7 +246,7 @@ test('the complete image demo shares four distinct water sources, preserves whit
   assert.equal(splash.material.toneMapped, false);
   assert.ok(splash.material.transparent && !splash.material.depthWrite);
   assert.equal(splash.material.map.colorSpace, THREE.SRGBColorSpace);
-  assert.equal(splash.material.opacity, 0.85, 'Splash has an independent opacity multiplier without changing other artwork');
+  assert.equal(splash.material.opacity, 1, 'Supplied splash keeps full alpha for its Hard Light composition');
   assert.equal(splash.renderOrder, -10, 'Rear splash blends before subsidiary fruit, leaves and glass');
   const leaf = root.children.find(group => group.name === 'leaf-left-middle').children[0];
   const leafUvs = leaf.geometry.getAttribute('uv');
@@ -269,7 +342,7 @@ test('splash stays behind every accent throughout burst and idle while fitting b
         assert.ok(frontEdge < group.position.z - Math.SQRT1_2 * group.scale.x,
           `${aspect}/${width}/${tick}: Splash comes in front of ${group.name}`);
       }
-      for (const x of [-283 / 768, 283 / 768]) for (const y of [-330 / 768, 330 / 768]) {
+      for (const x of [-331 / 768, 331 / 768]) for (const y of [-298 / 768, 298 / 768]) {
         const corner = new THREE.Vector3(x, y, 0).applyEuler(splash.rotation).multiplyScalar(splash.scale.x).add(splash.position);
         const distance = camera.position.z - corner.z;
         assert.ok(Math.abs(corner.x) <= distance * tangent * aspect + 1e-10, 'Splash cannot overlap adjacent UI outside the viewer');
@@ -277,7 +350,7 @@ test('splash stays behind every accent throughout burst and idle while fitting b
       }
       if (tick === 99 && aspect === 0.55) {
         const apparentScale = splash.scale.x * camera.position.z / (camera.position.z - splash.position.z);
-        assert.ok(apparentScale > 0.75, 'Alpha-bound planar fitting preserves broad mobile water instead of a tiny center ring');
+        assert.ok(apparentScale * (661 / 768) > 0.6, 'Visible water stays broad on mobile even when the supplied photo has different padding');
       }
     }
   }

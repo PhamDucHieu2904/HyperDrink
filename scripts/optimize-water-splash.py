@@ -1,6 +1,6 @@
-"""Export a generated RGBA water splash as a web-ready transparent WebP.
+"""Export the supplied RGBA water splash as a web-ready transparent WebP.
 
-Usage: python scripts/optimize-water-splash.py --source /path/to/generated.png
+Usage: python scripts/optimize-water-splash.py --source /path/to/Splash-water.png
 The source remains outside the repository. No recoloring or alpha extraction.
 """
 from __future__ import annotations
@@ -26,9 +26,9 @@ def main() -> None:
     with Image.open(args.source) as original:
         source = original.convert("RGBA")
     if source.getchannel("A").getextrema()[0] == 255:
-        raise ValueError("Generated splash must have real alpha transparency.")
+        raise ValueError("Supplied splash must have real alpha transparency.")
     image, bounds = helper.prepare(source, 768)
-    output = project / "public/assets/scene/water-splash-clear.webp"
+    output = project / "public/assets/scene/water-splash-user.webp"
     image.save(output, "WEBP", quality=92, alpha_quality=100, method=6, exact=True)
     with Image.open(output) as encoded:
         decoded = encoded.convert("RGBA")
@@ -37,7 +37,7 @@ def main() -> None:
         raise ValueError("WebP encoder altered transparency.")
     manifest = {
         "schemaVersion": 1,
-        "source": "Original water splash generated with built-in image_gen, 2026-10-01",
+        "source": "User-supplied Splash water.png, 2026-10-01; artwork and alpha preserved",
         "promptDocument": "docs/water-splash-asset.md",
         "processing": {
             "crop": "Only fully transparent outer margins",
@@ -46,7 +46,7 @@ def main() -> None:
             "colorChanges": "None",
         },
         "asset": {
-            "src": "/assets/scene/water-splash-clear.webp",
+            "src": "/assets/scene/" + output.name,
             "width": decoded.width, "height": decoded.height,
             "bytes": output.stat().st_size, "sha256": helper.sha256(output),
             "alpha": helper.alpha_stats(decoded), "qualityCheck": error,

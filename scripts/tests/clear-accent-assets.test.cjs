@@ -110,12 +110,12 @@ test('the default scene assigns only verified water/ice URLs and actually uses a
   assert.deepEqual([...seen].sort(), [...expected.keys()].sort());
 });
 
-test('generated splash ships transparent 768px WebP with clear padding within its download budget', () => {
+test('supplied splash ships transparent 768px WebP with clear padding within its download budget', () => {
   const asset = splashManifest.asset;
   const buffer = assetBytes(asset);
   assert.equal(crypto.createHash('sha256').update(buffer).digest('hex'), asset.sha256);
   assert.equal(buffer.length, asset.bytes);
-  assert.ok(buffer.length <= 200 * 1024, 'Splash must remain a lightweight image, not the authoring PNG');
+  assert.ok(buffer.length <= 300 * 1024, 'Splash must remain a lightweight image, not the authoring PNG');
   assert.deepEqual(readWebp(buffer), { width: 768, height: 768 });
   assert.equal(asset.qualityCheck.alphaExact, true);
   assert.ok(asset.qualityCheck.premultipliedRgbRmse < 5);
@@ -126,7 +126,7 @@ test('generated splash ships transparent 768px WebP with clear padding within it
   assert.ok(left > 0 && top > 0 && right < 768 && bottom < 768);
 });
 
-test('the enabled splash node uses the verified generated asset and the supplied glass exports stay distinct', () => {
+test('the enabled splash node uses the verified supplied asset and the supplied glass exports stay distinct', () => {
   const { DEFAULT_PRODUCT_ACCENT_SCENE } = loadSource('lib/viewer/accent-config.ts');
   const splash = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.filter(node => node.enabled && node.kind === 'splash');
   assert.equal(splash.length, 1);

@@ -1,15 +1,15 @@
-# Transparent water splash
+# Supplied water splash with Hard Light
 
-Created using the built-in `image_gen` tool, with actual transparent RGBA output. The user-supplied stock image was a visual reference only; the new artwork is original and contains no text or watermark.
+The storefront uses the user's `Splash water.png` supplied on 2026-10-01. The source is RGBA, 1000 × 662 pixels and 586,814 bytes. Gray RGB in fully transparent pixels is not a backdrop. No new artwork, recoloring or alpha extraction is applied.
 
-The production asset is `public/assets/scene/water-splash-clear.webp`: 768 × 768 pixels, 152,216 bytes. It preserves the original neutral white reflections and alpha, including the empty central opening. Export uses premultiplied-alpha Lanczos resizing and WebP quality 92; decoded alpha equals the resized source exactly. The original generated PNG stays in the local image library and is not shipped to the browser.
+The production asset is `public/assets/scene/water-splash-user.webp`: 768 × 768 pixels, 266,834 bytes, about 55% smaller than the supplied PNG. Export crops only fully transparent outer margins, preserves natural aspect and adds transparent padding. Premultiplied-alpha Lanczos resizing avoids dark edges. WebP quality is 92, alpha quality 100; decoded alpha exactly matches the resized source. The original PNG remains outside the repository.
 
-`public/assets/scene/water-splash.manifest.json` records dimensions, hashes, alpha statistics and compression validation. Re-export with `python scripts/optimize-water-splash.py --source /path/to/generated.png`.
+`public/assets/scene/water-splash.manifest.json` records source/output hashes, dimensions, alpha bounds and compression validation. Re-export with `python scripts/optimize-water-splash.py --source "D:/Vinut-TK/Downloads/Splash water.png"`.
 
-The splash is a separately configurable accent node behind the product and all other accents, sharing their reveal/fade lifecycle. Its image, transform and idle settings can be replaced through the existing serialized accent-scene configuration.
+## Composition
 
-## Final generation prompt
+The splash node has `blendMode: 'hard-light'` and opacity 1. `lib/viewer/blended-accent.ts` projects its Three world transform and perspective camera into an invertible CSS matrix3d. A decorative image beneath the WebGL canvas applies actual `mix-blend-mode: hard-light` against the live flavor background, using the browser's [Hard Light compositing operation](https://www.w3.org/TR/compositing-1/#blendinghardlight). Its wrapper does not isolate blending; the hero bounds the blend group. The matching WebGL plane remains invisible, preventing duplicate composition. No extra render target, WebGL pass or animation loop is created.
 
-```text
-Use case: ads-marketing. Asset type: transparent water splash cutout for a premium beverage website, layered behind a separate 3D can and fruit. Create a new original high-speed macro photograph of one thin clear-water splash, viewed nearly front-on: an irregular asymmetrical annular burst around a large completely empty transparent central opening. Overall upright oval composition, about 1:1.15, with fine fluid sheets, curved ripples, elegant branching jets reaching outward, several suspended small drops connected compositionally. The splash should look naturally wet and lightweight, not a thick glass ring or a solid cylinder. Cool-neutral clear water, bright restrained white specular reflections and a few soft gray shadow edges, translucent interiors revealing the background, no colored tint, no opaque gray fill. Carefully controlled broad studio light, realistic surface tension and crisp natural detail. Leave approximately the central 45% width and 60% height empty so a product can covers the center, with the visible water mainly extending around its sides. All splash extremities and stray drops fully inside the square canvas with 8% transparent margin. Real transparent RGBA background and transparent center, no black or white backdrop, no environment, no can, no fruit, no leaves, no ice cubes, no text, no watermark. Visually clean composition, readable at 500-800 pixels, avoid a dense fog of tiny dots.
-```
+The existing accent controller controls readiness, product-settle gating, reveal, fade and idle. ResizeObserver keeps the clipping rectangle aligned to the viewer. Image loading failures release readiness while keeping the failed image hidden. Replacement/disposal removes obsolete images and listeners. The supplied photo stays behind the can and all other accents; image bounds constrain its visible silhouette inside narrow viewers. Upper-left fruit retains its raised position.
+
+Asset, transform, opacity and blend mode remain serializable scene settings for future admin editing. Only `normal` and `hard-light` are accepted blend modes. A standalone viewer without a `.showcase-hero` DOM backdrop retains the normal Three image fallback.

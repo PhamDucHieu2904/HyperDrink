@@ -7,8 +7,10 @@ import { advanceAccentMotion, createAccentMotion, sampleAccentNode } from './acc
 import { accentImageExtent, adaptAccentFrame } from './accent-layout';
 import { createDropletMaterial, updateDropletMaterial } from './droplet-material';
 import { createIceMaterial, updateIceMaterial } from './ice-material';
+import { createBlendedAccentHost } from './blended-accent';
 
-type AccentObject = { node: ProductAccentNode; group: THREE.Group; materials: THREE.Material[]; resources: Array<{ dispose(): void }>; ready: boolean };
+type BlendedHost = NonNullable<ReturnType<typeof createBlendedAccentHost>>;
+type AccentObject = { node: ProductAccentNode; group: THREE.Group; materials: THREE.Material[]; resources: Array<{ dispose(): void }>; ready: boolean; blended?: ReturnType<BlendedHost['add']> };
 type AccentFrame = { deltaSeconds: number; ready: boolean; viewerIdle: boolean; reducedMotion: boolean; paused: boolean; height: number; width: number; productRadius: number; maximumProductScale: number; camera: THREE.PerspectiveCamera; resolution?: [number, number] };
 const ATLAS = '/assets/scene/fruit-leaf-atlas.webp';
 const GLASS_ATLAS = '/assets/scene/ice-droplet-atlas.webp';
@@ -26,7 +28,7 @@ const SUBJECT_UVS: Record<string, [number, number, number, number]> = {
 
 /** Scene-local resources; never parented to the spinning product. Approved GLBs
  * can replace each demo sprite/mesh without changing choreography or layout. */
-export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invalidate: () => void) {
+export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invalidate: () => void, mount?: HTMLDivElement) {
   const root = new THREE.Group();
   root.name = 'product-accent-scene';
   scene.add(root);
@@ -35,6 +37,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
   let state = createAccentMotion('');
   let objects: AccentObject[] = [];
   let disposed = false, revision = 0;
+  let blendedHost: ReturnType<typeof createBlendedAccentHost>;
   let backdrop: THREE.Texture | null = null;
   const textures = new Set<THREE.Texture>();
   const textureRequests = new Map<string, Promise<THREE.Texture>>();
@@ -114,7 +117,19 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     const mesh = new THREE.Mesh(geometry, material);
     // Water is a rear photographic layer; blend it before the smaller cutouts.
     // Its actual depth is also solved behind those objects in update().
-    if (item.node.kind === 'splash') mesh.renderOrder = -10;
+    if (item.node.kind === 'splash') {
+      mesh.renderOrder = -10;
+      if (item.node.blendMode === 'hard-light' && item.node.assetUrl && mount) {
+        blendedHost ??= createBlendedAccentHost(mount);
+        if (blendedHost) {
+          item.blended = blendedHost.add(item.node.assetUrl, () => { item.ready = true; invalidate(); });
+          item.resources.push(item.blended);
+          // Keep the plane's transform for layout, but composite its photo only
+          // once, against the actual CSS backdrop beneath all WebGL objects.
+          mesh.visible = false;
+        }
+      }
+    }
     item.group.add(mesh);
   };
   const build = (flavor: AccentFlavor) => {
@@ -170,7 +185,8 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
           if (disposed || thisRevision !== revision) return;
           texture.colorSpace = THREE.SRGBColorSpace;
           sprite(item, texture, node.assetUrl ? undefined : glass ? [node.kind === 'ice' ? 0 : 1, 0] : CELLS[cellName], glass ? 2 : 3, glass ? 1 : 2);
-          item.ready = true; invalidate();
+          if (!item.blended) item.ready = true;
+          invalidate();
         }).catch(() => { item.ready = true; invalidate(); });
       }
       return item;
@@ -202,6 +218,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
         state = createAccentMotion(desiredKey);
       }
       const envelope = { height: frame.height, width: frame.width, productRadius: frame.productRadius, maximumProductScale: frame.maximumProductScale };
+      frame.camera.updateMatrixWorld();
       const viewport = { distance: frame.camera.position.z, fov: frame.camera.fov, aspect: frame.camera.aspect,
         center: [frame.camera.position.x, frame.camera.position.y, 0] as [number, number, number] };
       const samples = objects.map((item, index) => {
@@ -228,6 +245,11 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
         item.group.rotation.set(...sample.rotation);
         item.group.scale.setScalar(sample.scale);
         item.group.visible = item.ready && sample.visible;
+        if (item.blended) {
+          item.group.updateWorldMatrix(true, false);
+          item.blended.update(item.group.matrixWorld, frame.camera,
+            sample.opacity * (config!.opacity ?? 1) * (item.node.opacity ?? 1), item.group.visible && root.visible);
+        }
         item.materials.forEach(material => {
           const opacity = sample.opacity * (config!.opacity ?? 1) * material.userData.accentOpacity;
           material.opacity = opacity;
@@ -244,7 +266,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     },
     dispose() {
       if (disposed) return;
-      disposed = true; clear(); textures.forEach(texture => texture.dispose()); textures.clear(); textureRequests.clear(); root.removeFromParent();
+      disposed = true; clear(); blendedHost?.dispose(); textures.forEach(texture => texture.dispose()); textures.clear(); textureRequests.clear(); root.removeFromParent();
     },
   };
 }

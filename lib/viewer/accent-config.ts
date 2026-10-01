@@ -14,6 +14,8 @@ export interface ProductAccentVariant {
   imageBounds?: [number, number, number, number];
   /** Multiplier over image alpha/imported material opacity; absent means 1. */
   opacity?: number;
+  /** Rear splash images can blend with the storefront backdrop in CSS. */
+  blendMode?: 'normal' | 'hard-light';
   sprite?: AccentSprite;
   color: string;
   secondaryColor?: string;
@@ -124,9 +126,10 @@ export const DEFAULT_PRODUCT_ACCENT_SCENE: ProductAccentScene = {
     // behind every other accent, even on a short or wide package.
     {
       ...accent('water-splash-back', 'splash', [0, 0.015, -0.8], 1.5, [0, 0, -0.12], 0.7, 'far'),
-      assetUrl: '/assets/scene/water-splash-clear.webp',
-      imageBounds: [114 / 768, 54 / 768, 667 / 768, 708 / 768],
-      opacity: 0.85,
+      assetUrl: '/assets/scene/water-splash-user.webp',
+      imageBounds: [53 / 768, 86 / 768, 714 / 768, 680 / 768],
+      opacity: 1,
+      blendMode: 'hard-light',
       idle: { phase: 0.7, floatAmplitude: 0.003, rockAmplitude: 0.012, periodSeconds: 14 },
     },
     ...composition,
@@ -161,6 +164,7 @@ const sanitizeVariant = (value: Partial<ProductAccentVariant>): Partial<ProductA
   const result = { ...value };
   if (value.assetUrl !== undefined) result.assetUrl = assetUrl(value.assetUrl);
   if (value.opacity !== undefined) result.opacity = bound(value.opacity, 1, 0, 1);
+  if (value.blendMode !== undefined) result.blendMode = value.blendMode === 'hard-light' ? 'hard-light' : 'normal';
   if (value.imageBounds !== undefined) {
     const bounds = value.imageBounds;
     result.imageBounds = Array.isArray(bounds) && bounds.length === 4

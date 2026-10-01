@@ -105,18 +105,23 @@ test('composition keeps the larger right fruit and a small leaf peeking from dir
 
 test('rear splash is a replaceable independent image with broad scale and neutral photographic colors', () => {
   const splash = scene.nodes.find(node => node.kind === 'splash');
-  assert.equal(splash.assetUrl, '/assets/scene/water-splash-clear.webp');
+  assert.equal(splash.assetUrl, '/assets/scene/water-splash-user.webp');
   assert.equal(splash.depth, 'far');
   assert.ok(splash.position[2] < Math.min(...scene.nodes.filter(node => node.kind !== 'splash').map(node => node.position[2])));
   assert.ok(splash.scale >= 1 && splash.scale <= 1.6);
   assert.equal(splash.color, '#ffffff');
   assert.equal(splash.tint, undefined);
-  assert.equal(splash.opacity, 0.85);
+  assert.equal(splash.opacity, 1);
+  assert.equal(splash.blendMode, 'hard-light');
+  for (const invalid of ['overlay', 'screen', null]) {
+    assert.equal(config.normalizeAccentScene({ nodes: [{ ...splash, blendMode: invalid }] }).nodes[0].blendMode, 'normal');
+  }
   assert.equal(splash.variants, undefined);
-  assert.deepEqual(splash.imageBounds, [114 / 768, 54 / 768, 667 / 768, 708 / 768]);
+  assert.deepEqual(splash.imageBounds, [53 / 768, 86 / 768, 714 / 768, 680 / 768]);
   const extent = layout.accentImageExtent(splash);
-  assert.ok(Math.abs(extent[0] - 283 / 768) < 1e-12);
-  assert.deepEqual(extent.slice(1), [330 / 768, 0]);
+  assert.ok(Math.abs(extent[0] - 331 / 768) < 1e-12);
+  assert.ok(Math.abs(extent[1] - 298 / 768) < 1e-12);
+  assert.equal(extent[2], 0);
   assert.ok(splash.idle.floatAmplitude < 0.006 && splash.idle.rockAmplitude < 0.018);
   assert.equal(config.normalizeAccentScene().nodes.find(node => node.kind === 'splash').scale, splash.scale,
     'Large splash is not clamped to the small object scale limit');

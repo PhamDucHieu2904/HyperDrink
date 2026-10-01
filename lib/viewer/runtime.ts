@@ -113,7 +113,7 @@ export function createProductViewer(
   const draco = new DRACOLoader().setDecoderPath(publicUrl(presentation.decoders.dracoPath)).setWorkerLimit(2);
   const basis = new KTX2Loader().setTranscoderPath(publicUrl(presentation.decoders.basisPath)).setWorkerLimit(2).detectSupport(renderer);
   loader.setMeshoptDecoder(MeshoptDecoder).setDRACOLoader(draco).setKTX2Loader(basis);
-  const accents = createAccentLayer(scene, loader, () => { dirty = true; });
+  const accents = createAccentLayer(scene, loader, () => { dirty = true; }, mount);
   const drawingBufferSize = new THREE.Vector2(1, 1);
   let backdrop: ReturnType<typeof createBackdropTexture> | undefined;
   let waterBackdrop: ReturnType<typeof createWaterBackdropPass> | undefined;

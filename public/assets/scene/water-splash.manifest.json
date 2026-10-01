@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "source": "Original water splash generated with built-in image_gen, 2026-10-01",
+  "source": "User-supplied Splash water.png, 2026-10-01; artwork and alpha preserved",
   "promptDocument": "docs/water-splash-asset.md",
   "processing": {
     "crop": "Only fully transparent outer margins",
@@ -14,41 +14,41 @@
     "colorChanges": "None"
   },
   "asset": {
-    "src": "/assets/scene/water-splash-clear.webp",
+    "src": "/assets/scene/water-splash-user.webp",
     "width": 768,
     "height": 768,
-    "bytes": 152216,
-    "sha256": "54e01899d6bd5bc3559adf84fd173411a97f29cbe51f9035e6473ee614f787b7",
+    "bytes": 266834,
+    "sha256": "534122ba3049599686b39f6badb0f87bb609b1c705bb34743fbd34777f993c37",
     "alpha": {
       "minimum": 0,
       "maximum": 255,
-      "transparentPixels": 454311,
-      "partialPixels": 134649,
-      "opaquePixels": 864,
-      "coverageFraction": 0.155577,
+      "transparentPixels": 453881,
+      "partialPixels": 124393,
+      "opaquePixels": 11550,
+      "coverageFraction": 0.088161,
       "contentBounds": [
-        114,
-        54,
-        667,
-        708
+        53,
+        86,
+        714,
+        680
       ]
     },
     "qualityCheck": {
-      "premultipliedRgbRmse": 1.2172,
-      "premultipliedRgbPsnrDb": 46.424,
+      "premultipliedRgbRmse": 0.7353,
+      "premultipliedRgbPsnrDb": 50.801,
       "alphaExact": true
     }
   },
   "original": {
-    "width": 1168,
-    "height": 1346,
-    "bytes": 1469189,
-    "sha256": "0ff7ad5fab48b43588ffea1c6859538c125b2ab40106096ff18e612f347cb097",
+    "width": 1000,
+    "height": 662,
+    "bytes": 586814,
+    "sha256": "2115d66309fb86bdc331c9b85592d978f9bb4de537faed959d95873fbf09ac33",
     "cropBounds": [
+      155,
       0,
-      0,
-      1154,
-      1346
+      877,
+      646
     ]
   }
 }
