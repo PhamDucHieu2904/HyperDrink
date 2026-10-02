@@ -9,4 +9,5 @@ export const canAssets: ProductAsset[] = manifest.assets.map(asset => ({
   src: `${asset.src}?v=${asset.sha256.slice(0, 12)}`,
   packaging: 'can',
   materialSlots: asset.materialSlots,
+  textureSamplers: { label: { wrapS: asset.labelUv.wrapS === 'repeat' ? 'repeat' : 'clamp', wrapT: 'clamp' } },
 }));

@@ -35,7 +35,14 @@ export function resolveFlavorScene(data: CatalogData, flavor: Flavor, seed: stri
     const clean = { ...node, variants: undefined };
     if (!['fruit', 'leaf', 'splash'].includes(node.kind)) return [clean];
     const pool = pools.get(node.kind) || [];
-    if (!pool.length) return [];
+    if (!pool.length) {
+      // Water is a shared scene preset, unlike flavor-specific fruit/leaf artwork.
+      // Retain its approved asset and complete transform when no flavor splash is assigned.
+      // The template's enabled/opacity settings still control explicit suppression.
+      return node.kind === 'splash' && node.id === 'water-splash-back' && node.assetUrl
+        ? [{ ...clean, assetUrl: mediaUrl(node.assetUrl) }]
+        : [];
+    }
     const index = counters.get(node.kind) || 0;
     counters.set(node.kind, index + 1);
     const chosen = pool[index % pool.length];
@@ -57,8 +64,8 @@ export function resolveDisplay3D(data: CatalogData, display: Display3D, seed = '
   const kind = category?.viewerKind || 'other';
   return {
     variant, flavor,
-    asset: { id: model.id, name: model.name, src: mediaUrl(modelMedia), packaging: kind === 'pp' ? 'other' : kind, volumeMl: packaging.volumeMl || undefined, materialSlots: model.materialSlots, orientation: model.orientation, poster: mediaUrl(data.media.find(item => item.id === model.posterId)) || undefined },
-    appearance: { id: `${display.id}:${label?.revision}`, slots: { label: { baseColorMap: mediaUrl(labelMedia), metalness: 0, roughness: 0.15, clearcoat: 0.2 } } },
+    asset: { id: model.id, name: model.name, src: mediaUrl(modelMedia), packaging: kind === 'pp' ? 'other' : kind, volumeMl: packaging.volumeMl || undefined, materialSlots: model.materialSlots, textureSamplers: model.layoutProfile === 'can-wrap-v1' ? { label: { wrapS: 'repeat', wrapT: 'clamp' } } : undefined, orientation: model.orientation, poster: mediaUrl(data.media.find(item => item.id === model.posterId)) || undefined },
+    appearance: { id: `${display.id}:${label?.revision}`, requiredSlots: ['label'], slots: { label: { baseColorMap: mediaUrl(labelMedia), metalness: 0, roughness: 0.15, clearcoat: 0.2 } } },
     accentScene: resolveFlavorScene(data, flavor, `${seed}:${display.id}:${flavor.id}`),
   };
 }

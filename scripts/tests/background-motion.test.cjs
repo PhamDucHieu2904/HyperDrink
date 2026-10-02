@@ -17,7 +17,7 @@ function loadSource(relativePath, requireModule = require) {
 }
 const config = loadSource('lib/background-config.ts', () => loadSource('lib/showcase-flavors.ts'));
 const motion = loadSource('lib/background-motion.ts');
-const rendering = loadSource('lib/background-render-state.ts');
+const rendering = loadSource('lib/background-render-state.ts', name => name === './background-config' ? config : require(name));
 
 test('older background settings inherit automatic steering and the 10% faster speed; admin intervals stay ordered and finite', () => {
   const defaults = config.normalizeBackgroundConfig({ cellSize: 72 });

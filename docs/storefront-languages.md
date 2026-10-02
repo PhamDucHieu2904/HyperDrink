@@ -1,0 +1,11 @@
+# Storefront languages
+
+The public demo supports English (`en`), French (`fr`), Simplified Chinese (`zh`), Spanish (`es`), Arabic (`ar`), Russian (`ru`), Korean (`ko`) and German (`de`). English is the static-rendered default, regardless of the browser's language. An explicit choice is saved under `vinut.language` in localStorage and restored after hydration. Invalid preferences fall back to English. If storage is unavailable, selection still works for the current visit. Other tabs follow preference changes.
+
+The current language code (EN, FR, ZH, ES, AR, RU, KO or DE) appears in the circular button between search and menu. Its dropdown searches native names, English names, locale codes and common names in all supported languages, plus Vietnamese. Latin diacritics are ignored. Selection updates the button and storefront without navigation, remounting the 3D viewer or changing the selected model/flavor. Brand/product names and the physical can artwork retain their original names. Search, menus and language selection do not open on top of each other.
+
+`lib/i18n/messages.ts` defines the English key contract. Each additional language has a JSON dictionary under `lib/i18n/locales`. TypeScript checks dictionary coverage; `npm run test:i18n` also checks missing/extra keys and placeholder consistency. Add a dictionary and registry entry in `lib/i18n/catalog.ts` to make another language selectable. Stable category, product and model IDs remain separate from translated display copy. Admin content is not translated by this storefront provider.
+
+Arabic changes document `lang` and `dir`, and renders copy, controls and menus right to left. The header icon positions, 3D scene and animated tracks retain their physical composition. Language names declare their own `lang`. The dropdown has a visible search label, current-selection indicator, scrollable options, keyboard navigation (arrows, Home/End, Enter), Escape dismissal and focus restoration. Clicking outside or moving keyboard focus away dismisses it without trapping focus.
+
+This is client-selected localization compatible with the existing static GitHub Pages export. Separate language URLs, language-specific SEO metadata and admin-managed translation records would be future extensions.

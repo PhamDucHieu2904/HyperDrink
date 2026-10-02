@@ -53,7 +53,11 @@ async function withBackend(callback) {
       const form = new FormData(); form.set('role', role); form.set('file', new File([bytes], assetName, { type: 'image/jpeg' }));
       const result = await this.request('/api/admin/v1/upload', { method: 'POST', form });
       assert.equal(result.response.status, 201, JSON.stringify(result.payload));
-      return { media: result.payload.data, bytes };
+      const media = result.payload.data;
+      const runtimeBytes = fs.readFileSync(getMediaPath(media.storageKey, folder));
+      assert.equal(runtimeBytes.length, media.bytes);
+      assert.equal(createHash('sha256').update(runtimeBytes).digest('hex'), media.sha256);
+      return { media, bytes: runtimeBytes, sourceBytes: bytes };
     },
     reopen() {
       repository.close(); repository = new LocalCatalogRepository(folder);
@@ -367,7 +371,7 @@ test('real 3D model publication validates declared material names against the in
   assert.equal(catalog.displays3d[0].labelId, label.id);
   assert.equal(catalog.media.find(media => media.id === seedModel.mediaId).mime, 'model/gltf-binary');
   const labelRead = await context.request(`/api/public/v1/media/${labelMedia.id}`, { cookie: '' });
-  assert.equal(labelRead.response.status, 200); assert.equal(labelRead.response.headers.get('Content-Type'), 'image/jpeg');
+  assert.equal(labelRead.response.status, 200); assert.equal(labelRead.response.headers.get('Content-Type'), labelMedia.mime);
 }));
 
 test('CRUD audit events identify the actual authenticated owner or editor', async () => withBackend(async context => {

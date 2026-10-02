@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { backgroundThemes, type BackgroundConfig } from '../background-config';
+import type { BackgroundConfig } from '../background-config';
 import { backgroundTileUrl, type BackgroundRenderState } from '../background-render-state';
 
 export interface ProductBackdropTexture {
@@ -59,13 +59,23 @@ export function createBackdropTexture(
   const tileSize = config.cellSize * config.iconSpacing;
   let layout: Layout = { hero: { x: 0, y: 0, width: 1, height: 1 }, crop: { x: 0, y: 0, width: 1, height: 1 } };
   let disposed = false, dirty = true, resized = true, lastPaint = -Infinity, signature = '';
-  const tileImages = backgroundThemes.map(theme => {
-    const image = new Image();
-    image.onload = () => { if (!disposed) dirty = true; };
-    image.src = backgroundTileUrl(theme.icon, config);
-    return image;
-  });
-  const tilePatterns: (CanvasPattern | null)[] = tileImages.map(() => null);
+  let themeRevision = -1;
+  let tileImages: HTMLImageElement[] = [];
+  let tilePatterns: (CanvasPattern | null)[] = [];
+  const syncThemes = () => {
+    if (themeRevision === state.themeRevision) return;
+    tileImages.forEach(image => { image.onload = null; image.src = ''; });
+    tileImages = state.themes.map(theme => {
+      const image = new Image();
+      image.onload = () => { if (!disposed) dirty = true; };
+      image.src = backgroundTileUrl(theme.icon, config);
+      return image;
+    });
+    tilePatterns = tileImages.map(() => null);
+    themeRevision = state.themeRevision;
+    dirty = true;
+  };
+  syncThemes();
 
   const measure = () => {
     if (disposed) return;
@@ -97,23 +107,24 @@ export function createBackdropTexture(
 
   const update = () => {
     if (disposed) return;
+    syncThemes();
     const now = performance.now();
     // Resizing clears the canvas immediately. Repaint before the next water pass,
     // even if that one resize frame falls inside the normal upload interval.
     if (!resized && now - lastPaint < 1000 / 30) return;
     const { x, y } = state.patternOffset;
-    const nextSignature = `${state.weights.join(',')}:${hero ? `${x},${y}` : ''}`;
+    const nextSignature = `${themeRevision}:${state.weights.join(',')}:${hero ? `${x},${y}` : ''}`;
     if (!dirty && nextSignature === signature) return;
     const { crop, hero: area, glow } = layout;
     const scaleX = canvas.width / crop.width, scaleY = canvas.height / crop.height;
     context.setTransform(scaleX, 0, 0, scaleY, -crop.x * scaleX, -crop.y * scaleY);
     context.globalCompositeOperation = 'source-over';
     context.globalAlpha = 1;
-    context.fillStyle = backgroundThemes[0].color;
+    context.fillStyle = state.themes[0].color;
     context.fillRect(crop.x, crop.y, crop.width, crop.height);
     // The DOM stacks layers in this exact order; reproduce their alpha compositing.
-    backgroundThemes.forEach((theme, index) => {
-      context.globalAlpha = state.weights[index];
+    state.themes.forEach((theme, index) => {
+      context.globalAlpha = state.weights[index] ?? 0;
       context.fillStyle = theme.color;
       context.fillRect(crop.x, crop.y, crop.width, crop.height);
     });

@@ -15,6 +15,7 @@ import { createAccentLayer } from './accent-layer';
 import type { AccentFlavor, ProductAccentSceneInput } from './accent-config';
 import { createBackdropTexture, type ProductViewerBackdropInput } from './backdrop-texture';
 import { createWaterBackdropPass } from './water-backdrop-pass';
+import { createProductHitRegion, hitVisibleProduct, visibleProductMeshes } from './product-hit-region';
 
 export interface ViewerStatus {
   phase: 'loading' | 'ready' | 'error';
@@ -53,8 +54,9 @@ export function createProductViewer(
   renderer.setClearColor('#000000', 0);
   renderer.domElement.setAttribute('aria-hidden', 'true');
   renderer.domElement.tabIndex = 0;
-  Object.assign(renderer.domElement.style, { width: '100%', height: '100%', display: 'block', touchAction: 'none' });
+  Object.assign(renderer.domElement.style, { width: '100%', height: '100%', display: 'block', touchAction: 'pan-y pinch-zoom' });
   mount.appendChild(renderer.domElement);
+  const hitRegion = createProductHitRegion(mount);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(presentation.camera.fov, 1, 0.001, 10);
   const product = new THREE.Group();
@@ -96,6 +98,7 @@ export function createProductViewer(
   const appearanceRevisions = new WeakMap<LoadedProduct, number>();
   const appearanceReadiness = new WeakMap<LoadedProduct, boolean>();
   let currentAppearanceKey = '';
+  let failedAppearanceKey: string | null = null;
   let appearanceReady = true;
   let lights: THREE.Light[] = [];
   let fitDistance = 0.4;
@@ -143,6 +146,7 @@ export function createProductViewer(
 
   const emitStatus = (phase: ViewerStatus['phase'], message?: string) => {
     statusPhase = phase; statusMessage = message;
+    if (phase === 'error') hitRegion.clear();
     if (!disposed && desiredAsset) status({ phase, assetId: desiredAsset.id, message, environmentReady, hasProduct: Boolean(active) });
   };
   const discard = (loaded: LoadedProduct | null) => {
@@ -187,6 +191,7 @@ export function createProductViewer(
     camera.aspect = width / height;
     fitCamera();
     camera.updateProjectionMatrix();
+    hitRegion.update(active && !packageTransition ? active.root : null, camera, width, height, performance.now(), true);
     dirty = true;
   };
   const loadEnvironment = (settings: ViewerPresentation['environment']) => {
@@ -270,6 +275,7 @@ export function createProductViewer(
   };
   const setPackagePhase = (phase: PackageTransition['phase']) => {
     if (packageTransition) packageTransition.phase = phase;
+    hitRegion.clear();
     mount.dataset.transitionPhase = `package-${phase}`;
   };
   const beginPackageMotion = () => {
@@ -302,6 +308,7 @@ export function createProductViewer(
     emitStatus('ready');
   };
   const applyAppearance = async (loaded: LoadedProduct, appearance: ProductAppearance | undefined) => {
+    const appearanceKey = JSON.stringify(appearance ?? null);
     const thisRevision = (appearanceRevisions.get(loaded) ?? 0) + 1;
     appearanceRevisions.set(loaded, thisRevision);
     appearanceReadiness.set(loaded, false);
@@ -310,10 +317,32 @@ export function createProductViewer(
       await loaded.appearance.apply(appearance);
       if (disposed || thisRevision !== appearanceRevisions.get(loaded)) return;
       appearanceReadiness.set(loaded, true);
-      if (loaded === active) appearanceReady = true;
+      loaded.root.visible = true;
+      if (loaded === active) {
+        appearanceReady = true;
+        if (loaded.definitionKey === assetDefinitionKey && appearanceKey === currentAppearanceKey && statusPhase !== 'ready') emitStatus('ready');
+      }
       dirty = true;
     } catch {
       if (!disposed && thisRevision === appearanceRevisions.get(loaded)) {
+        if (appearance?.requiredSlots?.length) {
+          // An outgoing model/older flavor must never fail the newer selection.
+          if (loaded.definitionKey !== assetDefinitionKey || appearanceKey !== currentAppearanceKey) return;
+          appearanceReadiness.set(loaded, false);
+          if (loaded === active) appearanceReady = false;
+          loaded.root.visible = false;
+          if (loaded === pendingProduct) {
+            pendingProduct = null; discard(loaded);
+            assetDefinitionKey = '';
+            appearanceReady = false;
+            if (active) active.root.visible = false;
+          }
+          failedAppearanceKey = appearanceKey;
+          recoverPackageMotion();
+          dirty = true;
+          emitStatus('error', 'Không áp được nhãn hoặc vật liệu bắt buộc của sản phẩm.');
+          return;
+        }
         appearanceReadiness.set(loaded, true);
         if (loaded === active) appearanceReady = true;
         emitStatus(statusPhase, 'Không tải được texture; giữ vật liệu gốc.');
@@ -322,26 +351,37 @@ export function createProductViewer(
   };
   const select = (asset: ProductAsset, appearance?: ProductAppearance) => {
     if (disposed) return;
-    const nextAssetDefinitionKey = JSON.stringify({ id: asset.id, src: asset.src, slots: asset.materialSlots, orientation: asset.orientation });
+    const nextAssetDefinitionKey = JSON.stringify({ id: asset.id, src: asset.src, slots: asset.materialSlots, samplers: asset.textureSamplers, orientation: asset.orientation });
     const sameAssetDefinition = nextAssetDefinitionKey === assetDefinitionKey;
     assetDefinitionKey = nextAssetDefinitionKey;
     desiredAsset = asset;
     desiredAppearance = appearance;
     const appearanceKey = JSON.stringify(appearance ?? null);
+    const retryAppearance = failedAppearanceKey === appearanceKey;
     if (sameAssetDefinition) {
-      if (currentAppearanceKey === appearanceKey) return;
+      if (currentAppearanceKey === appearanceKey && !retryAppearance) return;
       currentAppearanceKey = appearanceKey;
+      failedAppearanceKey = null;
+      if (statusPhase === 'error') emitStatus('loading');
       if (active?.asset.id === asset.id && active.asset.src === asset.src) {
         appearanceReady = false;
         beginCinematic();
         // Resolve appearance immediately while motion turns the print away.
         // It is scoped to this viewer, so multiple viewers never change one another.
         void applyAppearance(active, appearance);
-      } else if (pendingProduct?.asset.id === asset.id) void applyAppearance(pendingProduct, appearance);
-      return;
+        return;
+      } else if (pendingProduct?.asset.id === asset.id) {
+        void applyAppearance(pendingProduct, appearance);
+        return;
+      }
+      // A failed pending product was discarded. Retry its geometry as well as
+      // the required material; normal in-flight model loads remain deduplicated.
+      if (!retryAppearance) return;
     }
     currentAppearanceKey = appearanceKey;
+    failedAppearanceKey = null;
     const thisRevision = ++assetRevision;
+    let requiredAppearanceFailure = false;
     discard(pendingProduct); pendingProduct = null;
     beginPackageMotion();
     emitStatus('loading');
@@ -379,7 +419,22 @@ export function createProductViewer(
         const appearance = desiredAppearance;
         appliedAppearanceKey = JSON.stringify(appearance ?? null);
         try { await loaded.appearance.apply(appearance); }
-        catch { /* Keep imported PBR if this optional texture cannot be loaded. */ }
+        catch (error) {
+          if (disposed || thisRevision !== assetRevision) { discard(loaded); return; }
+          if (appliedAppearanceKey !== JSON.stringify(desiredAppearance ?? null)) continue;
+          if (appearance?.requiredSlots?.length) {
+            requiredAppearanceFailure = true;
+            appearanceReady = false;
+            if (active) active.root.visible = false;
+            discard(loaded);
+            // Identical selections may retry after failure; a new selection also
+            // starts a fresh revision before this rejection reaches outer catch.
+            assetDefinitionKey = '';
+            failedAppearanceKey = appliedAppearanceKey;
+            throw error;
+          }
+          // Generic optional appearance failures keep the imported PBR.
+        }
         if (disposed || thisRevision !== assetRevision) { discard(loaded); return; }
       } while (appliedAppearanceKey !== JSON.stringify(desiredAppearance ?? null));
       appearanceReadiness.set(loaded, true);
@@ -396,7 +451,7 @@ export function createProductViewer(
     }).catch(() => {
       if (disposed || thisRevision !== assetRevision) return;
       recoverPackageMotion();
-      emitStatus('error', `Không tải được mô hình ${asset.name}.`);
+      emitStatus('error', requiredAppearanceFailure ? 'Không áp được nhãn hoặc vật liệu bắt buộc của sản phẩm.' : `Không tải được mô hình ${asset.name}.`);
     });
   };
   const reset = () => {
@@ -431,14 +486,18 @@ export function createProductViewer(
     activatePendingProduct();
   };
   const pointerDown = (event: PointerEvent) => {
-    if (!active || packageTransition || event.button !== 0) return;
+    if (!active || packageTransition || event.button !== 0 || pointers.has(event.pointerId)) return;
+    if ((event.pointerType === 'touch' || event.pointerType === 'pen') && event.target !== hitRegion.element) return;
     const rect = renderer.domElement.getBoundingClientRect();
+    if (!(rect.width > 0 && rect.height > 0)) return;
     pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2);
+    product.updateWorldMatrix(true, true); camera.updateMatrixWorld();
     raycaster.setFromCamera(pointer, camera);
-    if (!raycaster.intersectObject(product, true).length) return;
+    if (!hitVisibleProduct(raycaster, visibleProductMeshes(active.root))) return;
     interrupt();
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    renderer.domElement.setPointerCapture(event.pointerId);
+    try { renderer.domElement.setPointerCapture(event.pointerId); }
+    catch { pointers.delete(event.pointerId); return; }
     dragging = true;
     mount.classList.add('is-dragging');
     lastInputAt = animationTime;
@@ -464,11 +523,16 @@ export function createProductViewer(
     if (!dragging) { mount.classList.remove('is-dragging'); lastInputAt = animationTime; }
     dirty = true;
   };
-  const lostCapture = () => {
-    if (!pointers.size) return;
-    pointers.clear(); dragging = false;
-    mount.classList.remove('is-dragging'); lastInputAt = animationTime;
-    dirty = true;
+  const lostCapture = (event: PointerEvent) => {
+    // Touch's implicit capture can transfer from the clipped surface to the canvas.
+    if (event.target === renderer.domElement) pointerUp(event);
+  };
+  const cancelPointers = () => {
+    const ids = [...pointers.keys()]; pointers.clear(); dragging = false;
+    for (const id of ids) if (renderer.domElement.hasPointerCapture(id)) {
+      try { renderer.domElement.releasePointerCapture(id); } catch { /* Pointer cancellation may already release capture. */ }
+    }
+    mount.classList.remove('is-dragging'); lastInputAt = animationTime; dirty = true;
   };
   const keyDown = (event: KeyboardEvent) => {
     if (event.key.toLowerCase() === 'r') { event.preventDefault(); reset(); return; }
@@ -614,6 +678,7 @@ export function createProductViewer(
     mount.dataset.accentCount = String(accentFrame.count);
     if (accentFrame.count > 0 && !paused && !reducedMotion) dirty = true;
     if (dirty && now - lastDrawTime >= 1000 / presentation.quality.maxFps) {
+      hitRegion.update(active && !packageTransition ? active.root : null, camera, mount.clientWidth, mount.clientHeight, now, dragging);
       if (backdrop && waterBackdrop) waterBackdrop.render(backdrop.texture, camera);
       renderer.render(scene, camera);
       mount.dataset.viewerReady = active ? 'true' : 'false';
@@ -621,6 +686,7 @@ export function createProductViewer(
     }
   };
   const syncVisibility = () => {
+    if (document.hidden || !visible) { cancelPointers(); hitRegion.clear(); }
     renderer.setAnimationLoop(!document.hidden && visible ? render : null);
     lastTime = performance.now();
     dirty = true;
@@ -632,13 +698,14 @@ export function createProductViewer(
   };
   const contextLost = (event: Event) => {
     event.preventDefault(); renderer.setAnimationLoop(null);
+    cancelPointers();
     emitStatus('error', 'Phiên 3D bị gián đoạn. Tải lại trang để khôi phục.');
   };
-  renderer.domElement.addEventListener('pointerdown', pointerDown);
-  renderer.domElement.addEventListener('pointermove', pointerMove);
-  renderer.domElement.addEventListener('pointerup', pointerUp);
-  renderer.domElement.addEventListener('pointercancel', pointerUp);
-  renderer.domElement.addEventListener('lostpointercapture', lostCapture);
+  mount.addEventListener('pointerdown', pointerDown);
+  mount.addEventListener('pointermove', pointerMove);
+  mount.addEventListener('pointerup', pointerUp);
+  mount.addEventListener('pointercancel', pointerUp);
+  mount.addEventListener('lostpointercapture', lostCapture);
   renderer.domElement.addEventListener('keydown', keyDown);
   renderer.domElement.addEventListener('webglcontextlost', contextLost);
   document.addEventListener('visibilitychange', syncVisibility);
@@ -673,11 +740,12 @@ export function createProductViewer(
       resizeObserver.disconnect(); intersection.disconnect();
       document.removeEventListener('visibilitychange', syncVisibility);
       motionQuery.removeEventListener('change', motionChange);
-      renderer.domElement.removeEventListener('pointerdown', pointerDown);
-      renderer.domElement.removeEventListener('pointermove', pointerMove);
-      renderer.domElement.removeEventListener('pointerup', pointerUp);
-      renderer.domElement.removeEventListener('pointercancel', pointerUp);
-      renderer.domElement.removeEventListener('lostpointercapture', lostCapture);
+      cancelPointers();
+      mount.removeEventListener('pointerdown', pointerDown);
+      mount.removeEventListener('pointermove', pointerMove);
+      mount.removeEventListener('pointerup', pointerUp);
+      mount.removeEventListener('pointercancel', pointerUp);
+      mount.removeEventListener('lostpointercapture', lostCapture);
       renderer.domElement.removeEventListener('keydown', keyDown);
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
       discard(active); discard(pendingProduct);
@@ -687,7 +755,7 @@ export function createProductViewer(
       ownedEnvironmentTargets.forEach((target) => target.dispose());
       environmentTargets.clear();
       pmrem.dispose(); draco.dispose(); basis.dispose();
-      renderer.dispose(); renderer.domElement.remove();
+      hitRegion.dispose(); renderer.dispose(); renderer.domElement.remove();
       mount.classList.remove('is-dragging');
     },
   };

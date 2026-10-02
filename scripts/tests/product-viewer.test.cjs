@@ -26,9 +26,80 @@ const backgroundMotion = loadSource('lib/background-motion.ts');
 const packageMotion = loadSource('lib/viewer/package-motion.ts');
 const publicUrls = loadSource('lib/public-url.ts');
 const environments = loadSource('lib/viewer/environment.ts');
-const backgroundRender = loadSource('lib/background-render-state.ts');
 const backgrounds = loadSource('lib/background-config.ts', name => name === './showcase-flavors'
   ? loadSource('lib/showcase-flavors.ts') : require(name));
+const backgroundRender = loadSource('lib/background-render-state.ts', name => name === './background-config' ? backgrounds : require(name));
+const hitRegions = loadSource('lib/viewer/product-hit-region.ts');
+
+// CSS uses nonzero winding. Check the generated boundary independently against real raycasts.
+function insidePath(cssPath, x, y) {
+  let winding = 0;
+  for (const section of cssPath.match(/M[^Z]+Z/g) ?? []) {
+    const points = [...section.matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)].map(match => [Number(match[1]), Number(match[2])]);
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i], b = points[(i + 1) % points.length];
+      const cross = (b[0] - a[0]) * (y - a[1]) - (x - a[0]) * (b[1] - a[1]);
+      if (a[1] <= y && b[1] > y && cross > 0) winding++;
+      if (a[1] > y && b[1] <= y && cross < 0) winding--;
+    }
+  }
+  return winding !== 0;
+}
+
+test('real product silhouette excludes blank corners and holes instead of claiming the bounding rectangle', () => {
+  const camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 20);
+  camera.position.z = 6; camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
+  const mesh = new THREE.Mesh(new THREE.TorusGeometry(1, 0.3, 24, 60), new THREE.MeshBasicMaterial());
+  mesh.updateMatrixWorld();
+  const silhouette = new hitRegions.ProductSilhouette();
+  const path = silhouette.project([mesh], camera, 400, 400);
+  const ray = new THREE.Raycaster();
+  for (const [x, y] of [[200, 200], [300, 200], [10, 10], [200, 300], [320, 320]]) {
+    ray.setFromCamera(new THREE.Vector2(x / 200 - 1, 1 - y / 200), camera);
+    assert.equal(insidePath(path, x, y), hitRegions.hitVisibleProduct(ray, [mesh]), `Silhouette disagrees at ${x},${y}`);
+  }
+  assert.equal(insidePath(path, 200, 200), false, 'A hole remains scrollable');
+  const box = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+  box.rotation.set(0.4, 0.6, 0); box.updateMatrixWorld();
+  assert.equal(insidePath(silhouette.project([box], camera, 400, 400), 200, 200), true,
+    'Scalar materials apply to all geometry groups, including the front group');
+  const mirrored = box.clone(); mirrored.scale.x = -1; mirrored.updateMatrixWorld();
+  assert.equal(insidePath(silhouette.project([box, mirrored], camera, 400, 400), 200, 200), true,
+    'A mirrored overlapping mesh must not cancel the visible model hit region');
+});
+
+test('hit routing respects hidden ancestors and materials and excludes scene decorations', () => {
+  const scene = new THREE.Scene(), root = new THREE.Group(), hiddenGroup = new THREE.Group();
+  const visible = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  const hidden = visible.clone(); hidden.position.x = 2; hiddenGroup.add(hidden); hiddenGroup.visible = false;
+  const transparent = visible.clone(); transparent.position.x = -2; transparent.material = new THREE.MeshBasicMaterial({ opacity: 0 });
+  const decoration = visible.clone(); decoration.scale.setScalar(20); scene.add(decoration);
+  root.add(visible, hiddenGroup, transparent); scene.add(root); scene.updateMatrixWorld();
+  assert.deepEqual(hitRegions.visibleProductMeshes(root), [visible]);
+  root.visible = false;
+  assert.deepEqual(hitRegions.visibleProductMeshes(visible), [], 'Hidden parent cancels even an individually visible mesh');
+  root.visible = true; visible.material.visible = false;
+  assert.deepEqual(hitRegions.visibleProductMeshes(root), []);
+});
+
+test('projection clips the frustum safely and updates after a material or draw-range change', () => {
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 10); camera.updateMatrixWorld();
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  const silhouette = new hitRegions.ProductSilhouette();
+  mesh.position.z = 2; mesh.updateMatrixWorld();
+  assert.equal(silhouette.project([mesh], camera, 400, 400), '', 'Behind-camera geometry cannot own a touch region');
+  mesh.position.z = -0.2; mesh.rotation.y = 0.3; mesh.updateMatrixWorld();
+  const path = silhouette.project([mesh], camera, 400, 400);
+  assert.ok(!path.includes('NaN') && !path.includes('Infinity'));
+  for (const match of path.matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)) {
+    assert.ok(Number(match[1]) >= 0 && Number(match[1]) <= 400);
+    assert.ok(Number(match[2]) >= 0 && Number(match[2]) <= 400);
+  }
+  mesh.position.z = -2; mesh.updateMatrixWorld();
+  assert.ok(silhouette.project([mesh], camera, 400, 400));
+  mesh.geometry.setDrawRange(0, 0);
+  assert.equal(silhouette.project([mesh], camera, 400, 400), '');
+});
 
 test('public asset URLs support repository paths without double prefixes or changing external URLs', () => {
   const previous = process.env.NEXT_PUBLIC_BASE_PATH;
@@ -268,10 +339,17 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
 
   // Replace browser/GPU boundaries only. Scene graph, quaternions, camera,
   // framing and the runtime selection/lifecycle code remain real production code.
+  const domElement = () => ({
+    style: {}, dataset: {}, listeners: new Map(), captures: new Set(), removed: false,
+    setAttribute() {},
+    addEventListener(type, listener) { const entries = this.listeners.get(type) ?? new Set(); entries.add(listener); this.listeners.set(type, entries); },
+    removeEventListener(type, listener) { this.listeners.get(type)?.delete(listener); },
+    emit(type, event) { for (const listener of this.listeners.get(type) ?? []) listener({ button: 0, target: this, preventDefault() {}, ...event }); },
+    remove() { this.removed = true; },
+    setPointerCapture(id) { this.captures.add(id); }, hasPointerCapture(id) { return this.captures.has(id); }, releasePointerCapture(id) { this.captures.delete(id); },
+  });
   const canvas = {
-    style: {}, tabIndex: 0,
-    setAttribute() {}, addEventListener() {}, removeEventListener() {}, remove() {},
-    setPointerCapture() {}, hasPointerCapture() { return false; }, releasePointerCapture() {},
+    ...domElement(), tabIndex: 0,
     getBoundingClientRect() { return { left: 0, top: 0, width: 500, height: 700 }; },
   };
   class Renderer {
@@ -312,7 +390,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
     matchMedia() { return { matches: false, addEventListener(_type, listener) { motionListeners.add(listener); },
       removeEventListener(_type, listener) { motionListeners.delete(listener); } }; },
   };
-  global.document = { hidden: false, addEventListener() {}, removeEventListener() {} };
+  global.document = { hidden: false, createElement: domElement, addEventListener() {}, removeEventListener() {} };
   global.ResizeObserver = class { observe() {} disconnect() {} };
   global.IntersectionObserver = class { observe() {} disconnect() {} };
   context.after(() => {
@@ -334,6 +412,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
     if (name === './framing') return framing;
     if (name === './package-motion') return packageMotion;
     if (name === './environment') return environments;
+    if (name === './product-hit-region') return hitRegions;
     if (name === './backdrop-texture') return {
       createBackdropTexture(state, config, mount) {
         const resource = { state, config, mount, texture: new THREE.Texture(), updates: 0, disposals: 0, paintNext: true };
@@ -370,7 +449,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
           apply(value) {
             if (immediateAppearance) return Promise.resolve();
             const request = deferred();
-            appearanceRequests.push({ assetId: asset.id, value, ...request });
+            appearanceRequests.push({ assetId: asset.id, asset, value, ...request });
             return request.promise;
           },
           dispose() {},
@@ -380,7 +459,10 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
     };
     throw new Error(`Unexpected runtime dependency: ${name}`);
   });
-  const mount = { clientWidth: 500, clientHeight: 700, dataset: {}, classList: { add() {}, remove() {} }, appendChild() {} };
+  const classes = new Set();
+  const mount = { ...domElement(), clientWidth: 500, clientHeight: 700, children: [],
+    classList: { add(value) { classes.add(value); }, remove(value) { classes.delete(value); }, contains(value) { return classes.has(value); } },
+    appendChild(child) { this.children.push(child); } };
   // This fixture deliberately exercises asynchronous HDRI loading races.
   viewer = runtime.createProductViewer(mount, config.resolveViewerPresentation({environment:{mode:'hdri'}}), (status) => statuses.push(status));
   const model = (height = 0.115) => {
@@ -396,10 +478,113 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
       renderers[0].frame(frameTime);
     }
   };
-  return { viewer, mount, renderer: renderers[0], geometryRequests, appearanceRequests, accentFrames, backdropResources, backdropBindings, waterPassResources, renderEvents, environment, statuses,
+  return { viewer, mount, canvas, hitRegion: mount.children.find(child => child.dataset.productHitRegion), renderer: renderers[0], geometryRequests, appearanceRequests, accentFrames, backdropResources, backdropBindings, waterPassResources, renderEvents, environment, statuses,
     model, asset, flush, advance, setReducedMotion: (matches) => motionListeners.forEach((listener) => listener({ matches })),
     disposedCount: () => productsDisposed };
 }
+
+test('blank mobile canvas preserves native vertical scrolling while only the projected can accepts rotation', async context => {
+  const { viewer, mount, canvas, hitRegion, renderer, geometryRequests, model, asset, flush, advance } = runtimeFixture(context, true);
+  viewer.select(asset('can')); geometryRequests[0].resolve(model()); await flush(); advance(0.05);
+  viewer.pause(true); advance(0.05);
+  const product = renderer.scene.children.find(node => node instanceof THREE.Group);
+  assert.equal(canvas.style.touchAction, 'pan-y pinch-zoom', 'Scroll permission is declared before touchstart');
+  assert.equal(hitRegion.style.touchAction, 'none', 'Only the actual object surface owns the gesture');
+  assert.equal(hitRegion.style.display, 'block');
+  assert.ok(insidePath(hitRegion.style.clipPath, 250, 350));
+  assert.equal(insidePath(hitRegion.style.clipPath, 10, 10), false);
+  const before = product.quaternion.clone();
+  let prevented = false;
+  const event = { pointerId: 1, pointerType: 'touch', target: canvas, clientX: 10, clientY: 10, preventDefault() { prevented = true; } };
+  mount.emit('pointerdown', event); mount.emit('pointermove', { ...event, clientY: 150 }); advance(0.1);
+  assert.equal(canvas.captures.size, 0);
+  assert.equal(mount.classList.contains('is-dragging'), false);
+  assert.equal(prevented, false, 'Blank swipe is not prevented by JavaScript');
+  assert.ok(product.quaternion.angleTo(before) < 1e-7);
+  mount.emit('pointerdown', { ...event, target: hitRegion, clientX: 250, clientY: 350 });
+  assert.equal(canvas.hasPointerCapture(1), true);
+  assert.equal(mount.classList.contains('is-dragging'), true);
+  mount.emit('pointermove', { ...event, clientX: 280, clientY: 370 }); advance(0.15);
+  assert.ok(product.quaternion.angleTo(before) > 0.03, 'A can drag still rotates the real scene graph');
+  mount.emit('pointercancel', event);
+  assert.equal(canvas.captures.size, 0); assert.equal(mount.classList.contains('is-dragging'), false);
+});
+
+test('raycast rejects decorations and hidden geometry even if a stale touch target is delivered', async context => {
+  const { viewer, mount, hitRegion, canvas, renderer, geometryRequests, model, asset, flush, advance } = runtimeFixture(context, true);
+  viewer.select(asset('can')); geometryRequests[0].resolve(model()); await flush(); advance(0.05);
+  const product = renderer.scene.children.find(node => node instanceof THREE.Group);
+  const decoration = new THREE.Mesh(new THREE.BoxGeometry(100, 100, 100), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  renderer.scene.add(decoration);
+  const touch = { target: hitRegion, pointerId: 1, pointerType: 'touch', clientX: 10, clientY: 10 };
+  mount.emit('pointerdown', touch);
+  assert.equal(canvas.captures.size, 0, 'Scene accents are not part of model raycasts');
+  product.children[0].visible = false;
+  mount.emit('pointerdown', { ...touch, clientX: 250, clientY: 350 });
+  assert.equal(canvas.captures.size, 0, 'A stale silhouette cannot accept a hidden mesh');
+  advance(0.05); assert.equal(hitRegion.style.display, 'none');
+  product.children[0].visible = true;
+  let body; product.traverse(node => { if (node instanceof THREE.Mesh) body = node; });
+  body.geometry.setDrawRange(0, 0); advance(0.1);
+  assert.equal(hitRegion.style.display, 'none', 'Empty draw range invalidates the cached outline');
+  body.geometry.setDrawRange(0, Infinity); advance(0.1);
+  assert.equal(hitRegion.style.display, 'block', 'Restoring a draw range restores ownership without a resize');
+  body.material.opacity = 0; advance(0.1); assert.equal(hitRegion.style.display, 'none');
+  body.material.opacity = 1; advance(0.1); assert.equal(hitRegion.style.display, 'block');
+});
+
+test('touch capture transfer, multitouch cancellation, mouse and keyboard remain consistent and dispose releases ownership', async context => {
+  const { viewer, mount, hitRegion, canvas, renderer, geometryRequests, model, asset, flush, advance } = runtimeFixture(context, true);
+  viewer.select(asset('can')); geometryRequests[0].resolve(model()); await flush(); advance(0.05);
+  viewer.pause(true); advance(0.05);
+  const product = renderer.scene.children.find(node => node instanceof THREE.Group);
+  const touch = { target: hitRegion, pointerId: 1, pointerType: 'touch', clientX: 250, clientY: 350 };
+  mount.emit('pointerdown', touch);
+  mount.emit('lostpointercapture', touch);
+  assert.equal(mount.classList.contains('is-dragging'), true, 'Implicit capture transfer from the surface is not cancellation');
+  mount.emit('pointerdown', { ...touch, pointerId: 2 });
+  const beforeMulti = product.quaternion.clone();
+  mount.emit('pointermove', { ...touch, clientX: 280 });
+  mount.emit('pointermove', { ...touch, pointerId: 2, clientY: 380 }); advance(0.1);
+  assert.ok(product.quaternion.angleTo(beforeMulti) < 1e-7, 'Two touches freeze product rotation');
+  mount.emit('pointercancel', { ...touch, pointerId: 2 });
+  assert.equal(canvas.hasPointerCapture(1), true); assert.equal(canvas.hasPointerCapture(2), false);
+  mount.emit('pointermove', { ...touch, clientX: 282 }); advance(0.1);
+  assert.ok(product.quaternion.angleTo(beforeMulti) < 0.025, 'Remaining touch uses its latest position without a multi-touch jump');
+  mount.emit('lostpointercapture', { ...touch, target: canvas });
+  assert.equal(mount.classList.contains('is-dragging'), false);
+  const beforeMouse = product.quaternion.clone();
+  mount.emit('pointerdown', { ...touch, target: canvas, pointerType: 'mouse', pointerId: 3 });
+  mount.emit('pointermove', { ...touch, target: canvas, pointerType: 'mouse', pointerId: 3, clientX: 280 }); advance(0.1);
+  assert.ok(product.quaternion.angleTo(beforeMouse) > 0.03);
+  mount.emit('pointerup', { ...touch, pointerId: 3 });
+  viewer.pause(false);
+  const beforeKey = product.quaternion.clone(); let keyPrevented = false;
+  canvas.emit('keydown', { key: 'ArrowRight', preventDefault() { keyPrevented = true; } }); advance(0.1);
+  assert.equal(keyPrevented, true); assert.ok(product.quaternion.angleTo(beforeKey) > 0.02);
+  mount.emit('pointerdown', touch);
+  assert.equal(canvas.captures.size, 1);
+  viewer.dispose();
+  assert.equal(canvas.captures.size, 0); assert.equal(hitRegion.removed, true);
+  assert.equal(hitRegion.style.display, 'none');
+  assert.ok([...mount.listeners.values()].every(listeners => listeners.size === 0));
+});
+
+test('object hit region follows resize and hides while packaging changes or the required label fails', async context => {
+  const { viewer, mount, hitRegion, geometryRequests, appearanceRequests, model, asset, flush, advance } = runtimeFixture(context);
+  viewer.select(asset('can'), { id: 'valid', requiredSlots: ['label'] });
+  geometryRequests[0].resolve(model()); await flush(); appearanceRequests[0].resolve(); await flush(); advance(0.05);
+  const initialPath = hitRegion.style.clipPath;
+  mount.clientWidth = 300; mount.clientHeight = 400;
+  viewer.configure(config.DEFAULT_VIEWER_PRESENTATION); advance(0.05);
+  assert.notEqual(hitRegion.style.clipPath, initialPath);
+  assert.ok(insidePath(hitRegion.style.clipPath, 150, 200));
+  viewer.select(asset('can'), { id: 'bad', requiredSlots: ['label'] });
+  appearanceRequests[1].reject(new Error('required label failed')); await flush(); advance(0.05);
+  assert.equal(hitRegion.style.display, 'none');
+  viewer.select(asset('other'), { id: 'valid', requiredSlots: ['label'] });
+  assert.equal(hitRegion.style.display, 'none', 'Changing package hides the hit region immediately');
+});
 
 test('live lighting edits update tone mapping and HDRI settings without reloading geometry or interrupting a flavor turn', async (context) => {
   const { viewer, mount, renderer, geometryRequests, model, asset, environment, flush, advance } = runtimeFixture(context, true);
@@ -666,7 +851,83 @@ test('an obsolete pending label completion cannot release accents before the lat
   assert.equal(accentFrames.at(-1).ready, true, 'Documented imported-material fallback releases a failed optional texture gate');
 });
 
-for (const mode of ['paused', 'reduced-motion']) test(`${mode} asset replacement with the same ID waits for new geometry and appearance`, async (context) => {
+const requiredLabel = id => ({ id, requiredSlots: ['label'], slots: { label: { baseColorMap: `/labels/${id}.webp` } } });
+
+test('a failed initial required label never activates imported artwork, disposes its product and permits an identical retry', async context => {
+  const f = runtimeFixture(context);
+  const appearance = requiredLabel('orange');
+  f.viewer.select(f.asset('can'), appearance); f.geometryRequests[0].resolve(f.model()); await f.flush();
+  f.appearanceRequests[0].reject(new Error('Required image 404')); await f.flush(); f.advance(.1);
+  assert.equal(f.statuses.at(-1).phase, 'error'); assert.equal(f.mount.dataset.productId, undefined);
+  assert.equal(f.disposedCount(), 1); assert.equal(f.accentFrames.at(-1).ready, false);
+  assert.ok(!f.statuses.some(status => status.phase === 'ready'), 'The template label never becomes a ready selected product');
+  f.viewer.select(f.asset('can'), appearance); assert.equal(f.geometryRequests.length, 2);
+  f.geometryRequests[1].resolve(f.model()); await f.flush(); f.appearanceRequests[1].resolve(); await f.flush(); f.advance(.1);
+  assert.equal(f.statuses.at(-1).phase, 'ready'); assert.equal(f.mount.dataset.productId, 'can'); assert.equal(f.accentFrames.at(-1).ready, true);
+});
+
+test('failure of an obsolete initial required label applies the newer flavor instead of failing it', async context => {
+  const f = runtimeFixture(context);
+  f.viewer.select(f.asset('can'), requiredLabel('orange')); f.geometryRequests[0].resolve(f.model()); await f.flush();
+  f.viewer.select(f.asset('can'), requiredLabel('mango'));
+  f.appearanceRequests[0].reject(new Error('Old orange label failed')); await f.flush();
+  assert.equal(f.appearanceRequests[1].value.id, 'mango'); assert.equal(f.statuses.at(-1).phase, 'loading');
+  assert.equal(f.disposedCount(), 0); assert.ok(!f.statuses.some(status => status.phase === 'error'));
+  f.appearanceRequests[1].resolve(); await f.flush(); f.advance(.1);
+  assert.equal(f.statuses.at(-1).phase, 'ready'); assert.equal(f.accentFrames.at(-1).ready, true);
+});
+
+test('required live texture failures hide the stale label and keep accents blocked until a successful retry', async context => {
+  const f = runtimeFixture(context);
+  f.viewer.select(f.asset('can'), requiredLabel('orange')); f.geometryRequests[0].resolve(f.model()); await f.flush();
+  f.appearanceRequests[0].resolve(); await f.flush(); f.advance(.1);
+  const product = f.renderer.scene.children.find(child => child instanceof THREE.Group), loaded = product.children[0];
+  f.viewer.select(f.asset('can'), requiredLabel('mango')); f.appearanceRequests[1].reject(new Error('Current mango label failed'));
+  await f.flush(); f.advance(2);
+  assert.equal(f.statuses.at(-1).phase, 'error'); assert.equal(loaded.visible, false); assert.equal(f.accentFrames.at(-1).ready, false);
+  f.viewer.select(f.asset('can'), requiredLabel('mango'));
+  assert.equal(f.geometryRequests.length, 1, 'Retry uses compatible geometry without retaining the wrong label as visible');
+  assert.equal(f.appearanceRequests[2].value.id, 'mango'); assert.equal(f.statuses.at(-1).phase, 'loading');
+  f.appearanceRequests[2].resolve(); await f.flush(); f.advance(.1);
+  assert.equal(f.statuses.at(-1).phase, 'ready'); assert.equal(loaded.visible, true); assert.equal(f.accentFrames.at(-1).ready, true);
+});
+
+test('obsolete required live failures cannot hide or fail a newer active flavor or package', async context => {
+  const f = runtimeFixture(context);
+  f.viewer.select(f.asset('can'), requiredLabel('orange')); f.geometryRequests[0].resolve(f.model()); await f.flush();
+  f.appearanceRequests[0].resolve(); await f.flush(); f.advance(.1);
+  const product = f.renderer.scene.children.find(child => child instanceof THREE.Group), loaded = product.children[0];
+  f.viewer.select(f.asset('can'), requiredLabel('mango')); f.viewer.select(f.asset('can'), requiredLabel('apple'));
+  f.appearanceRequests[1].reject(new Error('Obsolete mango label')); await f.flush(); f.advance(.1);
+  assert.equal(loaded.visible, true); assert.ok(!f.statuses.some(status => status.phase === 'error')); assert.equal(f.accentFrames.at(-1).ready, false);
+  f.appearanceRequests[2].resolve(); await f.flush(); f.advance(1);
+  assert.equal(f.accentFrames.at(-1).ready, true);
+  f.viewer.select(f.asset('can'), requiredLabel('grape')); f.viewer.select(f.asset('other'), requiredLabel('coconut'));
+  f.appearanceRequests[3].reject(new Error('Outgoing grape failed')); await f.flush();
+  assert.equal(f.statuses.at(-1).phase, 'loading'); assert.equal(loaded.visible, true);
+  f.geometryRequests[1].resolve(f.model(.18)); await f.flush(); f.appearanceRequests[4].resolve(); await f.flush(); f.advance(3);
+  assert.equal(f.statuses.at(-1).phase, 'ready'); assert.equal(f.mount.dataset.productId, 'other');
+});
+
+test('a failed required pending package is discarded and choosing another flavor reloads its geometry without activating a template', async context => {
+  const f = runtimeFixture(context);
+  f.viewer.select(f.asset('short'), requiredLabel('orange')); f.geometryRequests[0].resolve(f.model(.08)); await f.flush();
+  f.appearanceRequests[0].resolve(); await f.flush(); f.advance(.1);
+  f.viewer.select(f.asset('tall'), requiredLabel('orange')); f.geometryRequests[1].resolve(f.model(.18)); await f.flush();
+  f.appearanceRequests[1].resolve(); await f.flush();
+  f.viewer.select(f.asset('tall'), requiredLabel('mango')); f.appearanceRequests[2].reject(new Error('Required pending print failed'));
+  await f.flush(); f.advance(3);
+  assert.equal(f.statuses.at(-1).phase, 'error'); assert.equal(f.mount.dataset.productId, 'short'); assert.equal(f.accentFrames.at(-1).ready, false);
+  const product = f.renderer.scene.children.find(child => child instanceof THREE.Group);
+  assert.equal(product.children[0].visible, false, 'A failed incoming label cannot recover visibly to the previous package');
+  assert.ok(f.disposedCount() >= 1);
+  f.viewer.select(f.asset('tall'), requiredLabel('apple')); assert.equal(f.geometryRequests.length, 3);
+  f.geometryRequests[2].resolve(f.model(.18)); await f.flush(); assert.equal(f.appearanceRequests[3].value.id, 'apple');
+  f.appearanceRequests[3].resolve(); await f.flush(); f.advance(3);
+  assert.equal(f.mount.dataset.productId, 'tall'); assert.equal(f.statuses.at(-1).phase, 'ready'); assert.equal(f.accentFrames.at(-1).ready, true);
+});
+
+for (const mode of ['paused', 'reduced-motion']) for (const change of ['source', 'sampler']) test(`${mode} asset ${change} replacement with the same ID waits for new geometry and appearance`, async (context) => {
   const { viewer, renderer, geometryRequests, appearanceRequests, accentFrames, model, asset, flush, advance, setReducedMotion } = runtimeFixture(context);
   const original = asset('can');
   viewer.select(original, { id: 'citrus' });
@@ -677,8 +938,11 @@ for (const mode of ['paused', 'reduced-motion']) test(`${mode} asset replacement
   if (mode === 'paused') viewer.pause(true);
   else setReducedMotion(true);
   viewer.select(original, { id: 'lime', slots: { label: { baseColorMap: '/slow/old-lime.png' } } });
-  viewer.select({ ...original, src: '/replacement-can.glb' }, { id: 'berry', slots: { label: { baseColorMap: '/slow/replacement-berry.png' } } });
-  assert.equal(geometryRequests[1].src, '/replacement-can.glb');
+  const replacement = change === 'source' ? { ...original, src: '/replacement-can.glb' }
+    : { ...original, textureSamplers: { label: { wrapS: 'repeat', wrapT: 'clamp' } } };
+  viewer.select(replacement, { id: 'berry', slots: { label: { baseColorMap: '/slow/replacement-berry.png' } } });
+  assert.equal(geometryRequests.length, 2, 'A new sampler must replace the old appearance handle even when model ID and URL match');
+  assert.equal(geometryRequests[1].src, replacement.src);
   advance(0.05);
   assert.equal(accentFrames.at(-1).viewerIdle, true, 'Static mode has no package animation to provide a secondary readiness guard');
   assert.equal(accentFrames.at(-1).ready, false, 'Matching asset ID alone cannot release replacement accents');
@@ -686,6 +950,7 @@ for (const mode of ['paused', 'reduced-motion']) test(`${mode} asset replacement
   appearanceRequests[1].resolve(); await flush(); advance(1 / 120);
   assert.equal(accentFrames.at(-1).ready, false, 'An outgoing model texture completion cannot release the desired replacement gate');
   geometryRequests[1].resolve(model(0.18)); await flush(); advance(1 / 120);
+  assert.deepEqual(appearanceRequests[2].asset.textureSamplers, replacement.textureSamplers, 'The new appearance handle receives the replacement UV contract');
   assert.equal(accentFrames.at(-1).ready, false, 'Decoded replacement still waits for its own latest material');
   assert.equal(product.children[0], outgoing);
   appearanceRequests[2].resolve(); await flush(); advance(1 / 120);

@@ -1,6 +1,6 @@
 # VINUT Admin — Master plan và trạng thái triển khai
 
-Ngày: 01/10/2026 · Phiên bản: 1.1 · Trạng thái: demo local đã triển khai; hosting production chưa chọn.
+Ngày: 02/10/2026 · Phiên bản: 1.4 · Trạng thái: demo local và tích hợp main đã triển khai; hosting production chưa chọn.
 
 Tài liệu này mô tả phạm vi admin, quyết định dữ liệu và mã nguồn hiện tại. Hướng dẫn sử dụng nằm trong [ADMIN_RUNBOOK.md](ADMIN_RUNBOOK.md). Phần “còn lại” là mục tiêu nâng cấp, không phải tính năng đã hoàn thành.
 
@@ -16,7 +16,7 @@ Admin quản lý Flavor, dòng sản phẩm/nút hiển thị, danh mục bao b�
 - Khoảng 10 dòng sản phẩm là dự kiến, không phải giới hạn kỹ thuật.
 - Không bao gồm bán hàng, thanh toán, tồn kho hoặc scene editor 3D tổng quát.
 
-**Slot đã xác nhận:** các button lấy nội dung từ admin, sắp theo position từ trái sang phải rồi trên xuống dưới. Dòng sản phẩm chứa các slot bao bì; trong một slot có nhiều hương. “Juice 30%” là tên dòng/nút, “330 ml” là dung tích riêng. Hai kiểu 250 ml short/sleek có ID khác nhau.
+**Vai trò khu vực đã xác nhận:** banner cạnh navigation chỉ quảng cáo các loại nước bằng text có animation. Vùng **BEST SELLER** lấy các Product Display Group đang `visible`, sắp theo `position` từ trái sang phải rồi trên xuống dưới; người vận hành dùng danh sách này để trưng bày dòng bán chạy hoặc mới ra mắt. Chọn dòng mở slot đầu tiên theo thứ tự và hương mặc định hợp lệ. Slot bao bì vẫn là cấu hình nội bộ của dòng và dùng trong `/admin/live`; trang chính không dùng vùng BEST SELLER để chọn dung tích. “Juice 30%” là tên dòng/nút, “330 ml” là dung tích riêng. Hai kiểu 250 ml short/sleek có ID khác nhau.
 
 ## 2. Trạng thái thực hiện
 
@@ -25,13 +25,13 @@ Admin quản lý Flavor, dòng sản phẩm/nút hiển thị, danh mục bao b�
 | Danh mục | Đủ tám module, tạo/sửa/lưu trữ, tìm kiếm và các kho dependency | Hoàn thiện UX theo nội dung thực, dirty tracking cho mọi form |
 | Persistence | Node API, SQLite bền vững, disk media | Chưa chọn cloud DB/object storage; chưa có adapter migration provider |
 | Tài khoản | Bootstrap owner một lần, login/logout, session server, quyền owner/editor, giới hạn thử login | Chưa có UI mời Editor/reset password/MFA hoặc audit viewer |
-| Media | Kiểm tra bounded PNG/JPEG/WebP/GLB đồng bộ, hash và file bất biến | Không worker, conversion, tự optimize ảnh, tự tạo poster hay chứng nhận UV |
+| Media | Kiểm tra nguồn; tự resize/chuyển ảnh WebP, tính alpha bounds; GLB bounded; hash và file bất biến | Không worker, tự optimize GLB, tạo poster hay chứng nhận UV |
 | Display | Composer 3D/2D, product variant, optional slot, ảnh gallery, preview responsive | Lưu composer gồm nhiều request; lỗi partial save phải kiểm tra nháp |
 | Release | Preflight, kiểm tra file/checksum, conflict/idempotency, snapshot/active pointer và rollback | Chưa có export/import UI, backup tự động, staging/CDN |
-| Public renderer | /admin/live đọc active release, lựa chọn dòng/slot/hương và mode 3D/2D | Trang chính / do chat khác xây chưa nối catalog API |
+| Public renderer | / và /admin/live đọc active release, shared resolver và mode 3D/2D | Duyệt trực quan WebGL/artwork trên trình duyệt và hoàn thiện nội dung thực |
 | Hosting | Demo localhost; giữ GitHub Pages hiện tại | Cloudflare có thể chọn sau; chưa deploy hoặc chọn Supabase/provider khác |
 
-Demo khởi tạo bốn hương, sáu model lon thật và một dòng Juice 30% đang ẩn. Chưa có nhãn và poster cho tổ hợp public; không tự công bố SKU demo. Tám record catalog CSS của trang chính cũ chưa migrate vào admin.
+Seed ban đầu an toàn cho nháp, không tự công bố sản phẩm. Theo yêu cầu thử dữ liệu, demo hiện đã phát hành Juice 30% với slot 330 ml, Orange mặc định, 24 hương và nhãn thật. Chi tiết ở [JUICE30_DEMO.md](JUICE30_DEMO.md).
 
 ## 3. Kiến trúc thực tế
 
@@ -49,7 +49,7 @@ Preflight → snapshot release → đổi active pointer bằng SQLite transacti
 /admin/live → public catalog active release
             → shared resolver → ProductViewer / hình 2D
 
-Trang chính / → bàn giao contract và tích hợp ở bước riêng
+Trang chính / → public release API hoặc snapshot tĩnh → shared resolver
 ~~~
 
 Contract: lib/catalog/contracts.ts. Business validation/tương thích: lib/catalog/validation.ts, compatibility.ts, service.ts. Resolver: lib/catalog/resolve.ts. Adapter local: lib/server/local-repository.ts. API handler: lib/server/admin-api.ts. Launcher: scripts/admin-server.cjs và scripts/dev-admin.cjs.
@@ -126,20 +126,22 @@ Composer lưu variant → display → optional slot bằng nhiều request. Nế
 
 ## 6. Media và preview
 
-Upload nhận multipart file + role có session, kiểm tra nội dung rồi lưu hash-key immutable. File lỗi trả lỗi, không tạo record ready giả. File ready là **đã qua kiểm tra bounded cấu trúc**, không phải xác nhận chất lượng artwork hoặc giải mã toàn bộ pixels/Draco.
+Upload nhận multipart file + role có session, kiểm tra nội dung, tự tối ưu ảnh rồi lưu hash-key immutable. File lỗi trả lỗi, không tạo record ready giả. Ảnh ready đã được giải mã và mã hóa WebP thành công; GLB ready là **đã qua kiểm tra bounded cấu trúc**. Cả hai không xác nhận chất lượng artwork, UV hoặc giải mã Draco đầy đủ.
 
 - Ảnh tĩnh PNG/JPEG/WebP: tối đa 20 MB, 8192 px mỗi chiều, 32 triệu pixel. PNG có checksum/chunk checks; JPEG/WebP có header/dimensions/container checks.
 - GLB 2.0 tự chứa: tối đa 30 MB, 250.000 tam giác, JSON 4 MB; kiểm tra buffers/accessors/nodes/material refs, cây node không vòng và các extension được hỗ trợ.
 - Không nhận SVG/AVIF/ảnh động, sparse accessor, animation GLB, external texture/KTX2, nguồn .blend/OBJ trong upload v1.
-- Không tự optimize/convert file, tạo poster/thumbnail, xóa nền hoặc tính alpha bounds. Poster upload thủ công; imageBounds hiện trả null khi upload.
+- Ảnh PNG/JPEG/WebP được auto-orient theo EXIF, chuyển sRGB, resize fit-inside không crop/padding/upsize và mã hóa WebP. Cạnh dài tối đa: label 2048 px, thumbnail 512 px, icon 256 px, fruit/leaf/splash/poster/image-2d 1600 px. Giữ alpha; label quality 90, các ảnh khác 82, alpha quality 100. Metadata/hash phản ánh file output; nguồn không lưu riêng trong demo.
+- UI hiển thị trạng thái tải/tối ưu và kích thước, MIME, dung lượng thực sau khi lưu. Quy tắc này đổi pixel file, không tự đổi tỷ lệ hoặc scale ảnh trong scene. Record/file có sẵn được giữ nguyên.
+- Tính alpha bounds cho fruit/leaf/splash có vùng trong suốt để dùng trong framing; không crop file hoặc tự xóa nền. GLB không tự optimize/convert; poster vẫn upload thủ công.
 - Label dùng slots.label.baseColorMap; procedural demo palette không ghi đè artwork thật.
 - GLB hiện có được giữ geometry/UV/PBR; PP giữ domain riêng và adapter viewer ánh xạ sang other.
 - Preview tái sử dụng ProductViewer với loading/error/fallback; không viết renderer 3D thứ hai.
 - Meta/version mới dùng checksum key, không ghi đè file của release cũ.
 
-Pool flavor tách fruit/leaf/splash, chỉ chọn media ready/active đúng vai trò. Dedup file trùng trước shuffle, đủ ảnh thì không lặp, ít ảnh thì luân phiên, pool rỗng thì bỏ role. Seed giữ ổn định khi render/xoay; nút Đổi bộ ảnh tạo seed mới. /admin/live dùng seed theo release/display/flavor. Không dùng union bốn hương cố định trong resolver mới; trang chính cũ chưa được refactor phần này.
+Pool flavor tách fruit/leaf/splash, chỉ chọn media ready/active đúng vai trò. Dedup file trùng trước shuffle, đủ ảnh thì không lặp, ít ảnh thì luân phiên. Pool fruit/leaf rỗng bỏ role đó; splash rỗng giữ preset nước dùng chung `water-splash-user.webp`, với transform, Hard Light và trạng thái bật/tắt gốc. Splash riêng được gán cho hương sẽ thay preset. Seed giữ ổn định khi render/xoay; nút Đổi bộ ảnh tạo seed mới. Trang chính và /admin/live dùng chung resolver, không dùng union bốn hương cố định.
 
-Production còn lại: worker/job retry nếu cần conversion dài, giải mã/kiểm tra sâu, export metadata UV/bounds, alpha/image editing, upload progress, orphan file cleanup/retention và object storage/CDN.
+Production còn lại: worker/job retry nếu cần conversion dài, kiểm tra GLB sâu, export metadata UV/bounds, chỉnh sửa ảnh/xóa nền, upload progress theo phần trăm, orphan file cleanup/retention và object storage/CDN.
 
 ## 7. Nháp, release, quyền
 
@@ -170,16 +172,16 @@ Demo chỉ bind loopback, bootstrap owner lần đầu không mật khẩu mặc
 
 Error dùng code/message/issues; 401/403 cho auth/quyền, 409 conflict, 422 dữ liệu. Public graph không chứa owner/password/session hoặc draft ngoài graph. V1 vẫn có media storageKey/checksum metadata; production DTO nên chỉ giữ field cần cho renderer.
 
-**Đã tích hợp trên /admin/live**, chưa chuyển trang chính /. Chat main nhận CatalogData + shared resolver, không query riêng các kho rồi tự ghép business rules khác. Main cần:
+**Đã tích hợp trên /admin/live và trang chính /** ngày 02/10/2026. Trang chính dùng public release, shared selection và resolver; không query nháp hoặc tự ghép mọi model × flavor. Tích hợp gồm:
 
-1. Group rail dùng groups visible sorted position.
+1. Banner navigation dùng text quảng cáo độc lập; vùng BEST SELLER dùng groups visible sorted position.
 2. Group quyết định slots, slot quyết định variants/flavors; default fallback bằng ID, không tạo tích mọi model × flavor.
 3. Viewer nhận asset/appearance/scene đã resolve; label thật thay demo gradient.
 4. Nền/icon/theme weights của main chuyển từ bốn hương sang data động, preserve motion hiện có.
 5. 2D fallback dùng đúng variant; poster model dùng chung phải ghi rõ là hình minh họa bao bì.
 6. Chỉ một owner sửa shared layout/runtime/config trong thời điểm phối hợp.
 
-Không sửa chồng app/page.tsx, ShowcaseHero, FlavorBackground, ProductViewer hoặc lib/viewer của chat main. Hai checkout/worktree là hướng phối hợp có thể dùng về sau; demo này không tự tạo worktree mới.
+Người dùng đã cho phép sửa trang chính trong chat này để tích hợp data. Các thay đổi đa ngôn ngữ hiện có được giữ lại. Mỗi file chỉ có một owner trong đợt tích hợp. Hai checkout/worktree là hướng phối hợp có thể dùng về sau; demo này không tự tạo worktree mới.
 
 ## 9. Phân công và phối hợp
 
@@ -200,7 +202,7 @@ Một owner/file tại một thời điểm. Root duyệt thay đổi shared con
 | G1 — Foundation | SQLite/disk/owner/session/API thật; dữ liệu giữ sau restart | Invite/reset/MFA, hạ tầng tài khoản production |
 | G2 — Danh mục/kho | Tám module, validation/relations/archive/revision và media intake | UX polish, bulk import/export, worker nếu cần |
 | G3 — Composer | 3D/2D, compatibility, preview và seeded random | Transaction composer, dirty tracking đầy đủ, artwork/GLB thực |
-| G4 — Release | Preflight/file checks/snapshot/rollback, /admin/live | Tích hợp main / và CDN/cache production |
+| G4 — Release | Preflight/file checks/snapshot/rollback, /admin/live, main / và snapshot Pages | CDN/cache production và backend hosting |
 | G5 — Vận hành | Runbook và tests local | Staging, backup/restore thử, migration, monitoring/retention, deploy |
 
 Kiểm thử mã nguồn thật: admin-domain, admin-media, admin-resolver, admin-api; typecheck/lint/build và regression viewer/background/framing/accents/environment/water theo phạm vi. Resolver kiểm tra flavor thứ năm, role/no-repeat/metadata/URL/PP; media kiểm tra asset thực, malformed/giả MIME/remote reference/cycle/accessor size; API kiểm tra auth/roles/persistence/conflict/release/file checks.
@@ -217,7 +219,7 @@ Bảng trên không xác nhận mọi yêu cầu production đã hoàn thành. O
 - Account lifecycle, quyền multi-user, audit viewer và revision restore.
 - Transaction composer, error recovery/dirty warnings, gallery rendering/advanced presets nếu cần.
 - Worker/process sâu nếu chuyển đổi ảnh/model; CDN/CORS/signed media, retention/orphan cleanup.
-- Tích hợp trang chính qua chat main, preserve renderer/motion và pipeline Pages hiện tại.
+- Backend hosting cho trang chính; GitHub Pages dùng snapshot public tĩnh đã export, cập nhật bằng export/build/deploy.
 - Nội dung chính thức: dòng/nhãn/artwork/model/poster phải được người vận hành duyệt.
 
 Backlog tiếp theo: đa ngôn ngữ/market/edition, campaigns/regions, scheduling/approval, bulk import dry-run, scene editor, advanced material/light presets và analytics theo số đo. Mở rộng qua IDs/revisions/schemaVersion/service boundaries, không cài đặt trước toàn bộ.

@@ -6,6 +6,7 @@ import { Plus, Save } from 'lucide-react';
 import type { Asset2D, CatalogData, CatalogRecord } from '@/lib/catalog/contracts';
 import { mediaUrl } from '@/lib/catalog/resolve';
 import MediaPicker from '../ui/MediaPicker';
+import { mediaSummary } from '../ui/upload-info';
 import { entity, message, type WorkspaceCallbacks } from './types';
 import styles from './workspace.module.css';
 
@@ -61,6 +62,6 @@ function AssetEditor({ catalog, selectedId, onSelect, onSave, onUpload, onRefres
         <div className={styles.actions}><button className={styles.button} type="submit" disabled={busy}><Save size={17} />{busy ? 'Đang lưu…' : 'Lưu hình 2D'}</button><span className={styles.help}>Kho tài nguyên chưa xuất hiện tự động trên trang chính.</span></div>
       </fieldset>
     </form>
-    <aside className={styles.preview}><div className={styles.surface}><h3>Ảnh sản phẩm</h3><div className={styles.stage}>{image ? <img src={mediaUrl(image)} alt={record.name || 'Ảnh bao bì 2D'} /> : <div className={styles.empty}>Chọn hoặc tải ảnh chính để xem trước.</div>}</div><p className={styles.previewNote}>Ảnh PNG, JPEG hoặc WebP tĩnh, tối đa 20 MB. Artwork đã hoàn thiện; hệ thống không tự dán nhãn 3D vào ảnh 2D.</p></div></aside>
+    <aside className={styles.preview}><div className={styles.surface}><h3>Ảnh sản phẩm</h3><div className={styles.stage}>{image ? <img src={mediaUrl(image)} alt={record.name || 'Ảnh bao bì 2D'} /> : <div className={styles.empty}>Chọn hoặc tải ảnh chính để xem trước.</div>}</div><p className={styles.previewNote}>{image ? `File dùng để hiển thị: ${mediaSummary(image)}. ` : ''}Ảnh tải lên tự chuyển sang WebP, giảm cạnh dài tối đa 1.600 px và giữ tỷ lệ, vùng trong suốt. Artwork đã hoàn thiện; hệ thống không tự dán nhãn 3D vào ảnh 2D.</p></div></aside>
   </div>;
 }

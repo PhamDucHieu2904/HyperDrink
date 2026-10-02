@@ -1,0 +1,19 @@
+.catalog-placeholder { display:grid; place-content:center; min-height:760px; height:100svh; padding:160px 24px 80px; text-align:center; color:#fff; background:radial-gradient(ellipse at 65% 40%,#267492,#153c55 75%); }
+.catalog-placeholder p { max-width:560px; font-size:1.25rem; line-height:1.6; }
+.catalog-placeholder button { justify-self:center; }
+.catalog-update-notice { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:16px; padding:16px 5%; color:#174a60; background:#eaf8fa; }
+.catalog-update-notice button { min-height:44px; padding:8px 16px; border:1px solid #96bcc8; border-radius:24px; background:#fff; color:inherit; cursor:pointer; }
+.category-rail[data-overflow='false'] .category-set[aria-hidden='true'] { display:none; }
+.category-rail[data-overflow='false'] { -webkit-mask-image:none; mask-image:none; }
+.category-set .category-tag { display:inline-flex; align-items:center; min-height:42px; padding:0 18px; white-space:nowrap; border:1px solid #ffffff6e; border-radius:999px; color:#fff; background:rgba(0,0,0,.12); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); font-size:12px; }
+.catalog-product-card { padding:0; overflow:hidden; }
+.catalog-product-link { display:flex; flex:1; flex-direction:column; width:100%; padding:17px; color:inherit; text-align:start; border:0; border-radius:inherit; background:transparent; cursor:pointer; }
+.catalog-product-link:focus-visible { outline:3px solid #215e76; outline-offset:-4px; }
+.catalog-product-link .product-art { width:100%; min-height:200px; background:color-mix(in srgb,var(--catalog-accent) 12%,#fff); }
+.catalog-product-link .product-art::after { display:none; }
+.catalog-card-image { display:block; width:100%; height:170px; padding:14px; object-fit:contain; }
+.catalog-artwork-caption { position:absolute; bottom:8px; inset-inline-end:12px; max-width:90%; color:#416271; background:#ffffffe8; border-radius:20px; padding:3px 8px; font-size:10px; }
+.catalog-product-link .product-footer { margin-top:auto; }
+.catalog-product-link .product-tag { max-width:80%; }
+.catalog-product-link h3 { overflow-wrap:anywhere; }
+@media(max-width:760px) { .catalog-placeholder { min-height:100svh; height:auto; } .category-set .category-tag { min-height:44px; padding-inline:15px; font-size:11px; } .catalog-product-link { padding:12px; } .catalog-product-link .product-art { min-height:165px; } .catalog-card-image { height:145px; } }

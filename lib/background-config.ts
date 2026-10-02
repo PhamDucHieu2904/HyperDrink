@@ -1,7 +1,10 @@
 import { showcaseFlavors } from './showcase-flavors';
 /** JSON-serializable contract for a future admin/API. Units: CSS px, seconds;
  * product glow dimensions are multiples of the product container's size. */
-export type FruitIcon = 'citrus' | 'berry' | 'peach' | 'lime';
+export const backgroundIconNames = ['citrus', 'berry', 'peach', 'lime', 'leaf', 'mango', 'pineapple', 'apple', 'grape', 'coconut'] as const;
+export type FruitIcon = typeof backgroundIconNames[number];
+/** A stable item ID keeps transitions aligned when catalog items are reordered. */
+export interface BackgroundTheme { id?: string; color: string; icon: string }
 export interface BackgroundConfig {
   version: 1;
   cellSize: number;
@@ -30,7 +33,22 @@ export const backgroundConfig: BackgroundConfig = {
   autoDriftEnabled: true, autoDirectionMinSeconds: 2, autoDirectionMaxSeconds: 6,
   productGlowOpacity: .96, productGlowWidth: 1.45, productGlowHeight: 1.35,
 };
-export const backgroundThemes: { color: string; icon: FruitIcon }[] = showcaseFlavors.map(flavor => ({ color: flavor.background, icon: flavor.id }));
+export const backgroundThemes: BackgroundTheme[] = showcaseFlavors.map(flavor => ({ id: flavor.id, color: flavor.background, icon: flavor.id }));
+export function normalizeBackgroundIcon(input: string): FruitIcon {
+  const value = typeof input === 'string' ? input.trim().toLowerCase() : '';
+  return backgroundIconNames.includes(value as FruitIcon) ? value as FruitIcon : 'leaf';
+}
+export function normalizeBackgroundThemes(input: readonly BackgroundTheme[] = backgroundThemes): BackgroundTheme[] {
+  const source = input.length ? input : [{ id: 'empty', color: '#54684f', icon: 'leaf' }];
+  const ids = new Set<string>();
+  return source.map((theme, index) => {
+    const originalId = typeof theme.id === 'string' && theme.id ? theme.id : `theme-${index}`;
+    let id = originalId, suffix = 1;
+    while (ids.has(id)) id = `${originalId}-${suffix++}`;
+    ids.add(id);
+    return { id, color: /^#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i.test(theme.color) ? theme.color : '#54684f', icon: normalizeBackgroundIcon(theme.icon) };
+  });
+}
 export function normalizeBackgroundConfig(input: Partial<BackgroundConfig>): BackgroundConfig {
   const bounded = (key: keyof BackgroundConfig, min: number, max: number) => {
     const value = input[key];

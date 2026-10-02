@@ -221,6 +221,10 @@
 .mediaSelection > span:nth-child(2) { min-width: 0; flex: 1; }
 .mediaSelection strong { display: block; font-size: 11px; color: #64816d; overflow: hidden; text-overflow: ellipsis; }
 .mediaSelection small { display: block; font-size: 9px; color: #9cad9f; margin-top: 2px; }
+.uploadResult { font-size: 11px; color: #387747; margin-top: 7px !important; }
+.uploadProgress { margin: 0 24px 16px !important; padding: 11px 13px; border: 1px solid #dce9df; border-radius: 7px; background: #f2f8f3; color: #52795e; font-size: 11px; }
+.uploadPolicy { padding: 13px 20px; border-bottom: 1px solid #e5ede7; background: #f5faf6; color: #58785f; font-size: 11px; line-height: 1.7; }
+.uploadPolicy p + p { margin-top: 5px; }
 .mediaSelection .secondaryButton { font-size: 10px !important; min-height: 32px; padding: 6px 8px; }
 .mediaSelection .thumbnail { width: 42px; height: 42px; }
 .pickerDialog { width: min(800px, calc(100% - 36px)); }

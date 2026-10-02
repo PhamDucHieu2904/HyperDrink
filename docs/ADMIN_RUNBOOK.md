@@ -1,6 +1,6 @@
 # VINUT Admin — Hướng dẫn chạy và vận hành demo local
 
-Ngày: 01/10/2026. Demo chạy trên máy này, cùng repository website. Chưa deploy Cloudflare, Supabase hoặc dịch vụ bên ngoài. Trang chính `/` và trang kiểm tra catalog `/admin/live` là hai phần riêng; chat trang chính sẽ tích hợp dữ liệu sau.
+Ngày: 02/10/2026. Demo chạy trên máy này, cùng repository website. Chưa deploy Cloudflare, Supabase hoặc dịch vụ bên ngoài. Trang chính `/` và trang kiểm tra catalog `/admin/live` cùng đọc public release; `/admin/live` dành cho kiểm tra cấu hình.
 
 ## 1. Chuẩn bị và mở admin
 
@@ -68,7 +68,7 @@ Chọn nhóm rồi thêm quy cách. Nhập dung tích số riêng với kiểu d
 
 Nhập tên/ngắn, mô tả, màu nền/nhấn/chữ, mã icon hỗ trợ và thumbnail. Ảnh đại diện dùng vai trò thumbnail. Mở kho ảnh trang trí của flavor để thêm nhiều record fruit, leaf hoặc splash; vai trò asset phải đúng với role của pool.
 
-Pool đủ ảnh chọn không lặp; ít ảnh được tái dùng; pool rỗng bỏ phần trang trí đó. Ảnh giữ nguyên màu gốc, không tự xóa nền; ưu tiên PNG/WebP trong suốt cho trái cây/lá/splash.
+Pool đủ ảnh chọn không lặp; ít ảnh được tái dùng; pool fruit/leaf rỗng bỏ phần trang trí đó. Nếu chưa gán splash riêng, preset nước gốc `water-splash-user.webp` vẫn được giữ. Ảnh giữ nguyên màu gốc, không tự xóa nền; ưu tiên PNG/WebP trong suốt cho trái cây/lá/splash.
 
 ### Product Display
 
@@ -100,14 +100,25 @@ Quay lại tab cấu hình, chọn dòng/bao bì/flavor và ảnh đúng sản p
 
 ## 5. Upload và tài nguyên
 
-Upload phải thực sự lưu file và metadata mới báo thành công. File được kiểm tra cấu trúc và lưu theo checksum bất biến.
+Upload phải thực sự lưu file và metadata mới báo thành công. Ảnh được kiểm tra, giải mã, tự giảm kích thước pixel theo vai trò và chuyển sang WebP trước khi lưu theo checksum bất biến. Giao diện báo “Đang tải và tối ưu ảnh” trong quá trình này; khi xong sẽ hiện định dạng, chiều rộng × chiều cao và dung lượng của file đã tối ưu.
 
 | File | Giới hạn v1 |
 |---|---|
 | PNG/JPEG/WebP tĩnh | 20 MB, mỗi chiều tối đa 8192 px, tối đa 32 triệu pixel |
 | GLB 2.0 tự chứa | 30 MB, tối đa 250.000 tam giác, JSON 4 MB; meshes tĩnh |
 
-Không nhận SVG/AVIF/ảnh động, animation GLB, sparse accessor, glTF external texture, KTX2 hoặc source `.blend`/OBJ. Upload v1 không tự tối ưu, tạo thumbnail/poster, xóa nền hoặc giải mã/chứng nhận toàn bộ UV; file ready nghĩa là đã qua kiểm tra cấu trúc bounded. Cần preview để duyệt nội dung.
+| Vai trò ảnh | Cạnh dài tối đa sau tối ưu |
+|---|---|
+| Artwork nhãn (`label`) | 2.048 px |
+| Ảnh đại diện (`thumbnail`) | 512 px |
+| Icon | 256 px |
+| Trái cây, lá, splash, poster, ảnh/render 2D | 1.600 px |
+
+Các giới hạn nguồn ở bảng đầu vẫn được kiểm tra trước khi chuyển đổi. Ảnh giữ tỷ lệ và vùng trong suốt, không bị cắt, thêm viền hoặc phóng lớn nếu nhỏ hơn giới hạn; hướng ảnh theo EXIF được chuẩn hóa. Đây là thay đổi số pixel của file, không thay tỷ lệ hay kích thước vật thể trong cảnh 3D. Ví dụ ảnh trái cây 3.000 × 2.000 px trở thành khoảng 1.600 × 1.067 px; ảnh 800 × 600 px giữ nguyên số pixel và được mã hóa WebP. Kích thước có thể lệch một pixel do làm tròn tỷ lệ.
+
+Ảnh tải mới được lưu là WebP; MIME, dimensions, bytes và checksum đều mô tả file WebP được phục vụ. Record/file đã có không tự bị chuyển đổi. Hãy giữ bản nguồn chất lượng cao riêng nếu cần dùng lại; kho demo lưu bản đã tối ưu. Ảnh fruit/leaf/splash có alpha được tính `imageBounds` để hỗ trợ framing, nhưng file vẫn giữ toàn bộ canvas và không tự xóa nền.
+
+Không nhận SVG/AVIF/ảnh động, animation GLB, sparse accessor, glTF external texture, KTX2 hoặc source `.blend`/OBJ. GLB giữ nguyên nội dung, không tự giảm polygon hay tạo poster. File ready nghĩa là ảnh đã giải mã/chuyển đổi thành công hoặc GLB đã qua kiểm tra cấu trúc bounded; không chứng nhận artwork/UV. Cần preview để duyệt nội dung. Nếu ảnh lỗi giải mã/tối ưu, upload trả lỗi và không tạo record ready.
 
 Không sửa hoặc ghi đè file trong `data/admin/media` bằng tay. Muốn thay artwork, upload phiên bản mới và chọn lại liên kết. Hai lần upload cùng nội dung có thể dùng cùng checksum file nhưng vẫn là các media record riêng. Các file nguồn Blender nằm ngoài namespace public.
 
@@ -117,12 +128,16 @@ Không sửa hoặc ghi đè file trong `data/admin/media` bằng tay. Muốn th
 2. Bật dòng, slot và variant cần hiển thị; chọn default đúng slot/mode.
 3. Mở **Phát hành → Kiểm tra dữ liệu**. Sửa lỗi chặn; kiểm tra các cảnh báo/artwork.
 4. Nhập ghi chú rồi owner chọn **Xuất bản bản nháp** và xác nhận.
-5. Mở **Bản phát hành demo** tại `/admin/live`, bấm tải bản mới và thử các button dòng/bao bì/hương.
+5. Mở trang chính `/`, thử nút dòng trong BEST SELLER và các hương; kiểm tra slot/bao bì chi tiết trên `/admin/live`. Trang tự kiểm tra public release mỗi 30 giây khi đang hiển thị, hoặc khi quay lại tab; reload cũng lấy bản mới.
 6. Nếu cần, chọn release cũ trong lịch sử rồi **Dùng lại phiên bản này**. Rollback giữ nguyên bản nháp hiện tại.
 
 Nếu dữ liệu đổi sau preflight hoặc có người khác chỉnh sửa, server có thể trả conflict; tải lại và kiểm tra trước khi retry. Publish kiểm tra cả file/hash trên disk; lỗi không chuyển con trỏ khỏi release cũ. Snapshot public chỉ chứa graph reachable đã được kiểm tra; kho nháp chưa dùng không tự xuất hiện public.
 
-Đây là bản phát hành dữ liệu của demo `/admin/live`. Trang chính `/` chưa chuyển sang dữ liệu admin trong đợt này; bàn giao CatalogData/resolver cho chat trang chính để tích hợp riêng. Xuất bản trong admin cũng chưa có nghĩa triển khai hosting ngoài máy.
+Trang chính đọc `/api/public/v1/catalog` và media của release qua proxy cùng origin. BEST SELLER hiển thị dòng đang bật `visible` theo thứ tự của Product Display; chọn dòng mở bao bì/hương mặc định hợp lệ. Banner text quảng cáo trên navigation hoạt động độc lập. Mô hình/nhãn, màu/icon và collection/search lấy từ cùng catalog. Lưu nháp chưa đổi trang chính. Khi đổi release, các ID lựa chọn còn hợp lệ được giữ; ID bị gỡ sẽ về slot/default hợp lệ. Lỗi refresh giữ bản đã tải và hiện thông báo.
+
+**GitHub Pages:** chạy `npm run catalog:export` sau khi xuất bản, rồi build/deploy theo pipeline hiện có. Export đọc SQLite ở chế độ read-only, chỉ lấy active release và media reachable; không xuất nháp/tài khoản/session. `public/catalog/current.json` và `public/catalog/media/` là dữ liệu công khai, cần đưa cùng mã nguồn vào bản deploy. Snapshot này không phải backup database. Không tự export hay deploy khi bấm publish local; site Pages đang chạy chỉ đổi khi deploy snapshot mới.
+
+Nếu dùng backend khác (ví dụ Cloudflare), cấu hình `NEXT_PUBLIC_ADMIN_API_URL` và origin/CORS tương ứng. Biến GitHub Actions cùng tên được nhận từ repository variables; khi để trống, build Pages dùng snapshot tĩnh. Nếu backend local chưa chạy lúc tải lần đầu, trang có thể dùng snapshot public; refresh lỗi sau đó giữ dữ liệu đang xem. API trả 4xx hoặc schema sai không được che bằng snapshot cũ. Xuất bản trong admin chưa có nghĩa triển khai hosting ngoài máy.
 
 ## 7. Sao lưu và khôi phục
 
@@ -167,9 +182,10 @@ Kiểm tra kỹ thuật khi đổi code:
 
 ~~~powershell
 npm run test:admin
+npm run test:catalog
 npm run typecheck
 npm run lint
 npm run build
 ~~~
 
-Các suite viewer/background/accents/environment/water được chạy khi thay tích hợp có liên quan. Đối chiếu kết quả browser/build cuối cùng trong báo cáo bàn giao; manual artwork preview vẫn cần người vận hành duyệt.
+Các suite viewer/background/accents/environment/water được chạy khi thay tích hợp có liên quan. Launcher `dev:admin` cho phép origin của admin (mặc định 3100) và trang chính (3000); có thể đổi cổng trang chính bằng `STOREFRONT_WEB_PORT`. Đối chiếu kết quả browser/build cuối cùng trong báo cáo bàn giao; manual artwork preview vẫn cần người vận hành duyệt.

@@ -1,6 +1,6 @@
 'use strict';
 /* eslint-disable @typescript-eslint/no-require-imports -- Registers the local Node/test TypeScript loader. */
-// Local backend/test loader. Runtime dependencies remain Node built-ins.
+// Local backend/test loader; image optimization uses the project's Sharp dependency.
 const fs = require('node:fs');
 const path = require('node:path');
 const Module = require('node:module');

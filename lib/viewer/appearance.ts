@@ -1,9 +1,17 @@
 import { publicUrl } from '../public-url';
 import * as THREE from 'three';
-import { ProductAppearance, ProductAsset, resolveMaterialOverride } from '../viewer-config';
+import { ProductAppearance, ProductAsset, resolveMaterialOverride, type TextureSampler } from '../viewer-config';
 
 type MaterialBinding = { mesh: THREE.Mesh; original: THREE.Material; index: number };
 export interface AppearanceHandle { apply(appearance?: ProductAppearance): Promise<void>; dispose(): void }
+
+function applySampler(texture: THREE.Texture, sampler?: TextureSampler) {
+  // Cylindrical seam triangles deliberately interpolate U past 1. Clamp would stretch
+  // a single border pixel across a polygon, often forming a dark strip at the join.
+  texture.wrapS = sampler?.wrapS === 'repeat' ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
+  texture.wrapT = sampler?.wrapT === 'repeat' ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
+  texture.needsUpdate = true;
+}
 
 /** Demo artwork is printed color only. Highlights come from PBR + studio reflections. */
 function createPrintTexture(label: NonNullable<ProductAppearance['label']>, volumeMl?: number) {
@@ -79,27 +87,49 @@ export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset
       const overrides = appearance?.slots ?? {};
       const labelSlot = appearance?.label?.slot ?? 'label';
       const printTexture = appearance?.label ? createPrintTexture(appearance.label, asset.volumeMl) : null;
+      if (printTexture) applySampler(printTexture, asset.textureSamplers?.[labelSlot]);
       const nextTextures = new Set<THREE.Texture>();
       if (printTexture) nextTextures.add(printTexture);
       const textureLoader = new THREE.TextureLoader();
       const requested = new Map<string, Promise<THREE.Texture>>();
-      const loadTexture = (url: string, srgb: boolean) => {
-        const key = `${url}:${srgb}`;
+      const loadTexture = (url: string, srgb: boolean, sampler?: TextureSampler) => {
+        const key = JSON.stringify([url, srgb, sampler?.wrapS ?? 'clamp', sampler?.wrapT ?? 'clamp']);
         if (!requested.has(key)) requested.set(key, textureLoader.loadAsync(publicUrl(url)).then((texture) => {
           texture.flipY = false;
           texture.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
           texture.anisotropy = 4;
+          applySampler(texture, sampler);
           nextTextures.add(texture);
           return texture;
         }));
         return requested.get(key)!;
       };
       const nextMaterials = new Map<MaterialBinding, THREE.Material>();
+      const slotFor = (binding: MaterialBinding) => Object.entries(asset.materialSlots ?? {}).find(([, names]) =>
+        names.includes(binding.original.name) || names.includes(binding.mesh.name))?.[0];
+      const requiredSlots = new Set(appearance?.requiredSlots ?? []);
+      const appliedSlots = new Set<string>();
       try {
+        for (const slot of requiredSlots) {
+          const matching = bindings.filter(binding => slotFor(binding) === slot);
+          if (!matching.length || matching.some(binding => !(binding.original instanceof THREE.MeshStandardMaterial))) {
+            throw new Error(`Required appearance slot has no compatible material binding: ${slot}`);
+          }
+          const override = resolveMaterialOverride(overrides[slot] ?? {});
+          for (const map of ['baseColorMap', 'normalMap', 'roughnessMap'] as const) {
+            if (overrides[slot]?.[map] !== undefined && !override[map]) throw new Error(`Required appearance slot has an invalid texture URL: ${slot}`);
+          }
+          if (!(printTexture && slot === labelSlot) && !Object.values(override).some(value => value !== undefined && value !== '')) {
+            throw new Error(`Required appearance slot has no print or override: ${slot}`);
+          }
+          if ((printTexture && slot === labelSlot || override.baseColorMap || override.normalMap || override.roughnessMap) && matching.some(binding => !binding.mesh.geometry.getAttribute('uv')?.count)) {
+            throw new Error(`Required appearance slot has no texture UV coordinates: ${slot}`);
+          }
+        }
         const results = await Promise.allSettled(bindings.map(async (binding) => {
-          const slot = Object.entries(asset.materialSlots ?? {}).find(([, names]) =>
-            names.includes(binding.original.name) || names.includes(binding.mesh.name))?.[0];
+          const slot = slotFor(binding);
           if (!slot || (!overrides[slot] && !(printTexture && slot === labelSlot))) return;
+          const sampler = asset.textureSamplers?.[slot];
           // Upgrade only a slot asking for physical options; don't flatten all materials.
           const override = resolveMaterialOverride(overrides[slot] ?? {});
           let material: THREE.MeshStandardMaterial;
@@ -125,12 +155,14 @@ export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset
           if (override.opacity !== undefined) material.transparent = override.opacity < 1;
           if (override.normalScale !== undefined) material.normalScale.setScalar(override.normalScale);
           if (printTexture && slot === labelSlot) { material.map = printTexture; material.color.set('#ffffff'); }
-          if (override.baseColorMap) material.map = await loadTexture(override.baseColorMap, true);
-          if (override.normalMap) material.normalMap = await loadTexture(override.normalMap, false);
-          if (override.roughnessMap) material.roughnessMap = await loadTexture(override.roughnessMap, false);
+          if (override.baseColorMap) material.map = await loadTexture(override.baseColorMap, true, sampler);
+          if (override.normalMap) material.normalMap = await loadTexture(override.normalMap, false, sampler);
+          if (override.roughnessMap) material.roughnessMap = await loadTexture(override.roughnessMap, false, sampler);
           material.needsUpdate = true;
+          appliedSlots.add(slot);
         }));
         if (results.some((result) => result.status === 'rejected')) throw new Error('Appearance texture could not be loaded');
+        for (const slot of requiredSlots) if (!appliedSlots.has(slot)) throw new Error(`Required appearance slot was not applied: ${slot}`);
       } catch (error) {
         nextMaterials.forEach((material) => material.dispose());
         nextTextures.forEach((texture) => texture.dispose());

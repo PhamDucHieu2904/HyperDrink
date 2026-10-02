@@ -7,6 +7,7 @@ import { ProductAppearance, ProductAsset, resolveViewerPresentation, ViewerPrese
 import { createProductViewer, ProductViewerController, ViewerStatus } from '@/lib/viewer/runtime';
 import type { AccentFlavor, ProductAccentSceneInput } from '@/lib/viewer/accent-config';
 import type { ProductViewerBackdropInput } from '@/lib/viewer/backdrop-texture';
+import { useLanguage } from './LanguageProvider';
 
 export interface ProductViewerProps {
   asset: ProductAsset;
@@ -18,10 +19,13 @@ export interface ProductViewerProps {
   accentScene?: ProductAccentSceneInput;
   accentFlavor?: AccentFlavor;
   backdrop?: ProductViewerBackdropInput;
+  /** Optional presentation for the first load; the model poster remains an error fallback. */
+  loadingFallback?: React.ReactNode;
 }
 
 /** Generic container: geometry, appearance and lighting are independent data contracts. */
-export default function ProductViewer({ asset, appearance, presentation, paused = false, resetKey, onStatus, accentScene, accentFlavor = 'citrus', backdrop }: ProductViewerProps) {
+export default function ProductViewer({ asset, appearance, presentation, paused = false, resetKey, onStatus, accentScene, accentFlavor = 'citrus', backdrop, loadingFallback }: ProductViewerProps) {
+  const { t } = useLanguage();
   const mountRef = useRef<HTMLDivElement>(null);
   const controller = useRef<ProductViewerController | null>(null);
   const latest = useRef({ asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop });
@@ -78,19 +82,20 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
   const loading = status.phase === 'loading';
   const failed = status.phase === 'error';
   const showFallback = (loading || failed) && !status.hasProduct && status.assetId === asset.id;
+  const customLoading = loading && !status.hasProduct && loadingFallback !== undefined;
   return (
-    <div className="scene-shell product-viewer" ref={mountRef} role="group" aria-roledescription="trình xem sản phẩm 3D"
-      aria-label={`${asset.name}. Kéo để xoay sản phẩm. Dùng các phím mũi tên để xoay; R để đặt lại góc nhìn.`}
+    <div className="scene-shell product-viewer" ref={mountRef} role="group" aria-roledescription={t('viewer.description')}
+      aria-label={t('viewer.controls', { name: asset.packaging === 'can' ? t('viewer.canName', { volume: asset.volumeMl ?? '' }) : asset.name })}
       aria-busy={loading} data-packaging={asset.packaging} data-asset-id={asset.id}
       data-viewer-status={status.phase} data-environment-ready={status.environmentReady ? 'true' : 'false'}>
-      {showFallback && <div className="scene-fallback" aria-hidden="true">
+      {customLoading ? loadingFallback : showFallback && <div className="scene-fallback" aria-hidden="true">
         {asset.poster
           // eslint-disable-next-line @next/next/no-img-element
           ? <img src={publicUrl(asset.poster)} alt="" style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
           : <Box size={60} strokeWidth={1} style={{ opacity: 0.45 }} />}
       </div>}
-      {loading && <span className="scene-loading" aria-live="polite">Đang nạp mô hình 3D…</span>}
-      {failed && <span className="scene-error" role="status">{status.message || 'Chế độ 3D chưa khả dụng.'}</span>}
+      {loading && !customLoading && <span className="scene-loading" aria-live="polite">{t('viewer.loading')}</span>}
+      {failed && <span className="scene-error" role="status">{t('viewer.unavailable')}</span>}
     </div>
   );
 }

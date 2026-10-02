@@ -1,32 +1,70 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-import Image from 'next/image';
-import { publicUrl } from '@/lib/public-url';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, ChevronRight, Heart, Layers3, Leaf, Play, Rotate3D, Sparkles, Waves } from 'lucide-react';
 import FlavorBackground from './FlavorBackground';
-import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, ChevronRight, Heart, Leaf, LayoutGrid, Play, Rotate3D, Sparkles, Waves } from 'lucide-react';
 import { BackgroundRenderState } from '@/lib/background-render-state';
 import { backgroundConfig, normalizeBackgroundConfig } from '@/lib/background-config';
-import { canAssets } from '@/lib/product-assets';
-import type { ProductAppearance } from '@/lib/viewer-config';
-import { showcaseFlavors as flavors } from '@/lib/showcase-flavors';
-import { DEFAULT_PRODUCT_ACCENT_SCENE } from '@/lib/viewer/accent-config';
+import type { CatalogData } from '@/lib/catalog/contracts';
+import { catalogProducts, resolveStorefrontSelection, type StorefrontSelectionRequest } from '@/lib/catalog/storefront';
+import { useLanguage } from './LanguageProvider';
+import CatalogImage from './catalog-hero/CatalogImage';
+import FlavorCarousel from './catalog-hero/FlavorCarousel';
+import ProductVisual from './catalog-hero/ProductVisual';
+import { heroCopy } from './catalog-hero/copy';
 
-const ProductViewer = dynamic(() => import('./ProductViewer'), { ssr: false });
 const backgroundSettings = normalizeBackgroundConfig(backgroundConfig);
 const glassStyle = { backdropFilter: 'blur(28px) saturate(148%) brightness(1.04)', WebkitBackdropFilter: 'blur(28px) saturate(148%) brightness(1.04)' } as React.CSSProperties;
 const featureGlassStyle = { backdropFilter: 'blur(32px) saturate(152%) brightness(1.04)', WebkitBackdropFilter: 'blur(32px) saturate(152%) brightness(1.04)' } as React.CSSProperties;
 
-export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
-  const [index, setIndex] = useState(0);
-  const [assetId, setAssetId] = useState('can-330');
-  const [backgroundState] = useState(() => new BackgroundRenderState());
-  const [liked, setLiked] = useState(false);
+export interface ShowcaseHeroProps {
+  catalog: CatalogData;
+  releaseId: string;
+  selection: StorefrontSelectionRequest;
+  onSelectGroup: (id: string) => void;
+  onSelectVariant: (id: string) => void;
+  onExplore?: () => void;
+}
+
+export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGroup, onSelectVariant, onExplore }: ShowcaseHeroProps) {
+  const { locale, t } = useLanguage();
+  const copy = heroCopy(locale);
+  const resolved = useMemo(() => resolveStorefrontSelection(catalog, selection), [catalog, selection]);
+  const products = useMemo(() => catalogProducts(catalog), [catalog]);
+  const { groups, group, slot, variants, variant, flavor, packaging, category } = resolved;
+  const product = products.find(item => item.variant.id === variant?.id && item.slot.id === slot?.id);
+  const drink = catalog.drinkTypes.find(item => item.id === group?.drinkTypeId);
+  const themes = useMemo(() => resolved.variants.map(item => {
+    const itemFlavor = catalog.flavors.find(flavor => flavor.id === item.flavorId)!;
+    return { id: item.id, color: itemFlavor.backgroundColor, icon: itemFlavor.icon };
+  }), [catalog, resolved.variants]);
+  const flavorIndex = Math.max(0, variants.findIndex(item => item.id === variant?.id));
+  const [backgroundState] = useState(() => {
+    const state = new BackgroundRenderState(backgroundSettings, themes);
+    state.setFlavor(flavorIndex, 0, true);
+    return state;
+  });
+  const [sessionSeed, setSessionSeed] = useState('public');
+  const [likedVariant, setLikedVariant] = useState<string | null>(null);
+  const [failedVisual, setFailedVisual] = useState('');
   const [detail, setDetail] = useState<'flavor' | 'collection' | null>(null);
   const heroRef = useRef<HTMLElement>(null);
   const productRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const hasProduct = Boolean(variant && flavor && packaging && slot && group);
+  const renderKey = `${releaseId}:${variant?.id}:${product?.display3d?.revision ?? 0}`;
+  const mode = slot?.mode === '2d' || !product?.display3d || failedVisual === renderKey ? '2D' : '3D';
+  const carouselItems = variants.map(item => {
+    const itemFlavor = catalog.flavors.find(flavor => flavor.id === item.flavorId)!;
+    return { variantId: item.id, flavor: itemFlavor, thumbnail: products.find(product => product.variant.id === item.id && product.slot.id === slot?.id)?.thumbnail };
+  });
+  const explore = () => { if (onExplore) onExplore(); else setDetail('collection'); };
+
+  useEffect(() => {
+    let live = true;
+    queueMicrotask(() => { if (live) setSessionSeed(typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`); });
+    return () => { live = false; };
+  }, []);
   useEffect(() => {
     const hero = heroRef.current;
     const product = productRef.current;
@@ -43,75 +81,78 @@ export default function ShowcaseHero({ onExplore }: { onExplore: () => void }) {
     observer.observe(hero); observer.observe(product);
     alignLight();
     return () => observer.disconnect();
-  }, []);
-  useEffect(() => { if (detail) dialogRef.current?.showModal(); else dialogRef.current?.close(); }, [detail]);
-  const flavor = flavors[index];
-  const asset = canAssets.find(item => item.id === assetId) ?? canAssets[0];
-  const appearance: ProductAppearance = {
-    id: flavor.id,
-    // Demo finish is explicit appearance data, ready for later admin controls.
-    slots: asset.packaging === 'can' ? { label: { metalness: 0, roughness: 0.15, clearcoat: 0.2, clearcoatRoughness: 0.3 } } : undefined,
-    label: { name: flavor.name, category: 'SPARKLING DRINK', volumeMl: asset.volumeMl, colors: flavor.labelColors },
-  };
-  const select = (next: number) => setIndex((next + flavors.length) % flavors.length);
-  const renderFlavorSet = (isClone = false) => <div className="flavor-set" aria-hidden={isClone || undefined}>
-    {flavors.map((item, i) => <button key={item.short} type="button" tabIndex={isClone ? -1 : undefined} aria-pressed={index === i} onPointerDown={() => select(i)} onClick={() => select(i)}><span><Image src={publicUrl('/assets/flavors/' + item.image)} width={64} height={64} alt="" loading="eager" sizes="64px" /></span>{item.short}</button>)}
-    <button type="button" tabIndex={isClone ? -1 : undefined} onClick={onExplore}><span><LayoutGrid /></span>All flavors</button>
+  }, [hasProduct]);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (detail && !dialog?.open) dialog?.showModal();
+    else if (!detail) dialog?.close();
+  }, [detail, hasProduct]);
+
+  const productPicker = <div className="model-picker" role="group" aria-label={t('nav.products')}>
+    <span className="model-picker-label" dir="ltr">BEST SELLER</span>
+    <div className="model-options">{groups.map(item => <button type="button" key={item.id} aria-pressed={item.id === group?.id} onClick={() => onSelectGroup(item.id)}><bdi>{item.buttonLabel || item.name}</bdi></button>)}</div>
   </div>;
 
-  return <section ref={heroRef} className="showcase-hero" data-flavor={flavor.id} aria-labelledby="showcase-title" style={{
-    '--flavor-accent': flavor.color,
+  if (!group || !slot || !variant || !flavor || !packaging) return <section ref={heroRef} className="showcase-hero catalog-showcase catalog-showcase-empty" aria-labelledby="showcase-title">
+    <div className="catalog-selection-empty" role="status"><Leaf size={48} strokeWidth={1} /><h1 id="showcase-title"><bdi>{group?.name || t('nav.products')}</bdi></h1><p>{copy.empty}</p></div>
+    {groups.length > 0 && productPicker}
+  </section>;
+
+  const liked = likedVariant === variant.id;
+  return <section ref={heroRef} className="showcase-hero catalog-showcase" data-flavor={flavor.id} data-variant={variant.id} data-release={releaseId} aria-labelledby="showcase-title" style={{
+    '--flavor-accent': flavor.accentColor,
+    '--catalog-text': flavor.textColor,
+    '--catalog-background': flavor.backgroundColor,
     '--product-glow-opacity': backgroundSettings.productGlowOpacity,
   } as React.CSSProperties}>
-    <FlavorBackground flavorIndex={index} renderState={backgroundState} config={backgroundSettings} />
-    <div className="quick-rail glass-surface" style={glassStyle} aria-label="Lối tắt sản phẩm">
-      <button aria-label="Khám phá hương vị" onClick={() => setDetail('flavor')} className="is-selected"><Leaf /></button>
-      <button aria-label="Xem bộ sưu tập" onClick={onExplore}><Waves /></button>
-      <button aria-label="Yêu thích hương vị" aria-pressed={liked} onClick={() => setLiked(!liked)}><Heart fill={liked ? 'currentColor' : 'none'} /></button>
+    <FlavorBackground flavorIndex={flavorIndex} themes={themes} renderState={backgroundState} config={backgroundSettings} />
+    <div className="quick-rail glass-surface" style={glassStyle} aria-label={t('hero.shortcuts')}>
+      <button type="button" aria-label={t('hero.discoverFlavor')} onClick={() => setDetail('flavor')} className="is-selected"><Leaf /></button>
+      <button type="button" aria-label={t('hero.viewCollection')} onClick={explore}><Waves /></button>
+      <button type="button" aria-label={t('hero.likeFlavor')} aria-pressed={liked} onClick={() => setLikedVariant(liked ? null : variant.id)}><Heart fill={liked ? 'currentColor' : 'none'} /></button>
     </div>
     <div className="showcase-copy showcase-intro">
-      <p className="eyebrow">Sparkling drink</p>
-      <h1 id="showcase-title"><span className="showcase-title-desktop">SPARK YOUR<br />REFRESHMENT</span><span className="showcase-title-mobile">{flavor.name}</span></h1>
-      <p className="showcase-tagline">Fresh taste. Bold energy.</p>
+      <p className="eyebrow"><bdi>{drink?.name || group.name}</bdi></p>
+      <h1 id="showcase-title"><span className="showcase-title-desktop"><bdi>{group.name}</bdi></span><span className="showcase-title-mobile"><bdi>{variant.name}</bdi></span></h1>
+      {group.description && <p className="showcase-tagline">{group.description}</p>}
       <div className="showcase-actions">
-        <button className="btn btn-primary" onClick={onExplore}>Khám phá ngay <ArrowRight size={20} /></button>
-        <button className="btn btn-ghost" onClick={() => setDetail('flavor')}><Play size={18} fill="currentColor" /> Hương vị</button>
+        <button type="button" className="btn btn-primary" onClick={explore}>{t('hero.explore')} <ArrowRight size={20} /></button>
+        <button type="button" className="btn btn-ghost" onClick={() => setDetail('flavor')}><Play size={18} fill="currentColor" /> {t('nav.flavors')}</button>
       </div>
     </div>
-    <div ref={productRef} className="showcase-product"><ProductViewer asset={asset} appearance={appearance} accentScene={DEFAULT_PRODUCT_ACCENT_SCENE} accentFlavor={flavor.id} /></div>
-    <div className="model-picker" role="group" aria-label="Chọn kiểu lon">
-      <span className="model-picker-label">Kiểu dáng bao bì</span>
-      <div className="model-options">{canAssets.map(item => <button type="button" key={item.id} aria-pressed={item.id === asset.id} onClick={() => setAssetId(item.id)}>{item.name.replace('Lon ', '')}</button>)}</div>
-    </div>
-    <div className="flavor-dock" aria-label="Chọn hương vị">
-      <div className="flavor-track">{renderFlavorSet()}{renderFlavorSet(true)}</div>
-    </div>
+    <div ref={productRef} className="showcase-product"><ProductVisual catalog={catalog} releaseId={releaseId} seed={sessionSeed} slot={slot} variant={variant} display3d={product?.display3d} display2d={product?.display2d} image2d={product?.image2d} model={product?.model} backgroundState={backgroundState} backgroundConfig={backgroundSettings} onViewerUnavailable={() => setFailedVisual(renderKey)} /></div>
+    {productPicker}
+    <FlavorCarousel items={carouselItems} selectedId={variant.id} onSelect={onSelectVariant} onShowAll={() => setDetail('collection')} />
     <div className="showcase-details">
       <div className="notes-stack">
-        <button className="notes-card glass-surface" style={glassStyle} onClick={() => setDetail('flavor')}>
-          <Image src={publicUrl('/assets/flavors/' + flavor.image)} width={88} height={88} alt="" priority loading="eager" sizes="88px" />
-          <span><strong>Flavor Notes</strong><span>{flavor.note}</span></span><ChevronRight />
+        <button type="button" className="notes-card glass-surface" style={glassStyle} onClick={() => setDetail('flavor')}>
+          <CatalogImage media={product?.thumbnail} size={88} priority />
+          <span><strong>{t('hero.notes')}</strong><span>{flavor.description || flavor.name}</span></span><ChevronRight />
         </button>
-        <button className="notes-card glass-surface" style={glassStyle} onClick={() => setDetail('collection')}>
-          <Image src={publicUrl("/assets/flavors/natural-leaf.jpg")} width={88} height={88} alt="" />
-          <span><strong>Made for your moments</strong><span>Nhiều hương vị. Nhiều lựa chọn bao bì. Một cảm hứng tươi mới.</span></span><ChevronRight />
+        <button type="button" className="notes-card glass-surface" style={glassStyle} onClick={() => setDetail('collection')}>
+          <span className="catalog-notes-symbol" aria-hidden="true"><Layers3 size={38} strokeWidth={1.2} /></span>
+          <span><strong><bdi>{group.name}</bdi></strong><span>{group.description || drink?.description || drink?.name}</span></span><ChevronRight />
         </button>
       </div>
       <div className="showcase-stats">
-        <div className="glass-surface" style={glassStyle}><Sparkles /><span><strong>{asset.volumeMl}<small> ml</small></strong><span>Dung tích lon</span></span></div>
-        <div className="glass-surface" style={glassStyle}><Rotate3D /><span><strong>360°</strong><span>Tự do khám phá</span></span></div>
+        <div className="glass-surface" style={glassStyle}><Sparkles /><span><strong dir="ltr">{packaging.volumeMl ?? '—'}<small> ml</small></strong><span>{copy.volume}</span></span></div>
+        <div className="glass-surface" style={glassStyle}><Rotate3D /><span><strong dir="ltr">{mode === '3D' ? '360°' : '2D'}</strong><span>{mode === '3D' ? t('hero.freeExplore') : copy.image}</span></span></div>
       </div>
     </div>
-    <aside className="showcase-feature glass-surface" style={featureGlassStyle} aria-label="Hương vị nổi bật">
-      <span className="showcase-badge">NEW</span>
-      <div className="flavor-portrait-ring">
-        <Image className="flavor-portrait" src={publicUrl('/assets/flavors/' + flavor.image)} width={360} height={360} alt={flavor.name} priority loading="eager" sizes="(max-width: 760px) 65vw, 22vw" />
-      </div>
-      <h2>{flavor.name}</h2><p className="feature-subtitle">A BRIGHTER KIND OF ENERGY</p>
-      <div className="showcase-metrics"><span><strong>{asset.volumeMl}<small>ml</small></strong>Lon nhôm</span><span><strong>04</strong>Hương vị</span><span><strong>360°</strong>Trải nghiệm</span></div>
-      <p className="feature-description"><strong>Crisp. Sparkling. Unforgettable.</strong><span>{flavor.note}</span></p>
-      <button className="btn btn-primary" onClick={() => setDetail('flavor')}>Khám phá {flavor.short} <ArrowRight size={20} /></button>
+    <aside className="showcase-feature glass-surface" style={featureGlassStyle} aria-label={t('hero.featured')}>
+      <span className="showcase-badge" dir="ltr">Hot</span>
+      <div className="flavor-portrait-ring"><CatalogImage className="flavor-portrait" media={product?.thumbnail} alt={flavor.name} size={360} priority /></div>
+      <h2><bdi>{flavor.name}</bdi></h2><p className="feature-subtitle"><bdi>{drink?.name}</bdi></p>
+      <div className="showcase-metrics"><span><strong dir="ltr">{packaging.volumeMl ?? '—'}<small>ml</small></strong><bdi>{category?.name || packaging.name}</bdi></span><span><strong dir="ltr">{String(variants.length).padStart(2, '0')}</strong>{t('nav.flavors')}</span><span><strong dir="ltr">{mode}</strong>{t('hero.experience')}</span></div>
+      <p className="feature-description"><strong><bdi>{variant.name}</bdi></strong><span>{variant.description || flavor.description}</span></p>
+      <button type="button" className="btn btn-primary" onClick={() => setDetail('flavor')}>{t('hero.exploreFlavor', { flavor: flavor.shortName || flavor.name })} <ArrowRight size={20} /></button>
     </aside>
-    <dialog ref={dialogRef} className="hero-detail glass-surface" style={glassStyle} aria-label="Chi tiết hương vị" onCancel={() => setDetail(null)} onClick={e => { if (e.target === e.currentTarget) setDetail(null); }}><h2>{detail === 'flavor' ? flavor.name : 'Find your refreshment'}</h2><p>{detail === 'flavor' ? flavor.note : 'Khám phá Juice, Sparkling, Coconut milk và Nata de coco với lon, chai PET, thủy tinh, PP và túi.'}</p><button autoFocus className="btn btn-primary" onClick={() => setDetail(null)}>Đóng</button></dialog>  </section>;
+    <dialog ref={dialogRef} className="hero-detail glass-surface catalog-hero-detail" style={glassStyle} aria-label={t('hero.details')} onCancel={() => setDetail(null)} onClick={event => { if (event.target === event.currentTarget) setDetail(null); }}>
+      <h2><bdi>{detail === 'flavor' ? flavor.name : group.name}</bdi></h2>
+      {(detail === 'flavor' ? flavor.description : group.description) && <p>{detail === 'flavor' ? flavor.description : group.description}</p>}
+      <p className="catalog-detail-facts"><bdi>{drink?.name}</bdi><span aria-hidden="true"> · </span><bdi>{packaging.name}</bdi></p>
+      <div className="catalog-dialog-flavors" role="group" aria-label={t('hero.chooseFlavor')}>{carouselItems.map(item => <button type="button" key={item.variantId} aria-pressed={item.variantId === variant.id} onClick={() => onSelectVariant(item.variantId)}><CatalogImage media={item.thumbnail} size={48} /><span><strong><bdi>{item.flavor.shortName || item.flavor.name}</bdi></strong>{item.flavor.description && <span>{item.flavor.description}</span>}</span></button>)}</div>
+      <button type="button" autoFocus className="btn btn-primary" onClick={() => setDetail(null)}>{t('common.close')}</button>
+    </dialog>
+  </section>;
 }
-

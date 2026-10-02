@@ -27,9 +27,11 @@ jobs:
         env:
           GITHUB_PAGES: 'true'
           NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+          NEXT_PUBLIC_ADMIN_API_URL: ${{ vars.NEXT_PUBLIC_ADMIN_API_URL }}
       - run: npm run lint
       - run: npm run test:viewer
       - run: npm run test:background
+      - run: npm run test:catalog
       - run: npm run test:framing
       - run: npm run test:accents
       - run: npm run test:environment

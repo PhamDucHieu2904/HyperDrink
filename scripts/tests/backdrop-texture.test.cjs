@@ -14,7 +14,7 @@ function loadSource(relativePath, requireModule = require) {
   return loaded.exports;
 }
 const config = loadSource('lib/background-config.ts', () => loadSource('lib/showcase-flavors.ts'));
-const rendering = loadSource('lib/background-render-state.ts');
+const rendering = loadSource('lib/background-render-state.ts', name => name === './background-config' ? config : require(name));
 const painter = loadSource('lib/viewer/backdrop-texture.ts', name => {
   if (name === 'three') return THREE;
   if (name.endsWith('background-config')) return config;
@@ -135,4 +135,56 @@ test('orientation changes replace immutable GPU texture storage and repaint the 
   assert.equal(f.currentTexture(), replacement, 'A position-only layout update retains matching texture dimensions');
   f.dispose(); f.dispose();
   assert.equal(oldDisposals, 1); assert.equal(currentDisposals, 1);
+});
+
+test('water backdrop paints the actual 24th catalog flavor and refreshes colors/icons when the count stays unchanged', context => {
+  const f = fixture(context);
+  const catalogThemes = Array.from({ length: 24 }, (_, index) => ({ id: `catalog-${index}`, color: `#${(0x335500 + index).toString(16)}`, icon: 'leaf' }));
+  const initialImages = [...f.images];
+  f.state.setThemes(catalogThemes, 0, true); f.state.setFlavor(23, 0, true);
+  f.state.setPatternOffset(-18, 26); f.at(40); f.update();
+  assert.equal(f.state.weights.length, 24); assert.equal(f.state.weights[23], 1);
+  assert.ok(f.fills.some(fill => fill.fill === catalogThemes[23].color && fill.alpha === 1), 'Water uses catalog flavor 23 rather than a four-item fallback');
+  assert.ok(initialImages.every(image => image.onload === null && image.src === ''), 'Previous theme images release handlers and sources');
+  const firstImages = f.images.slice(initialImages.length);
+  assert.equal(firstImages.length, 24);
+  firstImages.forEach(image => { image.complete = true; image.onload(); });
+  f.at(80); f.update();
+  const firstPatternFill = f.fills.filter(fill => fill.fill?.matrix).at(-1);
+  assert.equal(firstPatternFill.alpha, 1); assert.equal(firstPatternFill.fill.image, firstImages[23]);
+  assert.equal(firstPatternFill.fill.matrix.x, -18); assert.equal(firstPatternFill.fill.matrix.y, 26);
+  const originalRevision = f.state.themeRevision, previousVersion = f.texture.version;
+  const revised = catalogThemes.map((theme, index) => index === 23 ? { ...theme, color: '#fedcba', icon: 'mango' } : theme);
+  f.state.setThemes(revised, 80, true); f.at(120); f.update();
+  assert.equal(f.state.themeRevision, originalRevision + 1); assert.equal(f.state.weights.length, 24);
+  assert.equal(f.state.flavorIndex, 23); assert.equal(f.texture.version, previousVersion + 1);
+  assert.ok(f.fills.some(fill => fill.fill === '#fedcba' && fill.alpha === 1), 'A same-count palette update must repaint even when weights and offsets are unchanged');
+  assert.ok(firstImages.every(image => image.onload === null && image.src === ''), 'All replaced image resources are detached');
+  const revisedImages = f.images.slice(initialImages.length + firstImages.length);
+  assert.equal(revisedImages.length, 24); assert.equal(revisedImages[23].src, rendering.backgroundTileUrl('mango', config.backgroundConfig));
+  revisedImages.forEach(image => { image.complete = true; image.onload(); });
+  f.at(160); f.update();
+  const revisedPatternFill = f.fills.filter(fill => fill.fill?.matrix).at(-1);
+  assert.equal(revisedPatternFill.fill.image, revisedImages[23]); assert.notEqual(revisedPatternFill.fill, firstPatternFill.fill);
+  assert.equal(revisedPatternFill.alpha, 1); assert.equal(revisedPatternFill.fill.matrix.x, -18); assert.equal(revisedPatternFill.fill.matrix.y, 26);
+  const patternCount = f.patterns.length, version = f.texture.version;
+  f.at(200); f.update(); assert.equal(f.texture.version, version, 'An unchanged refreshed palette remains cached');
+  f.state.setPatternOffset(9, 11); f.at(240); f.update();
+  assert.equal(f.patterns.length, patternCount, 'Movement reuses the new pattern cache');
+  f.dispose(); assert.ok(f.images.every(image => image.onload === null && image.src === ''));
+});
+
+test('water backdrop keeps the selected catalog ID and matching icon after theme reorder or removal', context => {
+  const f = fixture(context, { withHero: false });
+  const catalogThemes = Array.from({ length: 24 }, (_, index) => ({ id: `catalog-${index}`, color: `#${(0x224400 + index).toString(16)}`, icon: index === 23 ? 'coconut' : 'leaf' }));
+  f.state.setThemes(catalogThemes, 0, true); f.state.setFlavor(23, 0, true); f.at(40); f.update();
+  assert.equal(f.fills.at(-1).fill, catalogThemes[23].color); assert.equal(f.fills.at(-1).alpha, 1);
+  f.state.setThemes([...catalogThemes].reverse(), 40, true); f.at(80); f.update();
+  assert.equal(f.state.flavorIndex, 0); assert.equal(f.state.themes[0].id, 'catalog-23');
+  assert.equal(f.images.at(-24).src, rendering.backgroundTileUrl('coconut', config.backgroundConfig));
+  const visibleFills = f.fills.filter(fill => typeof fill.fill === 'string' && fill.alpha === 1);
+  assert.equal(visibleFills.at(-1).fill, catalogThemes[23].color);
+  f.state.setThemes([{ id: 'only', color: '#aabbcc', icon: 'citrus' }], 80, true); f.at(120); f.update();
+  assert.equal(f.fills.at(-1).fill, '#aabbcc'); assert.equal(f.fills.at(-1).alpha, 1); assert.deepEqual(f.state.weights, [1]);
+  assert.equal(f.patterns.length, 0, 'Generic viewers retain their solid-color fallback');
 });

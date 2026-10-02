@@ -2,6 +2,10 @@
 export type PackagingKind = 'can' | 'pet' | 'glass' | 'pouch' | 'other';
 export type Vector3Tuple = [number, number, number];
 export type ViewerToneMapping = 'neutral' | 'agx' | 'aces';
+export interface TextureSampler {
+  wrapS: 'repeat' | 'clamp';
+  wrapT: 'repeat' | 'clamp';
+}
 
 export interface ProceduralEnvironmentConfig {
   preset: 'soft-daylight';
@@ -31,6 +35,8 @@ export interface ProductAsset {
   poster?: string;
   /** Explicit semantic slot -> exported material/mesh names. No fuzzy name guesses. */
   materialSlots?: Record<string, string[]>;
+  /** UV addressing belongs to each model slot, independently of the uploaded artwork. */
+  textureSamplers?: Record<string, TextureSampler>;
   /** Euler correction in radians for assets that do not use glTF's +Y-up convention. */
   orientation?: Vector3Tuple;
 }
@@ -53,6 +59,8 @@ export interface MaterialOverride {
 
 export interface ProductAppearance {
   id?: string;
+  /** These semantic slots must bind and receive the requested appearance before a product is usable. */
+  requiredSlots?: string[];
   /** Only these explicitly declared slots change; imported PBR is otherwise retained. */
   slots?: Record<string, MaterialOverride>;
   /** Temporary print artwork. Replace with slots.label.baseColorMap for approved labels. */

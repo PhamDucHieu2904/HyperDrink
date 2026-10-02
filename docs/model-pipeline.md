@@ -50,6 +50,27 @@ All materials are single-sided. Source QA confirms the body and pull-tab are clo
 
 HDRI belongs to a reusable presentation configuration. It is not baked into or repeated inside every model. The viewer needs the studio environment to produce the metal reflections; a CSS product halo does not replace environment lighting.
 
+## Label seam audit — 2026-10-02
+
+The two wide black rectangles at the rear of the Juice 30% 330 ml label were caused by texture addressing, not intersecting meshes or broken normals. Some seam triangles intentionally interpolate U past 1, while the appearance loader previously used TextureLoader's clamp-to-edge default. The Rambutan source PNG has a one-pixel opaque black last column; clamping stretches it across these triangles. WebP preserves that border rather than introducing it.
+
+A controlled Blender render used the actual compressed `can-330.glb`, published Rambutan WebP and an emissive label to remove lighting from the comparison. Changing only image extension from EXTEND to REPEAT reproduced and then removed both wide marks. At the top and bottom sample positions, RGB changed from approximately (0, 5, 4) to the intended (0, 115, 103). The middle of the label stayed unchanged. The 38 affected triangles lie near the shoulder and bottom fold, explaining their fixed positions across flavors. The artwork's thin original border remains a thin seam.
+
+The viewer now carries a per-slot `textureSamplers` contract. The six manifest assets use their declared `labelUv.wrapS`; admin models with `can-wrap-v1` use repeat S and clamp T. The setting applies to color, normal and roughness maps and generated demo labels. Texture deduplication includes the sampler, so another material sharing the same image can retain its own UV addressing. Unknown layout profiles keep the existing clamp default. Sampler changes also invalidate the viewer's cached asset definition.
+
+The audit decoded all six GLBs through Blender's glTF/Draco importer, checked triangle winding, UV area, split normals, tangents and sampled 15 barycentric points per label triangle against the body (439,200 samples total). No sampled intersections or gaps below 25 µm were found; decoded labels have zero degenerate triangles, UV degeneracies, inward faces, abnormal face/corner normal disagreements or seam normal splits over one degree. All source and GLB hashes still match the manifest.
+
+| Model | Maximum label U | Minimum sampled clearance | Dense samples |
+|---|---:|---:|---:|
+| 330 ml | 1.015625 | 55.88 µm | 76,800 |
+| 180 ml | 1.015625 | 72.80 µm | 57,600 |
+| 250 ml short | 1.015625 | 46.12 µm | 57,600 |
+| 250 ml sleek | 1.005474 | 57.36 µm | 57,600 |
+| 320 ml | 1.015625 | 45.15 µm | 107,520 |
+| 500 ml | 1.013889 | 99.00 µm | 82,080 |
+
+Rerun `scripts/audit-can-surfaces.py` using the Blender alias below. It opens source files with scripts disabled, writes only `.tmp/can-surface-audit.json` and `.tmp/can-surface-audit-status.json`, and never saves models or artwork. A completed status must report six assets and `passed: true`. This controlled render and CPU geometry inspection do not constitute live browser/WebGL visual QA.
+
 ## Rebuild on this workstation
 
 Microsoft Store Blender 5.2.2 is installed. Its direct binary path has package-specific execution permissions; use its registered execution alias:

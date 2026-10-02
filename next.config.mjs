@@ -12,6 +12,7 @@ const nextConfig = {
     ];
   } } : {}),
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
+  env: { NEXT_PUBLIC_CATALOG_MODE: pages && !process.env.NEXT_PUBLIC_ADMIN_API_URL ? 'static' : 'api' },
   reactStrictMode: true,
   poweredByHeader: false,
   images: { unoptimized: true },

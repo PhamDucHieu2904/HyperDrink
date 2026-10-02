@@ -1,19 +1,22 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { backgroundConfig, backgroundThemes, normalizeBackgroundConfig, type BackgroundConfig } from '@/lib/background-config';
+import { backgroundConfig, backgroundThemes, normalizeBackgroundConfig, normalizeBackgroundThemes, type BackgroundConfig, type BackgroundTheme } from '@/lib/background-config';
 import { BackgroundRenderState, backgroundTileUrl } from '@/lib/background-render-state';
 import { BackgroundAutodrift, backgroundPointerVelocity } from '@/lib/background-motion';
 
-export default function FlavorBackground({ flavorIndex, config = backgroundConfig, renderState }: { flavorIndex: number; config?: Partial<BackgroundConfig>; renderState: BackgroundRenderState }) {
+export default function FlavorBackground({ flavorIndex, themes = backgroundThemes, config = backgroundConfig, renderState }: { flavorIndex: number; themes?: readonly BackgroundTheme[]; config?: Partial<BackgroundConfig>; renderState: BackgroundRenderState }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const settings = useMemo(() => normalizeBackgroundConfig(config), [config]);
+  const normalizedThemes = useMemo(() => normalizeBackgroundThemes(themes), [themes]);
   const period = settings.cellSize * settings.iconSpacing;
 
   useEffect(() => {
-    renderState.setFlavor(flavorIndex, performance.now(), matchMedia('(prefers-reduced-motion: reduce)').matches);
-  }, [flavorIndex, renderState]);
+    const now = performance.now(), reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    renderState.setThemes(normalizedThemes, now, reducedMotion);
+    renderState.setFlavor(flavorIndex, now, reducedMotion);
+  }, [flavorIndex, normalizedThemes, renderState]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -25,8 +28,9 @@ export default function FlavorBackground({ flavorIndex, config = backgroundConfi
     const motion = matchMedia('(prefers-reduced-motion: reduce)');
     const fine = matchMedia('(pointer: fine)');
     const autodrift = new BackgroundAutodrift(settings);
-    let targetAngle = 0, angle = 0, targetSpeed = 0, speed = 0, x = 0, y = 0;
-    renderState.setPatternOffset(0, 0);
+    let targetAngle = 0, angle = 0, targetSpeed = 0, speed = 0;
+    let x = renderState.patternOffset.x % period, y = renderState.patternOffset.y % period;
+    renderState.setPatternOffset(x, y);
     let hasDirection = false, pointerPresent = false;
     let frame = 0, last = performance.now(), visible = true;
     const releasePointer = () => {
@@ -109,12 +113,12 @@ export default function FlavorBackground({ flavorIndex, config = backgroundConfi
       document.removeEventListener('visibilitychange', sync);
       motion.removeEventListener('change', sync); fine.removeEventListener('change', sync);
     };
-  }, [settings, period, renderState]);
+  }, [settings, period, renderState, normalizedThemes]);
 
   return <div ref={rootRef} className="flavor-background" aria-hidden="true">
-    {backgroundThemes.map((theme, i) => <div key={theme.icon} className="flavor-background-color" style={{ backgroundColor: theme.color, opacity: flavorIndex === i ? 1 : 0 }} />)}
+    {normalizedThemes.map((theme, i) => <div key={theme.id} className="flavor-background-color" style={{ backgroundColor: theme.color, opacity: flavorIndex === i ? 1 : 0 }} />)}
     <div ref={trackRef} className="flavor-background-track" style={{ inset: -period }}>
-      {backgroundThemes.map((theme, i) => <div key={theme.icon} className="flavor-background-pattern" style={{ backgroundImage: `url("${backgroundTileUrl(theme.icon, settings)}")`, backgroundSize: `${period}px ${period}px`, opacity: flavorIndex === i ? 1 : 0 }} />)}
+      {normalizedThemes.map((theme, i) => <div key={theme.id} className="flavor-background-pattern" style={{ backgroundImage: `url("${backgroundTileUrl(theme.icon, settings)}")`, backgroundSize: `${period}px ${period}px`, opacity: flavorIndex === i ? 1 : 0 }} />)}
     </div>
     <div className="flavor-background-light" />
     <div className="product-backlight" />
