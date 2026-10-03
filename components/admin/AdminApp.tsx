@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Box, CheckCircle2, ChevronRight, CircleHelp, Copy, Droplets, ExternalLink, FileImage, FlaskConical, ImageIcon, Layers3, LayoutDashboard, Leaf, LoaderCircle, LogOut, Menu, Package, Plus, RefreshCw, RotateCcw, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Upload, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { AdminSession, CatalogData, CatalogRecord, CollectionName, MediaAsset, MediaRole } from '@/lib/catalog/contracts';
+import type { AdminSession, CatalogData, CatalogRecord, CollectionName, DisplayDraftResult, DisplayDraftSave, MediaAsset, MediaRole, ValidationIssue } from '@/lib/catalog/contracts';
+import { issueRemedy, type DisplayIssueRemedy } from '@/lib/catalog/issue-remedies';
 import { publicUrl } from '@/lib/public-url';
 import { CATALOG_REFERENCES } from '@/lib/catalog/validation';
 import EntityEditor from './catalog/EntityEditor';
+import { DisplayEditor } from './display/DisplayWorkspace';
 import { definitions, newRecord, recordDetails } from './catalog/definitions';
 import { MediaThumbnail } from './ui/MediaPicker';
 import { imageUploadHelp, mediaSummary, uploadPendingText } from './ui/upload-info';
@@ -17,12 +19,15 @@ export interface WorkspaceHelpers {
   onSave: (collection: CollectionName, record: CatalogRecord, expectedRevision: number | null) => Promise<CatalogRecord>;
   onUpload?: (file: File, role: MediaRole) => Promise<MediaAsset>;
   onRefresh?: () => Promise<void> | void;
+  onOpenIssue?: (issue: ValidationIssue) => void;
+  onSaveDisplay?: (input: DisplayDraftSave) => Promise<DisplayDraftResult>;
 }
 export interface AdminAppProps {
   initialData?: CatalogData;
   session?: AdminSession | null;
   backendReady: boolean;
   onSave?: WorkspaceHelpers['onSave'];
+  onSaveDisplay?: WorkspaceHelpers['onSaveDisplay'];
   onArchive?: (collection: CollectionName, id: string, expectedRevision: number) => Promise<void>;
   onUpload?: WorkspaceHelpers['onUpload'];
   onReorder?: (collection: CollectionName, id: string, direction: 'up' | 'down', expectedRevisions: Record<string, number>) => Promise<CatalogData>;
@@ -51,7 +56,7 @@ function referenceCount(data: CatalogData, id: string): number {
   return records.size;
 }
 
-export default function AdminApp({ initialData, session, backendReady, onSave, onArchive, onUpload, onReorder, onRefresh, onSignOut, renderWorkspace }: AdminAppProps) {
+export default function AdminApp({ initialData, session, backendReady, onSave, onSaveDisplay, onArchive, onUpload, onReorder, onRefresh, onSignOut, renderWorkspace }: AdminAppProps) {
   const [catalog, setCatalog] = useState(initialData ?? emptyCatalog);
   const [sourceData, setSourceData] = useState(initialData);
   const [module, setModule] = useState<AdminModule>('dashboard');
@@ -62,7 +67,8 @@ export default function AdminApp({ initialData, session, backendReady, onSave, o
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [editor, setEditor] = useState<{ collection: CollectionName; record: CatalogRecord; isNew: boolean } | null>(null);
+  const [editor, setEditor] = useState<{ collection: CollectionName; record: CatalogRecord; isNew: boolean; initialIssue?: { field: string; message: string } } | null>(null);
+  const [issueDisplay, setIssueDisplay] = useState<DisplayIssueRemedy | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [mediaRole, setMediaRole] = useState<MediaRole>('thumbnail');
@@ -98,6 +104,13 @@ export default function AdminApp({ initialData, session, backendReady, onSave, o
     const media = await onUpload(file, role);
     setCatalog(current => ({ ...current, media: current.media.some(item => item.id === media.id) ? current.media.map(item => item.id === media.id ? media : item) : [...current.media, media] }));
     return media;
+  }
+  async function saveDisplay(input: DisplayDraftSave) {
+    if (!backendReady || !onSaveDisplay) throw new Error('Backend chưa được kết nối. Cấu hình chưa được lưu.');
+    const result = await onSaveDisplay(input);
+    setCatalog(result.catalog);
+    setNotification({ type: 'success', message: `Đã lưu cấu hình “${result.display.name}” vào bản nháp.` });
+    return result;
   }
   async function archiveRecord(collection: CollectionName, record: CatalogRecord) {
     if (!onArchive || !backendReady) return;
@@ -172,7 +185,14 @@ export default function AdminApp({ initialData, session, backendReady, onSave, o
     setEditor({ collection, record: copy, isNew: true });
   }
 
-  const workspace = renderWorkspace?.(module, catalog, { onSave: saveRecord, onUpload: onUpload ? upload : undefined, onRefresh });
+  function openIssue(issue: ValidationIssue) {
+    const remedy = issueRemedy(catalog, issue);
+    if (!remedy) return;
+    if (remedy.kind === 'display') { setIssueDisplay(remedy); return; }
+    const record = catalog[remedy.collection].find(item => item.id === remedy.recordId);
+    if (record) setEditor({ collection: remedy.collection, record, isNew: false, initialIssue: { field: remedy.field, message: remedy.message } });
+  }
+  const workspace = renderWorkspace?.(module, catalog, { onSave: saveRecord, onSaveDisplay: onSaveDisplay ? saveDisplay : undefined, onUpload: onUpload ? upload : undefined, onRefresh, onOpenIssue: openIssue });
   return <div className={styles.adminShell}>
     <a href="#admin-main" className={styles.skipLink}>Đến nội dung quản trị</a>
     {sidebarOpen && <button className={styles.sidebarScrim} aria-label="Đóng menu" onClick={() => setSidebarOpen(false)} />}
@@ -205,5 +225,6 @@ export default function AdminApp({ initialData, session, backendReady, onSave, o
       </main>
     </div>
     {editor && <EntityEditor key={`${editor.collection}:${editor.record.id}`} {...editor} data={catalog} disabled={disabled} onClose={() => setEditor(null)} onSave={saveRecord} onUpload={onUpload ? upload : undefined} />}
+    {issueDisplay && <DisplayEditor catalog={catalog} mode={issueDisplay.mode} selectedId={issueDisplay.displayId} initialVariantId={issueDisplay.variantId} focusField={issueDisplay.field} issueMessage={issueDisplay.message} onSave={saveRecord} onSaveDisplay={onSaveDisplay ? saveDisplay : undefined} onUpload={upload} onRefresh={onRefresh || (() => {})} onClose={() => setIssueDisplay(null)} onSaved={() => setIssueDisplay(null)} />}
   </div>;
 }

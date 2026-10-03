@@ -23,6 +23,8 @@ function loadSource(relativePath) {
 const validation = loadSource('lib/catalog/validation.ts');
 const compatibility = loadSource('lib/catalog/compatibility.ts');
 const service = loadSource('lib/catalog/service.ts');
+const deletion = loadSource('lib/catalog/deletion.ts');
+const displayDrafts = loadSource('lib/catalog/display-drafts.ts');
 const seed = loadSource('lib/catalog/seed.ts');
 const now = '2026-10-01T04:00:00.000Z';
 const entity = id => ({ id, name: id, slug: id, lifecycle: 'active', revision: 1, createdAt: now, updatedAt: now });
@@ -49,6 +51,104 @@ function fixture() {
 const errors = issues => issues.filter(issue => issue.severity === 'error');
 const codes = issues => new Set(issues.map(issue => issue.code));
 function expectCode(data, code) { assert.ok(codes(validation.preflightCatalog(data)).has(code), `Expected ${code}`); }
+
+function deletionFixture() {
+  const data = fixture();
+  data.flavors.push({ ...data.flavors[0], ...entity('orange'), thumbnailId: null, position: 1 });
+  data.productVariants.push({ ...data.productVariants[0], ...entity('broken-orange'), flavorId: 'orange', code: 'JO330' });
+  return data;
+}
+
+test('deleting a missing-display product physically removes its data and finding while retaining shared libraries', () => {
+  const data = deletionFixture(), before = structuredClone(data);
+  const impact = deletion.getDeletionImpact(data, 'productVariants', 'broken-orange');
+  assert.deepEqual(impact.blockingIssues, []); assert.deepEqual(impact.references, []);
+  const result = deletion.deleteCatalogRecord(data, 'productVariants', 'broken-orange', 1, now);
+  assert.equal(result.productVariants.some(item => item.id === 'broken-orange'), false);
+  assert.deepEqual(validation.preflightCatalog(result), []);
+  for (const collection of ['flavors', 'media', 'labels', 'models3d', 'assets2d', 'flavorAssets']) assert.deepEqual(result[collection], data[collection]);
+  assert.deepEqual(data, before, 'Preview and deletion never mutate the caller graph');
+});
+
+test('deleting a product removes only its owned active and archived 2D/3D displays', () => {
+  const data = deletionFixture();
+  data.displays3d.push({ ...data.displays3d[0], ...entity('broken-3d'), productVariantId: 'broken-orange', enabled: false });
+  data.displays2d.push({ ...data.displays2d[0], ...entity('broken-2d'), productVariantId: 'broken-orange', lifecycle: 'archived' });
+  const result = deletion.deleteCatalogRecord(data, 'productVariants', 'broken-orange', 1, now);
+  assert.deepEqual(result.displays3d, fixture().displays3d); assert.deepEqual(result.displays2d, fixture().displays2d);
+  assert.equal(deletion.getDeletionImpact(data, 'productVariants', 'broken-orange').records.length, 3);
+});
+
+test('deleting the default product chooses a render-ready sibling and revisions the slot atomically', () => {
+  const data = deletionFixture(); data.packagingSlots[0].defaultVariantId = 'broken-orange';
+  // An incomplete sibling appears first; the valid Lime display should win.
+  data.flavors.push({ ...data.flavors[0], ...entity('peach'), thumbnailId: null, position: 2 });
+  data.productVariants.unshift({ ...data.productVariants[1], ...entity('broken-peach'), flavorId: 'peach', code: 'JP330' });
+  const impact = deletion.getDeletionImpact(data, 'productVariants', 'broken-orange');
+  assert.equal(impact.defaults[0].variantId, 'juice-lime-can');
+  const result = deletion.deleteCatalogRecord(data, 'productVariants', 'broken-orange', 1, now);
+  assert.equal(result.packagingSlots[0].defaultVariantId, 'juice-lime-can');
+  assert.equal(result.packagingSlots[0].revision, 2); assert.equal(result.packagingSlots[0].updatedAt, now);
+  assert.equal(validation.preflightCatalog(result).some(item => item.code === 'default_variant_unavailable'), false);
+});
+
+test('deletion refuses the final visible product and shared/nested references without partial mutation', () => {
+  for (const [collection, id] of [['productVariants', 'juice-lime-can'], ['media', 'label-lime'], ['packagingVariants', 'can-330'], ['models3d', 'can-model']]) {
+    const data = fixture(), before = structuredClone(data);
+    assert.throws(() => deletion.deleteCatalogRecord(data, collection, id, 1), error => error.code === 'delete_in_use');
+    assert.deepEqual(data, before);
+  }
+  const gallery = fixture(); gallery.assets2d[0].galleryIds.push('fruit-lime'); gallery.flavorAssets = [];
+  assert.equal(deletion.getDeletionImpact(gallery, 'media', 'fruit-lime').references[0].field, 'galleryIds.0');
+  assert.throws(() => deletion.deleteCatalogRecord(gallery, 'media', 'fruit-lime', 1), error => error.code === 'delete_in_use');
+});
+
+test('deletion rejects stale revisions and still detects references from archived library records', () => {
+  const data = deletionFixture();
+  assert.throws(() => deletion.deleteCatalogRecord(data, 'productVariants', 'broken-orange', 0), error => error.code === 'revision_conflict');
+  assert.throws(() => deletion.getDeletionImpact(data, 'productVariants', 'missing'), error => error.code === 'record_not_found');
+  data.labels[0].lifecycle = 'archived';
+  assert.throws(() => deletion.deleteCatalogRecord(data, 'media', 'label-lime', 1), error => error.code === 'delete_in_use');
+});
+
+test('display creation survives a renamed legacy display retaining its old slug, and reuses the partial product', () => {
+  const data = deletionFixture();
+  data.displays3d[0].name = 'Renamed Peach'; data.displays3d[0].slug = 'new-orange-display';
+  const before = structuredClone(data), variant = data.productVariants.find(item => item.id === 'broken-orange');
+  const display = { ...data.displays3d[0], ...entity('new-orange-3d'), name: 'New Orange', slug: 'new-orange-display', productVariantId: variant.id };
+  assert.throws(() => service.updateCatalogRecord(data, 'displays3d', display, null), error => error.issues.some(issue => issue.code === 'duplicate_slug'));
+  const result = displayDrafts.saveDisplayDraft(data, { mode: '3d', variant, expectedVariantRevision: variant.revision, display, expectedDisplayRevision: null, slot: null, expectedSlotRevision: null }, now);
+  assert.equal(result.display.slug, 'new-orange-display-2');
+  assert.deepEqual(result.catalog.displays3d[0], data.displays3d[0]);
+  assert.equal(result.catalog.productVariants.length, data.productVariants.length);
+  assert.equal(result.catalog.productVariants.find(item => item.id === variant.id).revision, variant.revision + 1);
+  assert.equal(validation.preflightCatalog(result.catalog).some(issue => issue.entityId === variant.id && issue.code === 'display_unavailable'), false);
+  assert.deepEqual(data, before);
+});
+
+test('same display names on distinct products receive unique automatic slugs and edits retain stable identity', () => {
+  const data = deletionFixture();
+  const variant = { ...data.productVariants[1], name: data.productVariants[0].name, slug: data.productVariants[0].slug };
+  // New tuple with a fresh ID and a colliding name-derived product slug.
+  data.productVariants.pop();
+  const display = { ...data.displays3d[0], ...entity('same-name-new-display'), name: data.displays3d[0].name, slug: data.displays3d[0].slug, productVariantId: variant.id };
+  const created = displayDrafts.saveDisplayDraft(data, { mode: '3d', variant, expectedVariantRevision: null, display, expectedDisplayRevision: null, slot: null, expectedSlotRevision: null }, now);
+  const savedVariant = created.catalog.productVariants.find(item => item.id === variant.id);
+  assert.equal(savedVariant.slug, `${data.productVariants[0].slug}-2`);
+  assert.equal(created.display.slug, `${data.displays3d[0].slug}-2`);
+  const edited = displayDrafts.saveDisplayDraft(created.catalog, { mode: '3d', variant: { ...savedVariant, name: 'Renamed' }, expectedVariantRevision: savedVariant.revision, display: { ...created.display, name: 'Renamed' }, expectedDisplayRevision: created.display.revision, slot: null, expectedSlotRevision: null }, now);
+  assert.equal(edited.display.id, created.display.id); assert.equal(edited.display.slug, created.display.slug);
+  assert.equal(edited.catalog.displays3d.length, created.catalog.displays3d.length);
+});
+
+test('display drafts reject duplicate displays, mismatched slots and stale tuple creation without mutating data', () => {
+  const data = fixture(), before = structuredClone(data);
+  const input = { mode: '3d', variant: data.productVariants[0], expectedVariantRevision: 1, display: { ...data.displays3d[0], id: 'new-display' }, expectedDisplayRevision: null, slot: null, expectedSlotRevision: null };
+  assert.throws(() => displayDrafts.saveDisplayDraft(data, input), error => error.code === 'display_exists');
+  assert.throws(() => displayDrafts.saveDisplayDraft(data, { ...input, slot: { ...data.packagingSlots[0], groupId: 'other' } }), error => error.code === 'display_draft_invalid');
+  assert.throws(() => displayDrafts.saveDisplayDraft(data, { ...input, variant: { ...input.variant, id: 'stale-new-product' }, display: { ...input.display, productVariantId: 'stale-new-product' } }), error => error.code === 'revision_conflict');
+  assert.deepEqual(data, before);
+});
 
 test('the actual migration seed is draft-safe and permits edits without auto-publishing demo content', () => {
   const data = seed.createSeedCatalog();

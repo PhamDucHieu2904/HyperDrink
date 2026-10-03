@@ -12,6 +12,17 @@ export function mediaUrl(media: MediaAsset | string | null | undefined): string 
   return publicUrl(url);
 }
 
+/** Keep flavor buttons recognizable while the scene draws random pool images. */
+export function resolveFlavorFruitImage(data: CatalogData, flavorId: string): MediaAsset | undefined {
+  const assignments = data.flavorAssets.filter(item => item.flavorId === flavorId && item.role === 'fruit' && item.enabled && item.lifecycle === 'active')
+    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+  for (const assignment of assignments) {
+    const image = data.media.find(item => item.id === assignment.mediaId);
+    if (image?.role === 'fruit' && image.status === 'ready' && image.lifecycle === 'active' && image.mime.startsWith('image/') && image.url) return image;
+  }
+  return undefined;
+}
+
 function seeded(seed: string): () => number {
   let state = 2166136261;
   for (const letter of seed) state = Math.imul(state ^ letter.charCodeAt(0), 16777619) >>> 0;
@@ -49,6 +60,15 @@ export function resolveFlavorScene(data: CatalogData, flavor: Flavor, seed: stri
     return [{ ...clean, assetUrl: mediaUrl(chosen), imageBounds: chosen.imageBounds || undefined, color: '#ffffff', tint: undefined }];
   });
   return { ...DEFAULT_PRODUCT_ACCENT_SCENE, nodes };
+}
+
+/** A “change set” action should not appear inert when a small pool draws the same set again. */
+export function nextFlavorPreviewSeed(data: CatalogData, flavor: Flavor, seed: number, displayId: string): number {
+  const signature = (value: number) => resolveFlavorScene(data, flavor, `preview-${value}:${displayId}:${flavor.id}`).nodes
+    .filter(node => ['fruit', 'leaf', 'splash'].includes(node.kind)).map(node => `${node.id}:${node.assetUrl}`).join('|');
+  const current = signature(seed);
+  for (let next = seed + 1; next <= seed + 32; next++) if (signature(next) !== current) return next;
+  return seed + 1;
 }
 
 export function resolveDisplay3D(data: CatalogData, display: Display3D, seed = 'preview'): { asset: ProductAsset; appearance: ProductAppearance; accentScene: ProductAccentScene; flavor: Flavor; variant: ProductVariant } | null {

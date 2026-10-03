@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
 import { Monitor, RotateCcw, Shuffle, Smartphone } from 'lucide-react';
 import type { CatalogData, Display2D, Display3D } from '@/lib/catalog/contracts';
-import { mediaUrl, resolveDisplay3D } from '@/lib/catalog/resolve';
+import { mediaUrl, nextFlavorPreviewSeed, resolveDisplay3D } from '@/lib/catalog/resolve';
 import styles from '../display/workspace.module.css';
 
 const ProductViewer = dynamic(() => import('@/components/ProductViewer'), { ssr: false });
@@ -29,7 +29,7 @@ export default function DisplayPreview({ catalog, display3d, display2d }: { cata
       </div>
       <div className={styles.previewControls}>
         <div className={styles.tabs}><button type="button" className={`${styles.tab} ${!mobile ? styles.selectedTab : ''}`} aria-pressed={!mobile} onClick={() => setMobile(false)}><Monitor size={15} />Desktop</button><button type="button" className={`${styles.tab} ${mobile ? styles.selectedTab : ''}`} aria-pressed={mobile} onClick={() => setMobile(true)}><Smartphone size={15} />Mobile</button></div>
-        {display3d && <div className={styles.tabs}><button type="button" className={styles.secondary} onClick={() => setSeed(value => value + 1)} disabled={!resolved}><Shuffle size={15} />Đổi bộ ảnh</button><button type="button" className={styles.secondary} aria-label="Đặt lại góc model" onClick={() => setReset(value => value + 1)} disabled={!resolved}><RotateCcw size={15} /></button></div>}
+        {display3d && <div className={styles.tabs}><button type="button" className={styles.secondary} onClick={() => { if (resolved && display3d) setSeed(value => nextFlavorPreviewSeed(catalog, resolved.flavor, value, display3d.id)); }} disabled={!resolved}><Shuffle size={15} />Đổi bộ ảnh</button><button type="button" className={styles.secondary} aria-label="Đặt lại góc model" onClick={() => setReset(value => value + 1)} disabled={!resolved}><RotateCcw size={15} /></button></div>}
       </div>
       <p className={styles.previewNote}>{display3d ? 'Xoay model để kiểm tra mặt trước, đường nối nhãn và tỉ lệ. Ảnh trái cây, lá và splash lấy từ Flavor data; mỗi bộ ảnh giữ ổn định đến khi đổi lựa chọn.' : 'Ảnh 2D là artwork đã hoàn thiện. Chọn đúng sản phẩm và nhập mô tả ảnh để hỗ trợ khả năng truy cập.'} Đây là bản nháp; lưu chưa thay đổi trang đang xuất bản.</p>
     </div>

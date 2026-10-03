@@ -135,6 +135,16 @@ export interface CatalogData {
 }
 export type CollectionName = Exclude<keyof CatalogData, 'schemaVersion'>;
 export type CatalogRecord = CatalogData[CollectionName][number];
+export interface DisplayDraftSave {
+  mode: '3d' | '2d';
+  variant: ProductVariant;
+  expectedVariantRevision: number | null;
+  display: Display3D | Display2D;
+  expectedDisplayRevision: number | null;
+  slot: PackagingSlot | null;
+  expectedSlotRevision: number | null;
+}
+export interface DisplayDraftResult { catalog: CatalogData; display: Display3D | Display2D }
 export interface ValidationIssue {
   code: string;
   message: string;
@@ -161,4 +171,5 @@ export interface CatalogRepository {
   readActiveRelease(): Promise<CatalogRelease | null>;
   publish(data: CatalogData, actor: string, note: string, expectedReleaseId: string | null): Promise<CatalogRelease>;
   rollback(releaseId: string, actor: string, expectedReleaseId: string | null): Promise<void>;
+  deleteRelease(releaseId: string, actor: string, expectedReleaseId: string | null): Promise<void>;
 }

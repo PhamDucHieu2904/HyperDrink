@@ -168,6 +168,8 @@
 .errorBanner p { margin-top: 6px; }
 .editorDialog, .pickerDialog { position: fixed; inset: 0; margin: auto; width: min(700px, calc(100% - 36px)); padding: 0; max-height: calc(100dvh - 48px); color: #294332; background: #fff; border: 1px solid #dbe5dd; border-radius: 14px; box-shadow: 0 24px 110px #1235212b; font-family: Arial, 'Be Vietnam Pro', sans-serif; font-size: 13px; line-height: 1.5; overflow-y: auto; }
 .editorDialog::backdrop, .pickerDialog::backdrop { background: #102c2070; backdrop-filter: blur(3px); }
+.editorDialog { scroll-padding-block: 110px 90px; }
+.editorDialog > form > .dialogHeader { position: sticky; top: 0; z-index: 2; }
 .dialogHeader { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 23px 27px 20px; border-bottom: 1px solid #e8eee9; background: #fff; }
 .dialogHeader h2 { font-size: 21px; line-height: 1.3; font-weight: 600; letter-spacing: -.5px; }
 .editorBody { padding: 22px 27px 25px; }

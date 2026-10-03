@@ -4,18 +4,18 @@ import { publicUrl } from '../public-url';
 import { disposeProduct } from './appearance';
 import { normalizeAccentScene, resolveAccentNodes, type AccentFlavor, type ProductAccentNode, type ProductAccentScene, type ProductAccentSceneInput } from './accent-config';
 import { advanceAccentMotion, createAccentMotion, sampleAccentNode } from './accent-motion';
-import { accentImageExtent, adaptAccentFrame } from './accent-layout';
+import { accentImageExtent, accentImageSize, adaptAccentFrame } from './accent-layout';
 import { createDropletMaterial, updateDropletMaterial } from './droplet-material';
 import { createIceMaterial, updateIceMaterial } from './ice-material';
 import { createBlendedAccentHost } from './blended-accent';
 
 type BlendedHost = NonNullable<ReturnType<typeof createBlendedAccentHost>>;
-type AccentObject = { node: ProductAccentNode; group: THREE.Group; materials: THREE.Material[]; resources: Array<{ dispose(): void }>; ready: boolean; blended?: ReturnType<BlendedHost['add']> };
+type AccentObject = { node: ProductAccentNode; group: THREE.Group; materials: THREE.Material[]; resources: Array<{ dispose(): void }>; imageSize: [number, number]; ready: boolean; blended?: ReturnType<BlendedHost['add']> };
 type AccentFrame = { deltaSeconds: number; ready: boolean; viewerIdle: boolean; reducedMotion: boolean; paused: boolean; height: number; width: number; productRadius: number; maximumProductScale: number; camera: THREE.PerspectiveCamera; resolution?: [number, number] };
 const ATLAS = '/assets/scene/fruit-leaf-atlas.webp';
 const GLASS_ATLAS = '/assets/scene/ice-droplet-atlas.webp';
-// Analytic water retains its legacy footprint; supplied square image canvases
-// have already been framed and preserve their distinct natural silhouettes.
+// Analytic water and legacy atlas cells retain their authored footprints.
+// Standalone images use their decoded canvas ratio within this maximum size.
 const planeSize = (node: ProductAccentNode) => node.kind === 'droplet' && !node.assetUrl ? 1.7 : 1;
 const CELLS: Record<string, [number, number]> = { orange: [0, 1], lime: [1, 1], berry: [2, 1], peach: [0, 0], mint: [1, 0], 'citrus-leaf': [2, 0] };
 // Subject bounds in local cell UVs. Generated fruit crosses a nominal cell edge;
@@ -105,7 +105,9 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     }
     trackMaterial(item, material);
     const size = planeSize(item.node);
-    const geometry = new THREE.PlaneGeometry(size, size);
+    const image = texture.image as { width?: number; height?: number } | undefined;
+    item.imageSize = item.node.assetUrl ? accentImageSize(image?.width ?? 0, image?.height ?? 0, size) : [size, size];
+    const geometry = new THREE.PlaneGeometry(...item.imageSize);
     if (crop) {
       const uv = geometry.getAttribute('uv');
       for (let index = 0; index < uv.count; index += 1) {
@@ -122,7 +124,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       if (item.node.blendMode === 'hard-light' && item.node.assetUrl && mount) {
         blendedHost ??= createBlendedAccentHost(mount);
         if (blendedHost) {
-          item.blended = blendedHost.add(item.node.assetUrl, () => { item.ready = true; invalidate(); });
+          item.blended = blendedHost.add(item.node.assetUrl, () => { item.ready = true; invalidate(); }, item.imageSize);
           item.resources.push(item.blended);
           // Keep the plane's transform for layout, but composite its photo only
           // once, against the actual CSS backdrop beneath all WebGL objects.
@@ -137,7 +139,8 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     if (!config) return;
     const thisRevision = revision;
     objects = resolveAccentNodes(config, flavor).filter(node => node.enabled).map(node => {
-      const item: AccentObject = { node, group: new THREE.Group(), resources: [], materials: [], ready: false };
+      const size = planeSize(node);
+      const item: AccentObject = { node, group: new THREE.Group(), resources: [], materials: [], imageSize: [size, size], ready: false };
       item.group.name = node.id; item.group.visible = false; root.add(item.group);
       if (node.assetUrl && /\.glb(?:\?|$)/i.test(node.assetUrl)) {
         loader.loadAsync(publicUrl(node.assetUrl)).then(gltf => {
@@ -223,10 +226,9 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
         center: [frame.camera.position.x, frame.camera.position.y, 0] as [number, number, number] };
       const samples = objects.map((item, index) => {
         const geometryRadius = item.node.assetUrl && /\.glb(?:\?|$)/i.test(item.node.assetUrl)
-          ? Math.sqrt(3) / 2 : Math.SQRT1_2 * planeSize(item.node);
-        const geometrySize = planeSize(item.node);
+          ? Math.sqrt(3) / 2 : Math.hypot(...item.imageSize) / 2;
         const geometryExtent: [number, number, number] = item.node.assetUrl && /\.glb(?:\?|$)/i.test(item.node.assetUrl)
-          ? [0.5, 0.5, 0.5] : accentImageExtent(item.node, geometrySize);
+          ? [0.5, 0.5, 0.5] : accentImageExtent(item.node, item.imageSize);
         const raw = sampleAccentNode(item.node, state, index, config!.motion);
         const sample = adaptAccentFrame(raw, item.node, envelope, viewport, geometryRadius, geometryExtent);
         return { raw, sample, geometryRadius, geometryExtent };

@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
-const { resolveFlavorScene, resolveDisplay3D, mediaUrl } = require('../../lib/catalog/resolve.ts');
+const { resolveFlavorScene, resolveDisplay3D, mediaUrl, nextFlavorPreviewSeed } = require('../../lib/catalog/resolve.ts');
 const { createSeedCatalog } = require('../../lib/catalog/seed.ts');
 const { DEFAULT_PRODUCT_ACCENT_SCENE } = require('../../lib/viewer/accent-config.ts');
 const { canAssets } = require('../../lib/product-assets.ts');
@@ -21,6 +21,25 @@ function fixture() {
   return data;
 }
 const decoration = scene => scene.nodes.filter(node => ['fruit', 'leaf', 'splash'].includes(node.kind));
+
+test('the preview change button always finds a different arrangement when two images are available', () => {
+  const data = fixture();
+  data.flavorAssets = data.flavorAssets.filter(item => item.role === 'fruit').slice(0, 2);
+  const model = data.models3d.find(item => item.packagingVariantId === 'can-330');
+  data.media.push(media('preview-label-image', 'label'));
+  data.labels.push({ ...entity('preview-label'), drinkTypeId: data.drinkTypes[0].id, flavorId: flavor.id, mediaId: 'preview-label-image', compatibilities: [{ packagingVariantId: 'can-330', layoutProfile: model.layoutProfile }] });
+  data.productVariants.push({ ...entity('preview-variant'), groupId: data.productGroups[0].id, packagingVariantId: 'can-330', flavorId: flavor.id, code: '', description: '', enabled: true });
+  const display = { ...entity('preview-display'), productVariantId: 'preview-variant', modelId: model.id, labelId: 'preview-label', enabled: true };
+  let seed = 0;
+  for (let index = 0; index < 12; index++) {
+    const next = nextFlavorPreviewSeed(data, flavor, seed, display.id);
+    assert.ok(next > seed);
+    assert.notDeepEqual(decoration(resolveDisplay3D(data, display, `preview-${seed}`).accentScene), decoration(resolveDisplay3D(data, display, `preview-${next}`).accentScene));
+    seed = next;
+  }
+  data.flavorAssets = [];
+  assert.equal(nextFlavorPreviewSeed(data, flavor, seed, display.id), seed + 1, 'An empty pool has a bounded fallback');
+});
 test('arbitrary fifth flavor works with deterministic seeded pools and no repeat while alternatives remain', () => {
   const data = fixture(), first = resolveFlavorScene(data, flavor, 'same-seed'), again = resolveFlavorScene(data, flavor, 'same-seed');
   assert.deepEqual(first, again);

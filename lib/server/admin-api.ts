@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import type { CatalogRecord, CollectionName } from '@/lib/catalog/contracts';
+import type { CatalogRecord, CollectionName, DisplayDraftSave } from '@/lib/catalog/contracts';
 import { getArchiveImpact } from '@/lib/catalog/service';
 import { LocalCatalogRepository } from './local-repository';
 import { processUpload, getMediaPath } from './media/upload';
@@ -67,6 +67,16 @@ export function createAdminHandler(repository:LocalCatalogRepository,options:{al
         return respond(json(saved));
       }
       if (path === '/api/admin/v1/archive' && request.method === 'POST') { const body=await request.json(); await repository.archiveRecord(collection(body.collection),String(body.id),Number(body.expectedRevision),user.email); return respond(json(null)); }
+      if (path === '/api/admin/v1/display' && request.method === 'POST') {
+        const body = await request.json();
+        if (!body || (body.mode !== '3d' && body.mode !== '2d') || !body.variant || !body.display || (body.slot !== null && typeof body.slot !== 'object')) return respond(fail('Cấu hình hiển thị không hợp lệ.', 422));
+        return respond(json(await repository.saveDisplayDraft(body as DisplayDraftSave, user.email)));
+      }
+      if (path === '/api/admin/v1/delete' && request.method === 'POST') {
+        const body = await request.json();
+        if (typeof body.id !== 'string' || !body.id || !Number.isInteger(body.expectedRevision) || body.expectedRevision < 1 || typeof body.expectedDraftHash !== 'string' || !/^[a-f0-9]{64}$/.test(body.expectedDraftHash)) return respond(fail('Thông tin xác nhận xóa không hợp lệ. Tải lại dữ liệu trước khi xóa.', 422));
+        return respond(json(await repository.deleteRecord(collection(body.collection), body.id, body.expectedRevision, body.expectedDraftHash, user.email)));
+      }
       if (path === '/api/admin/v1/reorder' && request.method === 'POST') {
         const body=await request.json(); if (!['up','down'].includes(body.direction)) return respond(fail('Hướng thay đổi thứ tự không hợp lệ.',422));
         return respond(json(await repository.reorder(collection(body.collection),String(body.id),body.direction,body.expectedRevisions||{},user.email)));
@@ -89,6 +99,13 @@ export function createAdminHandler(repository:LocalCatalogRepository,options:{al
       if (path === '/api/admin/v1/rollback' && request.method === 'POST') {
         if (user.role !== 'owner') return respond(fail('Chỉ chủ quản trị được khôi phục phiên bản.',403,'FORBIDDEN'));
         const body=await request.json(); await repository.rollback(String(body.releaseId),user.email,body.expectedReleaseId??null); return respond(json(null));
+      }
+      if (path === '/api/admin/v1/releases/delete' && request.method === 'POST') {
+        if (user.role !== 'owner') return respond(fail('Chỉ chủ quản trị được xóa bản phát hành.',403,'FORBIDDEN'));
+        const body = await request.json();
+        if (!body || typeof body.releaseId !== 'string' || !body.releaseId.trim() || (body.expectedReleaseId !== null && (typeof body.expectedReleaseId !== 'string' || !body.expectedReleaseId.trim()))) return respond(fail('Thông tin xác nhận xóa bản phát hành không hợp lệ. Tải lại lịch sử trước khi xóa.',422));
+        await repository.deleteRelease(body.releaseId, user.email, body.expectedReleaseId);
+        return respond(json(null));
       }
       return respond(fail('Không tìm thấy API.',404,'NOT_FOUND'));
     } catch(error) {

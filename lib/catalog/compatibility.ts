@@ -30,7 +30,7 @@ export function checkDisplay3DCompatibility(data: CatalogData, display: Display3
     if (variant && model.packagingVariantId !== variant.packagingVariantId) add('modelId', 'packaging_mismatch', 'Model không đúng quy cách bao bì của sản phẩm.');
     if (!model.materialSlots.label?.length) add('modelId', 'label_slot_missing', 'Model chưa khai báo material slot cho nhãn.');
     issues.push(...mediaIssues(data, model.mediaId, ['model'], 'displays3d', display.id, 'modelId'));
-    issues.push(...mediaIssues(data, model.posterId, ['poster'], 'displays3d', display.id, 'modelId'));
+    issues.push(...mediaIssues(data, model.posterId, ['poster'], 'displays3d', display.id, 'modelId.posterId').map(issue => ({ ...issue, message: model.posterId ? `Ảnh poster của model “${model.name}”: ${issue.message}` : `Model “${model.name}” chưa có ảnh poster. Chọn hoặc tải ảnh trong 3D Packaging.` })));
   }
   if (label) {
     if (label.lifecycle !== 'active') add('labelId', 'dependency_archived', 'Nhãn đã được lưu trữ.');

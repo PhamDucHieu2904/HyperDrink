@@ -7,6 +7,7 @@ import { BackgroundRenderState } from '@/lib/background-render-state';
 import { backgroundConfig, normalizeBackgroundConfig } from '@/lib/background-config';
 import type { CatalogData } from '@/lib/catalog/contracts';
 import { catalogProducts, resolveStorefrontSelection, type StorefrontSelectionRequest } from '@/lib/catalog/storefront';
+import { resolveFlavorFruitImage } from '@/lib/catalog/resolve';
 import { useLanguage } from './LanguageProvider';
 import CatalogImage from './catalog-hero/CatalogImage';
 import FlavorCarousel from './catalog-hero/FlavorCarousel';
@@ -56,7 +57,7 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
   const mode = slot?.mode === '2d' || !product?.display3d || failedVisual === renderKey ? '2D' : '3D';
   const carouselItems = variants.map(item => {
     const itemFlavor = catalog.flavors.find(flavor => flavor.id === item.flavorId)!;
-    return { variantId: item.id, flavor: itemFlavor, thumbnail: products.find(product => product.variant.id === item.id && product.slot.id === slot?.id)?.thumbnail };
+    return { variantId: item.id, flavor: itemFlavor, fruitImage: resolveFlavorFruitImage(catalog, itemFlavor.id) };
   });
   const explore = () => { if (onExplore) onExplore(); else setDetail('collection'); };
 
@@ -122,7 +123,7 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
     </div>
     <div ref={productRef} className="showcase-product"><ProductVisual catalog={catalog} releaseId={releaseId} seed={sessionSeed} slot={slot} variant={variant} display3d={product?.display3d} display2d={product?.display2d} image2d={product?.image2d} model={product?.model} backgroundState={backgroundState} backgroundConfig={backgroundSettings} onViewerUnavailable={() => setFailedVisual(renderKey)} /></div>
     {productPicker}
-    <FlavorCarousel items={carouselItems} selectedId={variant.id} onSelect={onSelectVariant} onShowAll={() => setDetail('collection')} />
+    <FlavorCarousel items={carouselItems} selectedId={variant.id} onSelect={onSelectVariant} />
     <div className="showcase-details">
       <div className="notes-stack">
         <button type="button" className="notes-card glass-surface" style={glassStyle} onClick={() => setDetail('flavor')}>
@@ -151,7 +152,7 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
       <h2><bdi>{detail === 'flavor' ? flavor.name : group.name}</bdi></h2>
       {(detail === 'flavor' ? flavor.description : group.description) && <p>{detail === 'flavor' ? flavor.description : group.description}</p>}
       <p className="catalog-detail-facts"><bdi>{drink?.name}</bdi><span aria-hidden="true"> · </span><bdi>{packaging.name}</bdi></p>
-      <div className="catalog-dialog-flavors" role="group" aria-label={t('hero.chooseFlavor')}>{carouselItems.map(item => <button type="button" key={item.variantId} aria-pressed={item.variantId === variant.id} onClick={() => onSelectVariant(item.variantId)}><CatalogImage media={item.thumbnail} size={48} /><span><strong><bdi>{item.flavor.shortName || item.flavor.name}</bdi></strong>{item.flavor.description && <span>{item.flavor.description}</span>}</span></button>)}</div>
+      <div className="catalog-dialog-flavors" role="group" aria-label={t('hero.chooseFlavor')}>{carouselItems.map(item => <button type="button" key={item.variantId} aria-pressed={item.variantId === variant.id} onClick={() => onSelectVariant(item.variantId)}><CatalogImage media={item.fruitImage} size={48} /><span><strong><bdi>{item.flavor.shortName || item.flavor.name}</bdi></strong>{item.flavor.description && <span>{item.flavor.description}</span>}</span></button>)}</div>
       <button type="button" autoFocus className="btn btn-primary" onClick={() => setDetail(null)}>{t('common.close')}</button>
     </dialog>
   </section>;

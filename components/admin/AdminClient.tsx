@@ -5,7 +5,7 @@ import { ArrowRight, Leaf, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-r
 import AdminApp from './AdminApp';
 import DisplayWorkspace from './display/DisplayWorkspace';
 import PublishingWorkspace from './publishing/PublishingWorkspace';
-import type { AdminSession, CatalogData, CatalogRecord, CatalogRelease, CollectionName, MediaAsset, MediaRole, ValidationIssue } from '@/lib/catalog/contracts';
+import type { AdminSession, CatalogData, CatalogRecord, CatalogRelease, CollectionName, DisplayDraftResult, DisplayDraftSave, MediaAsset, MediaRole, ValidationIssue } from '@/lib/catalog/contracts';
 import { publicUrl } from '@/lib/public-url';
 import styles from './client.module.css';
 
@@ -54,10 +54,25 @@ export default function AdminClient() {
     const form=new FormData();form.set('file',file);form.set('role',role);const saved=await request<MediaAsset>('upload',undefined,form);
     setWorkspace(current=>current?{...current,catalog:{...current.catalog,media:[...current.catalog.media,saved]}}:current);return saved;
   }
+  async function saveDisplay(input: DisplayDraftSave) {
+    const result = await request<DisplayDraftResult>('display', input);
+    setWorkspace(current=>current?{...current,catalog:result.catalog}:current);
+    return result;
+  }
 
-  if (workspace && bootstrap?.session) return <AdminApp initialData={workspace.catalog} session={workspace.session} backendReady onSave={save} onUpload={upload} onArchive={async(collection,id,expectedRevision)=>{await request('archive',{collection,id,expectedRevision});await refresh();}} onReorder={async(collection,id,direction,expectedRevisions)=>{const catalog=await request<CatalogData>('reorder',{collection,id,direction,expectedRevisions});setWorkspace({...workspace,catalog});return catalog;}} onRefresh={refresh} onSignOut={async()=>{await request('logout',{});setWorkspace(null);setBootstrap({...bootstrap,session:null});}} renderWorkspace={(module,catalog,helpers)=>{
-    if(module==='displays3d'||module==='displays2d') return <DisplayWorkspace catalog={catalog} mode={module==='displays3d'?'3d':'2d'} onSave={helpers.onSave} onUpload={helpers.onUpload!} onRefresh={refresh} />;
-    if(module==='publishing') return <PublishingWorkspace catalog={catalog} releases={workspace.releases} activeReleaseId={workspace.activeReleaseId} canPublish={workspace.session.role==='owner'} onPreflight={()=>request<ValidationIssue[]>('preflight')} onPublish={async(note)=>{const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(catalog)));const expectedDraftHash=Array.from(new Uint8Array(bytes)).map(value=>value.toString(16).padStart(2,'0')).join('');await request('publish',{note,expectedReleaseId:workspace.activeReleaseId,expectedDraftHash},undefined,crypto.randomUUID());await refresh();}} onRollback={async(releaseId)=>{await request('rollback',{releaseId,expectedReleaseId:workspace.activeReleaseId});await refresh();}} onRefresh={refresh}/>;
+  if (workspace && bootstrap?.session) return <AdminApp initialData={workspace.catalog} session={workspace.session} backendReady onSave={save} onSaveDisplay={saveDisplay} onUpload={upload} onArchive={async(collection,id,expectedRevision)=>{await request('archive',{collection,id,expectedRevision});await refresh();}} onReorder={async(collection,id,direction,expectedRevisions)=>{const catalog=await request<CatalogData>('reorder',{collection,id,direction,expectedRevisions});setWorkspace({...workspace,catalog});return catalog;}} onRefresh={refresh} onSignOut={async()=>{await request('logout',{});setWorkspace(null);setBootstrap({...bootstrap,session:null});}} renderWorkspace={(module,catalog,helpers)=>{
+    if(module==='displays3d'||module==='displays2d') return <DisplayWorkspace catalog={catalog} mode={module==='displays3d'?'3d':'2d'} onSave={helpers.onSave} onSaveDisplay={helpers.onSaveDisplay} onUpload={helpers.onUpload!} onRefresh={refresh} />;
+    if(module==='publishing') return <PublishingWorkspace catalog={catalog} releases={workspace.releases} activeReleaseId={workspace.activeReleaseId} canPublish={workspace.session.role==='owner'} onOpenIssue={helpers.onOpenIssue} onDeleteRecord={async(collection,id,expectedRevision,expectedDraftHash)=>{
+      try {
+        const result = await request<{catalog:CatalogData;issues:ValidationIssue[]}>('delete',{collection,id,expectedRevision,expectedDraftHash});
+        setWorkspace(current=>current?{...current,catalog:result.catalog}:current);
+        return result;
+      } catch (cause) { await refresh(); throw cause; }
+    }} onDeleteRelease={async(releaseId,expectedReleaseId)=>{
+      try { await request('releases/delete',{releaseId,expectedReleaseId}); }
+      catch (cause) { await refresh().catch(()=>{}); throw cause; }
+      await refresh();
+    }} onPreflight={()=>request<ValidationIssue[]>('preflight')} onPublish={async(note)=>{const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(catalog)));const expectedDraftHash=Array.from(new Uint8Array(bytes)).map(value=>value.toString(16).padStart(2,'0')).join('');await request('publish',{note,expectedReleaseId:workspace.activeReleaseId,expectedDraftHash},undefined,crypto.randomUUID());await refresh();}} onRollback={async(releaseId)=>{await request('rollback',{releaseId,expectedReleaseId:workspace.activeReleaseId});await refresh();}} onRefresh={refresh}/>;
     return null;
   }}/>;
 

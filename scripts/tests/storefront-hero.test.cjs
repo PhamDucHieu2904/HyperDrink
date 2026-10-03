@@ -86,6 +86,47 @@ function render(catalog, selection = { groupId: 'juice-line', slotId: 'can-slot'
 }
 const productFigure = html => html.match(/<figure class="catalog-product-image"[^>]*>[\s\S]*?<\/figure>/)?.[0] || '';
 
+test('flavor buttons use their own fruit pool images and omit All flavors without replacing product artwork', () => {
+  const data = fixture();
+  const { html } = render(data);
+  const dock = html.slice(html.indexOf('class="flavor-dock'), html.indexOf('class="showcase-details"'));
+  for (let index = 0; index < data.flavors.length; index++) {
+    assert.ok(dock.includes(`/api/public/v1/media/uploaded-fruit-${index}`));
+    assert.ok(!dock.includes(`uploaded-thumbnail-${index}`));
+    assert.ok(!dock.includes(`uploaded-label-${index}`));
+  }
+  assert.doesNotMatch(dock, /All flavors|lucide-layout-grid/);
+  assert.match(html, /class="flavor-portrait"[^>]*[\s\S]*?uploaded-thumbnail-4/);
+});
+
+test('flavor icons choose the first usable own-fruit assignment stably and never fall back to label thumbnails', () => {
+  const { resolveFlavorFruitImage } = require('../../lib/catalog/resolve.ts');
+  const data = fixture();
+  const flavor = data.flavors[0];
+  const assignment = (id, mediaId, overrides = {}) => ({ ...entity(id), flavorId: flavor.id, role: 'fruit', mediaId, position: -1, enabled: true, ...overrides });
+  data.media.push(media('backup-fruit', 'fruit'), media('disabled-fruit', 'fruit'), media('archived-fruit', 'fruit'), media('pending-fruit', 'fruit'));
+  data.media.find(item => item.id === 'archived-fruit').lifecycle = 'archived';
+  data.media.find(item => item.id === 'pending-fruit').status = 'processing';
+  data.flavorAssets.push(
+    assignment('a-label', 'uploaded-label-0'), assignment('b-disabled', 'disabled-fruit', { enabled: false }),
+    assignment('c-archived', 'archived-fruit'), assignment('d-pending', 'pending-fruit'),
+    assignment('e-foreign', 'backup-fruit', { flavorId: data.flavors[1].id }),
+    assignment('f-backup', 'backup-fruit', { position: 1 }),
+  );
+  assert.equal(resolveFlavorFruitImage(data, flavor.id).id, 'uploaded-fruit-0');
+  data.flavorAssets.reverse();
+  assert.equal(resolveFlavorFruitImage(data, flavor.id).id, 'uploaded-fruit-0');
+  data.media.find(item => item.id === 'uploaded-fruit-0').status = 'failed';
+  assert.equal(resolveFlavorFruitImage(data, flavor.id).id, 'backup-fruit');
+  data.flavorAssets.find(item => item.id === 'f-backup').lifecycle = 'archived';
+  assert.equal(resolveFlavorFruitImage(data, flavor.id), undefined);
+  const { html } = render(data);
+  const button = html.match(/<button[^>]*data-variant-id="can-product-0"[\s\S]*?<\/button>/)?.[0];
+  assert.match(button, /Lychee/);
+  assert.match(button, /catalog-image-placeholder/);
+  assert.doesNotMatch(button, /<img|uploaded-label|uploaded-thumbnail/);
+});
+
 test('production hero renders more than four admin flavors with the valid default, exact colors and ordered product line controls', () => {
   const data = fixture();
   const { html, text, viewers } = render(data);

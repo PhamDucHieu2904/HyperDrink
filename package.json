@@ -6,7 +6,7 @@
     "dev": "next dev",
     "dev:admin": "node scripts/dev-admin.cjs",
     "admin:api": "node scripts/admin-server.cjs",
-    "test:admin": "node scripts/tests/admin-domain.test.cjs && node scripts/tests/admin-media.test.cjs && node scripts/tests/admin-api.test.cjs && node scripts/tests/admin-resolver.test.cjs",
+    "test:admin": "node scripts/tests/admin-domain.test.cjs && node scripts/tests/admin-media.test.cjs && node scripts/tests/admin-api.test.cjs && node scripts/tests/admin-resolver.test.cjs && node scripts/tests/admin-layout-profiles.test.cjs && node scripts/tests/admin-issue-remedies.test.cjs",
     "catalog:export": "node scripts/export-public-catalog.cjs",
     "test:catalog": "node scripts/tests/storefront-catalog.test.cjs && node scripts/tests/static-catalog.test.cjs && node scripts/tests/storefront-hero.test.cjs",
     "test:carousel": "node scripts/tests/flavor-carousel.test.cjs",

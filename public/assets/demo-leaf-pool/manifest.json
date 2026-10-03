@@ -1,0 +1,204 @@
+{
+  "generatedWith": "built-in image_gen",
+  "createdAt": "2026-10-03",
+  "assets": [
+    {
+      "key": "broad",
+      "variant": 1,
+      "filename": "broad-1-v1.webp",
+      "width": 640,
+      "height": 533,
+      "bytes": 56074,
+      "sha256": "9bf3f0e4e865f794a6f62306a943b9f2acd15db435c8a39794efe8c1ef58a222",
+      "transparentFraction": 0.57,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh tropical fruit-tree leaf, broad oval deep green blade with clear organic veins and a smooth edge, like a guava or avocado leaf. Composition: One single mature leaf seen face-on, gently cupped, short natural stem. The blade is diagonally rising toward the upper right. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "broad",
+      "variant": 2,
+      "filename": "broad-2-v1.webp",
+      "width": 640,
+      "height": 585,
+      "bytes": 60476,
+      "sha256": "150b29b7a960565784d6e9d837b470c75148827b25c9e00f79188c1dd0aa9a35",
+      "transparentFraction": 0.598,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh tropical fruit-tree leaf, broad oval deep green blade with clear organic veins and a smooth edge, like a guava or avocado leaf. Composition: One single asymmetrical leaf in three-quarter view, slightly curled tip, showing a narrow pale underside along one edge. Blade rising upper left. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "broad",
+      "variant": 3,
+      "filename": "broad-3-v1.webp",
+      "width": 640,
+      "height": 427,
+      "bytes": 40144,
+      "sha256": "725d4c4b1d5b259b49087166eb78f87c258f0ab95780187e1934d911aea9cc9c",
+      "transparentFraction": 0.691,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh tropical fruit-tree leaf, broad oval deep green blade with clear organic veins and a smooth edge, like a guava or avocado leaf. Composition: One single younger slender leaf, gently bent into an S curve with convincing perspective, the pointed tip toward the right. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "broad",
+      "variant": 4,
+      "filename": "broad-4-v1.webp",
+      "width": 427,
+      "height": 640,
+      "bytes": 55316,
+      "sha256": "e0a9599a39181188f1b934a96368eebd6c88b1b7daaf5d55e5bb2ef100799028",
+      "transparentFraction": 0.516,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh tropical fruit-tree leaf, broad oval deep green blade with clear organic veins and a smooth edge, like a guava or avocado leaf. Composition: One single mature leaf seen from a lower angle, visible sculpted central rib and tilted blade, slight folded edge, pointed tip upward. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "broad",
+      "variant": 5,
+      "filename": "broad-5-v1.webp",
+      "width": 640,
+      "height": 427,
+      "bytes": 44142,
+      "sha256": "852b6197e360a8a193ab27e9c02e0c1e9ff8939f4fdd7e64f06ee0b9b5c5bd02",
+      "transparentFraction": 0.676,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh tropical fruit-tree leaf, broad oval deep green blade with clear organic veins and a smooth edge, like a guava or avocado leaf. Composition: One small natural sprig with exactly two leaves attached to a very short stem, one large and one half as large, both completely visible, no extra foliage. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "broad",
+      "variant": 6,
+      "filename": "broad-6-v1.webp",
+      "width": 640,
+      "height": 427,
+      "bytes": 44550,
+      "sha256": "aea2ebb2da9cfb60edae699b436e9f1cf26f25f0f4a95dee00af453a59a33ac3",
+      "transparentFraction": 0.626,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh tropical fruit-tree leaf, broad oval deep green blade with clear organic veins and a smooth edge, like a guava or avocado leaf. Composition: One single leaf with a drooping gently twisted tip, partly showing its lighter underside and naturally uneven contours, diagonal downward right. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "citrus",
+      "variant": 1,
+      "filename": "citrus-1-v1.webp",
+      "width": 640,
+      "height": 427,
+      "bytes": 46770,
+      "sha256": "a379a03d4588e1db97dfa16572342185ed79301383c99c519d5f279ce339800a",
+      "transparentFraction": 0.644,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh citrus leaf, glossy dark emerald green with a pointed oval shape, smooth slightly wavy edge and a delicate central vein. Composition: One single mature leaf seen face-on, gently cupped, short natural stem. The blade is diagonally rising toward the upper right. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "citrus",
+      "variant": 2,
+      "filename": "citrus-2-v1.webp",
+      "width": 640,
+      "height": 585,
+      "bytes": 51986,
+      "sha256": "6ac59d5d925ebdaf87d9cd1e1909fd6a925615af4cd0d6d4e9fab30b66ff6bbc",
+      "transparentFraction": 0.698,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh citrus leaf, glossy dark emerald green with a pointed oval shape, smooth slightly wavy edge and a delicate central vein. Composition: One single asymmetrical leaf in three-quarter view, slightly curled tip, showing a narrow pale underside along one edge. Blade rising upper left. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "citrus",
+      "variant": 3,
+      "filename": "citrus-3-v1.webp",
+      "width": 640,
+      "height": 427,
+      "bytes": 36750,
+      "sha256": "014ef780bd575f4bb7b74638870f0c51f97d76b61581ae0d479be911960a0ffd",
+      "transparentFraction": 0.757,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh citrus leaf, glossy dark emerald green with a pointed oval shape, smooth slightly wavy edge and a delicate central vein. Composition: One single younger slender leaf, gently bent into an S curve with convincing perspective, the pointed tip toward the right. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "citrus",
+      "variant": 4,
+      "filename": "citrus-4-v1.webp",
+      "width": 585,
+      "height": 640,
+      "bytes": 63098,
+      "sha256": "bfd489d7c42e2ab0fe3cb5fa0b3a72ddaa96ae592b0e5af4ef72cc59abd4feb5",
+      "transparentFraction": 0.63,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh citrus leaf, glossy dark emerald green with a pointed oval shape, smooth slightly wavy edge and a delicate central vein. Composition: One single mature leaf seen from a lower angle, visible sculpted central rib and tilted blade, slight folded edge, pointed tip upward. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "citrus",
+      "variant": 5,
+      "filename": "citrus-5-v1.webp",
+      "width": 640,
+      "height": 427,
+      "bytes": 35524,
+      "sha256": "cf1c3a4e16ad2b53901d0917daf6cb43504996d7ba414824cdabba2fab1334ab",
+      "transparentFraction": 0.765,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh citrus leaf, glossy dark emerald green with a pointed oval shape, smooth slightly wavy edge and a delicate central vein. Composition: One small natural sprig with exactly two leaves attached to a very short stem, one large and one half as large, both completely visible, no extra foliage. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "citrus",
+      "variant": 6,
+      "filename": "citrus-6-v1.webp",
+      "width": 640,
+      "height": 585,
+      "bytes": 56276,
+      "sha256": "25ab74ffad99bc858ba82d16c17f9bb3e6da4c087c8890dbaa56ffd71dd896ff",
+      "transparentFraction": 0.686,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh citrus leaf, glossy dark emerald green with a pointed oval shape, smooth slightly wavy edge and a delicate central vein. Composition: One single leaf with a drooping gently twisted tip, partly showing its lighter underside and naturally uneven contours, diagonal downward right. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "mint",
+      "variant": 1,
+      "filename": "mint-1-v1.webp",
+      "width": 640,
+      "height": 585,
+      "bytes": 89920,
+      "sha256": "cfe127347c31ce4455d68b4cf8c995eac6d9165a84250c6cf3558f92b56e4e11",
+      "transparentFraction": 0.547,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh mint leaf, bright natural forest green with softly serrated edges, textured veining and subtle tiny hairs. Composition: One single mature leaf seen face-on, gently cupped, short natural stem. The blade is diagonally rising toward the upper right. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "mint",
+      "variant": 2,
+      "filename": "mint-2-v1.webp",
+      "width": 640,
+      "height": 585,
+      "bytes": 77090,
+      "sha256": "80daa61e2561786869968ef7a785d733024e8c7ccab198dd72e8002c8bbd088a",
+      "transparentFraction": 0.617,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh mint leaf, bright natural forest green with softly serrated edges, textured veining and subtle tiny hairs. Composition: One single asymmetrical leaf in three-quarter view, slightly curled tip, showing a narrow pale underside along one edge. Blade rising upper left. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "mint",
+      "variant": 3,
+      "filename": "mint-3-v1.webp",
+      "width": 640,
+      "height": 427,
+      "bytes": 52562,
+      "sha256": "ebb0d73cc11ac0b5833a9b1cf7a52f708b4b3c30fc5c1fef1d76117048051fea",
+      "transparentFraction": 0.683,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh mint leaf, bright natural forest green with softly serrated edges, textured veining and subtle tiny hairs. Composition: One single younger slender leaf, gently bent into an S curve with convincing perspective, the pointed tip toward the right. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "mint",
+      "variant": 4,
+      "filename": "mint-4-v1.webp",
+      "width": 427,
+      "height": 640,
+      "bytes": 63394,
+      "sha256": "d151afc6615d283185a8a05b570398f80204b726c2ae606f8a80ff8e06b16f03",
+      "transparentFraction": 0.555,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh mint leaf, bright natural forest green with softly serrated edges, textured veining and subtle tiny hairs. Composition: One single mature leaf seen from a lower angle, visible sculpted central rib and tilted blade, slight folded edge, pointed tip upward. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "mint",
+      "variant": 5,
+      "filename": "mint-5-v1.webp",
+      "width": 640,
+      "height": 427,
+      "bytes": 45112,
+      "sha256": "39b8781f353a5a0daf785f1d185ad44d6452f82c4b8c514e0fa53e423fd0c0f7",
+      "transparentFraction": 0.729,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh mint leaf, bright natural forest green with softly serrated edges, textured veining and subtle tiny hairs. Composition: One small natural sprig with exactly two leaves attached to a very short stem, one large and one half as large, both completely visible, no extra foliage. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    },
+    {
+      "key": "mint",
+      "variant": 6,
+      "filename": "mint-6-v1.webp",
+      "width": 640,
+      "height": 533,
+      "bytes": 65404,
+      "sha256": "17b70900e677f3b152f27c7f911efd5e7a1fb270ddc1d9310041c8456f978d46",
+      "transparentFraction": 0.643,
+      "prompt": "Use case: ads-marketing. Asset type: individual transparent leaf cutout for decorative greenery around a beverage can in a 3D website scene. Subject: fresh mint leaf, bright natural forest green with softly serrated edges, textured veining and subtle tiny hairs. Composition: One single leaf with a drooping gently twisted tip, partly showing its lighter underside and naturally uneven contours, diagonal downward right. Centered, entirely inside the image with roughly 12% transparent margin. Materials: real fresh leaf, fine realistic veins, varied organic greens, clean moist freshness, not plastic, no large water droplets. Style: premium photorealistic macro product photography. Lighting: broad soft daylight from upper left, gentle translucent edge illumination, readable volume, modest soft highlights, no harsh black shadows, no neon tint. Background: genuinely transparent alpha, no ground, no background shadow, no checkerboard. Only the leaf or specified two-leaf sprig; no fruit, pot, flowers, text, watermark, extra objects. Do not make an icon or illustration."
+    }
+  ]
+}

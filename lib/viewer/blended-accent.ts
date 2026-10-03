@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { publicUrl } from '../public-url';
 
-/** Project a unit Three plane into a CSS image without dropping perspective.
+/** Project a Three image plane into a CSS image without dropping perspective.
  * CSS pixels point downward; the image's UV origin is the plane's upper-left.
  * Output Z is zero so browser compositing order is controlled by CSS layers. */
-export function projectAccentImage(world: THREE.Matrix4, camera: THREE.Camera, width: number, height: number, pixels = 768, zoom = 1): THREE.Matrix4 {
+export function projectAccentImage(world: THREE.Matrix4, camera: THREE.Camera, width: number, height: number, pixels = 768, zoom = 1, imageSize: [number, number] = [1, 1]): THREE.Matrix4 {
   const local = new THREE.Matrix4().set(
-    zoom / pixels, 0, 0, -0.5 * zoom,
-    0, -zoom / pixels, 0, 0.5 * zoom,
+    zoom / pixels, 0, 0, -0.5 * imageSize[0] * zoom,
+    0, -zoom / pixels, 0, 0.5 * imageSize[1] * zoom,
     0, 0, 1, 0,
     0, 0, 0, 1,
   );
@@ -53,13 +53,13 @@ export function createBlendedAccentHost(mount: HTMLDivElement) {
   measure();
   const targets = new Set<{ dispose(): void }>();
   return {
-    add(src: string, ready: () => void) {
+    add(src: string, ready: () => void, imageSize: [number, number] = [1, 1]) {
       const image = document.createElement('img');
       image.alt = ''; image.draggable = false;
       image.setAttribute('aria-hidden', 'true');
       image.dataset.accentBlend = 'hard-light';
       Object.assign(image.style, {
-        position: 'absolute', left: '0', top: '0', width: '768px', height: '768px', maxWidth: 'none',
+        position: 'absolute', left: '0', top: '0', width: `${768 * imageSize[0]}px`, height: `${768 * imageSize[1]}px`, maxWidth: 'none',
         transformOrigin: '0 0', mixBlendMode: 'hard-light', zIndex: '1', pointerEvents: 'none', display: 'none',
       });
       let removed = false, loaded = false;
@@ -68,7 +68,7 @@ export function createBlendedAccentHost(mount: HTMLDivElement) {
           if (removed) return;
           image.style.display = visible && loaded ? 'block' : 'none';
           image.style.opacity = String(opacity);
-          if (visible) image.style.transform = `matrix3d(${projectAccentImage(world, camera, width, height, 768, zoom).elements.join(',')})`;
+          if (visible) image.style.transform = `matrix3d(${projectAccentImage(world, camera, width, height, 768, zoom, imageSize).elements.join(',')})`;
         },
         dispose() {
           if (removed) return;

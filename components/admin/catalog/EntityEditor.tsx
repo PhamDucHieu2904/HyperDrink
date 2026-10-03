@@ -7,6 +7,7 @@ import MediaPicker from '@/components/admin/ui/MediaPicker';
 import ModelPreview from './ModelPreview';
 import { definitions, slugify, type CatalogField } from './definitions';
 import { validateRecord } from '@/lib/catalog/validation';
+import { completeLabelLayouts, defaultLayoutProfile, packagingLayoutChoices } from '@/lib/catalog/layout-profiles';
 import styles from '@/app/admin/admin.module.css';
 
 export interface EntityEditorProps {
@@ -18,14 +19,15 @@ export interface EntityEditorProps {
   onClose: () => void;
   onSave: (collection: CollectionName, record: CatalogRecord, revision: number | null) => Promise<CatalogRecord>;
   onUpload?: (file: File, role: MediaRole) => Promise<MediaAsset>;
+  initialIssue?: { field: string; message: string };
 }
 
-export default function EntityEditor({ collection, record, isNew, data, disabled, onClose, onSave, onUpload }: EntityEditorProps) {
+export default function EntityEditor({ collection, record, isNew, data, disabled, onClose, onSave, onUpload, initialIssue }: EntityEditorProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Record<string, unknown>>(() => ({ ...record }));
   const [materialJson, setMaterialJson] = useState(() => JSON.stringify('materialSlots' in record ? record.materialSlots : {}, null, 2));
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>(() => initialIssue?.field ? { [initialIssue.field]: initialIssue.message } : {});
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [slugEdited, setSlugEdited] = useState(!isNew);
@@ -33,8 +35,15 @@ export default function EntityEditor({ collection, record, isNew, data, disabled
   useEffect(() => {
     const dialog = dialogRef.current;
     dialog?.showModal();
+    if (initialIssue?.field) {
+      const field = dialog?.querySelector<HTMLElement>(`[id="field-${initialIssue.field}"]`);
+      const section = field?.closest('details');
+      if (section) section.open = true;
+      field?.focus();
+      field?.scrollIntoView({ block: 'center' });
+    }
     return () => dialog?.close();
-  }, []);
+  }, [initialIssue]);
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
@@ -54,6 +63,7 @@ export default function EntityEditor({ collection, record, isNew, data, disabled
       if (key === 'name' && !slugEdited) next.slug = slugify(String(value));
       if (collection === 'packagingSlots' && (key === 'groupId' || key === 'packagingVariantId')) next.defaultVariantId = null;
       if (collection === 'flavorAssets' && key === 'role') next.mediaId = '';
+      if (collection === 'models3d' && key === 'packagingVariantId' && (isNew || !current.layoutProfile)) next.layoutProfile = defaultLayoutProfile(data, String(value));
       return next;
     });
     if (key === 'slug') setSlugEdited(true);
@@ -76,6 +86,7 @@ export default function EntityEditor({ collection, record, isNew, data, disabled
       if (field.key === 'position' && typeof value === 'number' && (!Number.isInteger(value) || value < 0)) issues[field.key] = 'Thứ tự phải là số nguyên từ 0 trở lên.';
     }
     if (collection === 'models3d') {
+      candidate.layoutProfile ||= defaultLayoutProfile(data, String(candidate.packagingVariantId));
       try {
         const parsed = JSON.parse(materialJson) as unknown;
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || Object.values(parsed).some(value => !Array.isArray(value) || value.some(item => typeof item !== 'string'))) issues.materialSlots = 'JSON phải là object có mỗi slot chứa một mảng tên material/mesh.';
@@ -83,8 +94,9 @@ export default function EntityEditor({ collection, record, isNew, data, disabled
       } catch { issues.materialSlots = 'JSON chưa hợp lệ. Kiểm tra dấu ngoặc và dấu phẩy.'; }
     }
     if (collection === 'labels') {
-      const compatible = candidate.compatibilities as Label['compatibilities'];
-      if (compatible.some(item => !item.packagingVariantId || !item.layoutProfile.trim())) issues.compatibilities = 'Mỗi bao bì cần được chọn và có layout profile.';
+      const compatible = completeLabelLayouts(data, candidate.compatibilities as Label['compatibilities']);
+      candidate.compatibilities = compatible;
+      if (compatible.some(item => !item.packagingVariantId || !item.layoutProfile.trim())) issues.compatibilities = 'Chọn bao bì và kiểu nhãn tương thích. Nếu có nhiều kiểu, chọn model dùng nhãn này.';
       if (new Set(compatible.map(item => `${item.packagingVariantId}:${item.layoutProfile}`)).size !== compatible.length) issues.compatibilities = 'Có quy cách/profile tương thích bị lặp.';
     }
     for (const issue of validateRecord(collection, candidate)) {
@@ -131,15 +143,19 @@ export default function EntityEditor({ collection, record, isNew, data, disabled
     else if (field.kind === 'json') control = <textarea {...common} className={styles.codeInput} rows={7} spellCheck={false} value={materialJson} onChange={event => { setMaterialJson(event.target.value); setErrors(current => { const next = { ...current }; delete next.materialSlots; return next; }); setDirty(true); }} />;
     else if (field.kind === 'orientation') control = <div className={styles.vectorField}>{['X', 'Y', 'Z'].map((axis, index) => <label key={axis}>{axis}<input type="number" step="0.01" disabled={disabled || saving} value={(value as number[])[index]} onChange={event => { const next = [...value as number[]]; next[index] = Number(event.target.value); change(field.key, next); }} /></label>)}</div>;
     else if (field.kind === 'compatibilities') {
-      const rows = value as Label['compatibilities'];
-      control = <div className={styles.compatibilityList}>{rows.map((row, index) => <div className={styles.compatibilityRow} key={index}><select aria-label={`Bao bì tương thích ${index + 1}`} disabled={disabled || saving} value={row.packagingVariantId} onChange={event => change(field.key, rows.map((item, at) => at === index ? { ...item, packagingVariantId: event.target.value } : item))}><option value="">Chọn bao bì</option>{data.packagingVariants.filter(item => item.lifecycle === 'active').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><input disabled={disabled || saving} aria-label={`Layout profile ${index + 1}`} placeholder="can-wrap-v1" value={row.layoutProfile} onChange={event => change(field.key, rows.map((item, at) => at === index ? { ...item, layoutProfile: event.target.value } : item))} /><button type="button" className={styles.iconButton} disabled={disabled || saving} aria-label={`Bỏ tương thích ${index + 1}`} onClick={() => change(field.key, rows.filter((_, at) => at !== index))}><Trash2 size={17} /></button></div>)}<button type="button" className={styles.textButton} disabled={disabled || saving} onClick={() => change(field.key, [...rows, { packagingVariantId: '', layoutProfile: '' }])}><Plus size={16} /> Thêm bao bì tương thích</button></div>;
+      const rows = completeLabelLayouts(data, value as Label['compatibilities']);
+      control = <div className={styles.compatibilityList}>{rows.map((row, index) => {
+        const choices = packagingLayoutChoices(data, row.packagingVariantId);
+        if (row.layoutProfile && !choices.some(choice => choice.value === row.layoutProfile)) choices.push({ value: row.layoutProfile, label: 'Kiểu nhãn đã lưu' });
+        return <div className={styles.compatibilityRow} key={index}><select aria-label={`Bao bì tương thích ${index + 1}`} disabled={disabled || saving} value={row.packagingVariantId} onChange={event => change(field.key, rows.map((item, at) => at === index ? { packagingVariantId: event.target.value, layoutProfile: defaultLayoutProfile(data, event.target.value) } : item))}><option value="">Chọn bao bì</option>{data.packagingVariants.filter(item => item.lifecycle === 'active').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{choices.length > 1 ? <select aria-label={`Kiểu nhãn theo model ${index + 1}`} disabled={disabled || saving} value={row.layoutProfile} onChange={event => change(field.key, rows.map((item, at) => at === index ? { ...item, layoutProfile: event.target.value } : item))}><option value="">Chọn model dùng nhãn</option>{choices.map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select> : <span className={styles.help}>{row.packagingVariantId ? 'Tự khớp kiểu nhãn của bao bì' : 'Chọn bao bì để tự khớp'}</span>}<button type="button" className={styles.iconButton} disabled={disabled || saving} aria-label={`Bỏ tương thích ${index + 1}`} onClick={() => change(field.key, rows.filter((_, at) => at !== index))}><Trash2 size={17} /></button></div>;
+      })}<button type="button" className={styles.textButton} disabled={disabled || saving} onClick={() => change(field.key, [...rows, { packagingVariantId: '', layoutProfile: '' }])}><Plus size={16} /> Thêm bao bì tương thích</button></div>;
     } else control = <input {...common} type={field.kind === 'number' ? 'number' : 'text'} value={value === null ? '' : String(value ?? '')} min={field.key === 'volumeMl' ? 1 : field.kind === 'number' ? 0 : undefined} step={field.key === 'position' ? 1 : 'any'} onChange={event => change(field.key, field.kind === 'number' ? event.target.value === '' && field.nullable ? null : Number(event.target.value) : event.target.value)} />;
     const groupedField = ['media', 'compatibilities', 'orientation'].includes(field.kind);
-    return <div id={groupedField ? id : undefined} tabIndex={groupedField ? -1 : undefined} className={`${styles.field} ${['textarea', 'media', 'compatibilities', 'json'].includes(field.kind) ? styles.fieldWide : ''}`} key={field.key}><label htmlFor={groupedField ? undefined : id}>{field.label}{field.required && <span aria-hidden="true"> *</span>}</label>{control}{field.help && <p className={styles.help} id={`help-${field.key}`}>{field.help}</p>}{errorText(field.key)}</div>;
+    return <div id={groupedField ? id : undefined} tabIndex={groupedField ? -1 : undefined} role={groupedField ? 'group' : undefined} aria-label={groupedField ? field.label : undefined} aria-describedby={groupedField && errors[field.key] ? `error-${field.key}` : undefined} className={`${styles.field} ${['textarea', 'media', 'compatibilities', 'json'].includes(field.kind) ? styles.fieldWide : ''}`} key={field.key}><label htmlFor={groupedField ? undefined : id}>{field.label}{field.required && <span aria-hidden="true"> *</span>}</label>{control}{field.help && <p className={styles.help} id={`help-${field.key}`}>{field.help}</p>}{errorText(field.key)}</div>;
   }
   return <dialog ref={dialogRef} className={styles.editorDialog} aria-labelledby="editor-title" onCancel={event => { event.preventDefault(); close(); }}>
     <form noValidate onSubmit={event => void save(event)}>
-      <div className={styles.dialogHeader}><div><p className={styles.eyebrow}>{isNew ? 'TẠO DỮ LIỆU MỚI' : `BẢN NHÁP · REVISION ${record.revision}`}</p><h2 id="editor-title">{isNew ? 'Thêm' : 'Chỉnh sửa'} {definition.singular}</h2></div><button type="button" className={styles.iconButton} aria-label="Đóng form" disabled={saving} onClick={close}><X size={21} /></button></div>
+      <div className={styles.dialogHeader}><div><p className={styles.eyebrow}>{isNew ? 'TẠO DỮ LIỆU MỚI' : `BẢN NHÁP · REVISION ${record.revision}`}</p><h2 id="editor-title">{isNew ? 'Thêm' : 'Chỉnh sửa'} {definition.singular}</h2>{initialIssue && <p className={styles.help}>{record.name}</p>}</div><button type="button" className={styles.iconButton} aria-label="Đóng form" disabled={saving} onClick={close}><X size={21} /></button></div>
       <div className={styles.editorBody}>
         <p className={styles.formIntro}>{definition.description} Trường có dấu * cần hoàn thiện trước khi phát hành; bạn có thể lưu nháp để bổ sung sau.</p>
         {disabled && <p className={styles.notice}>Kết nối backend chưa sẵn sàng. Form chỉ để xem cấu trúc; chưa thể lưu dữ liệu.</p>}

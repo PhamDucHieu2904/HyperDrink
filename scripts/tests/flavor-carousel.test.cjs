@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const { FlavorCarouselMotion, lastCarouselCrossing, flavorCarouselSettings } = require('../../lib/catalog/flavor-carousel-motion.ts');
 const { bindFlavorCarousel } = require('../../components/catalog-hero/flavor-carousel-controller.ts');
 
-const geometry = (count = 24) => ({ period: (count + 1) * 91, viewportWidth: 420, canMove: count > 1, centers: [...Array.from({ length: count }, (_, index) => ({ id: `flavor-${index}`, center: index * 91 + 32 })), { id: null, center: count * 91 + 32 }] });
+const geometry = (count = 24) => ({ period: count * 91, viewportWidth: 420, canMove: count > 1, centers: Array.from({ length: count }, (_, index) => ({ id: `flavor-${index}`, center: index * 91 + 32 })) });
 function motionFixture(count = 24) { const motion = new FlavorCarouselMotion('flavor-0'); motion.setGeometry(geometry(count), 0); return motion; }
 function moveFrames(motion, start, duration) { const selected = []; for (let at = start + 16; at <= start + duration; at += 16) { const id = motion.tick(at); if (id) selected.push(id); } return selected; }
 
@@ -120,10 +120,10 @@ function domFixture(context, count = 24) {
     hasPointerCapture: id => captures.has(id), setPointerCapture(id) { captures.add(id); const previous = implicitCaptures.get(id); if (previous) { implicitCaptures.delete(id); this.emit('lostpointercapture', { pointerId: id, target: previous }); } },
     releasePointerCapture(id) { captures.delete(id); this.emit('lostpointercapture', { pointerId: id }); }, };
   const track = { style: {} };
-  const period = (count + 1) * 91;
+  const period = count * 91;
   const translation = () => Number(track.style.transform?.match(/translate3d\(([-\d.]+)px/)?.[1] || 0);
   const firstSet = { getBoundingClientRect: () => ({ left: period + translation(), width: period - 27 }), contains: node => buttons.includes(node), querySelectorAll: () => buttons };
-  const buttons = Array.from({ length: count + 1 }, (_, index) => ({ owner: viewport, dataset: index < count ? { variantId: `flavor-${index}` } : {},
+  const buttons = Array.from({ length: count }, (_, index) => ({ owner: viewport, dataset: { variantId: `flavor-${index}` },
     getBoundingClientRect: () => ({ left: period + translation() + index * 91, width: 64 }), closest() { return this; }, matches() { return Boolean(this.focusVisible); },
     focus() { const previous = focus; focus = buttons[index]; documentTarget.activeElement = buttons[index]; buttons[index].focusVisible = true; if (previous) viewport.emit('focusout', { target: previous, relatedTarget: buttons[index] }); viewport.emit('focusin', { target: buttons[index], relatedTarget: previous }); } }));
   Object.assign(global, { window: windowTarget, document: documentTarget, performance: { now: () => time, timeOrigin: 1700000000000 }, matchMedia: () => reduced, getComputedStyle: () => ({ columnGap: '27px' }),
@@ -298,7 +298,7 @@ test('keyboard focus reveals the original 24th button, pauses transforms and arr
 });
 test('resize covers wide viewports with enough identical loops and disposal releases every frame, timer, capture and listener', context => {
   const f = domFixture(context, 2); f.viewport.clientWidth = 1400; f.resize();
-  assert.ok(f.copies.at(-1) >= Math.ceil(1400 / (3 * 91)) + 2);
+  assert.ok(f.copies.at(-1) >= Math.ceil(1400 / (2 * 91)) + 2);
   f.pointer('pointerdown', 0); f.setTime(50); f.pointer('pointermove', 100);
   assert.equal(f.captures.size, 1); f.controller.dispose();
   assert.equal(f.frames.size, 0); assert.equal(f.timers.size, 0); assert.equal(f.captures.size, 0);
@@ -328,14 +328,15 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const FlavorCarousel = require('../../components/catalog-hero/FlavorCarousel.tsx').default;
 const { LanguageProvider } = require('../../components/LanguageProvider.tsx');
 const items = count => Array.from({ length: count }, (_, index) => ({ variantId: `flavor-${index}`, flavor: { id: `flavor-${index}`, name: `Admin flavor ${index}`, shortName: `Flavor ${index}` } }));
-const render = count => renderToStaticMarkup(React.createElement(LanguageProvider, null, React.createElement(FlavorCarousel, { items: items(count), selectedId: `flavor-${count - 1}`, onSelect() {}, onShowAll() {} })));
+const render = count => renderToStaticMarkup(React.createElement(LanguageProvider, null, React.createElement(FlavorCarousel, { items: items(count), selectedId: `flavor-${count - 1}`, onSelect() {} })));
 
 test('production SSR keeps every original flavor keyboard reachable and cloned loops hidden with 24 dynamic items', () => {
   const html = render(24);
   assert.equal((html.match(/data-variant-id=/g) || []).length, 72);
-  assert.equal((html.match(/tabindex="-1"/g) || []).length, 50);
+  assert.equal((html.match(/tabindex="-1"/g) || []).length, 48);
+  assert.equal((html.match(/data-carousel-item=/g) || []).length, 72, 'Every carousel button belongs to a flavor');
   assert.equal((html.match(/aria-hidden="true"/g) || []).filter(Boolean).length >= 2, true);
-  assert.doesNotMatch(html, /catalog-carousel-controls|catalog-carousel-motion|24 \/ 24|Previous flavor|Next flavor|Pause flavor carousel/);
+  assert.doesNotMatch(html, /All flavors|catalog-carousel-controls|catalog-carousel-motion|24 \/ 24|Previous flavor|Next flavor|Pause flavor carousel/);
   assert.match(html, /Admin|Flavor 23/); assert.doesNotMatch(html, /scrollIntoView|animation-duration/);
 });
 test('one flavor renders once with no cloned loops, motion controls or moving animation contract', () => {
@@ -348,7 +349,7 @@ test('the production stylesheet preserves original rings/gradient and delegates 
   assert.match(css, /touch-action:pan-y/); assert.match(css, /--flavor-gap:27px/); assert.match(css, /--flavor-gap:16px/);
   assert.match(css, /flavor-set button \{ touch-action:pan-y; -webkit-user-drag:none/); assert.match(css, /-webkit-touch-callout:none/);
   assert.match(css, /linear-gradient\(40deg,#ff7970,#ffdd93\)/); assert.match(css, /width:64px; height:64px/);
-  assert.match(css, /width:58px; height:58px/); assert.match(css, /width:38px; height:38px; object-fit:cover/);
+  assert.match(css, /width:58px; height:58px/); assert.match(css, /width:46px; height:46px; object-fit:contain/);
   assert.doesNotMatch(css, /animation-play-state:paused|animation:flavor-marquee|catalog-carousel-controls|catalog-carousel-motion/);
   assert.equal(flavorCarouselSettings.resumeDelayMs, 1000);
 });

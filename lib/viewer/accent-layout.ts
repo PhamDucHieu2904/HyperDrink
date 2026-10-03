@@ -20,12 +20,20 @@ export interface AccentViewport {
 const positive = (value: number, fallback: number) => Number.isFinite(value) && value > 0 ? value : fallback;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+/** Fit the source canvas's longest edge to the slot without stretching pixels. */
+export function accentImageSize(width: number, height: number, size = 1): [number, number] {
+  if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height))) return [size, size];
+  const longest = Math.max(width, height);
+  return [width / longest * size, height / longest * size];
+}
+
 /** Alpha-bound extents only affect image framing. The full plane sphere remains
  * the conservative geometry radius for product clearance and rear ordering. */
-export function accentImageExtent(node: ProductAccentNode, planeSize = 1): Vector3Tuple {
+export function accentImageExtent(node: ProductAccentNode, planeSize: number | [number, number] = 1): Vector3Tuple {
+  const [width, height] = typeof planeSize === 'number' ? [planeSize, planeSize] : planeSize;
   const [left, top, right, bottom] = node.imageBounds ?? [0, 0, 1, 1];
-  return [Math.max(Math.abs(left - 0.5), Math.abs(right - 0.5)) * planeSize,
-    Math.max(Math.abs(top - 0.5), Math.abs(bottom - 0.5)) * planeSize, 0];
+  return [Math.max(Math.abs(left - 0.5), Math.abs(right - 0.5)) * width,
+    Math.max(Math.abs(top - 0.5), Math.abs(bottom - 0.5)) * height, 0];
 }
 
 /** Width carries more weight on squat packages: a short 250ml can needs a

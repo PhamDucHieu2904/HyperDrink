@@ -38,8 +38,8 @@ const frame = overrides => ({
   camera: new THREE.PerspectiveCamera(30, 1, 0.01, 10), ...overrides,
 });
 const flush = async () => { for (let index = 0; index < 5; index += 1) await Promise.resolve(); };
-function fakeTexture() {
-  return new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat);
+function fakeTexture(width = 1, height = 1) {
+  return new THREE.DataTexture(new Uint8Array(width * height * 4).fill(255), width, height, THREE.RGBAFormat);
 }
 function deferredRequest(url) {
   let resolve, reject;
@@ -75,16 +75,16 @@ async function harness(run, mount) {
 
 const { projectAccentImage } = loadSource('lib/viewer/blended-accent.ts');
 test('CSS splash projection is invertible and matches real Three perspective at every image corner', () => {
-  for (const [width, height] of [[390, 560], [800, 700]]) for (const zoom of [1, 1.5]) {
+  for (const [width, height] of [[390, 560], [800, 700]]) for (const zoom of [1, 1.5]) for (const imageSize of [[1, 1], [1, 2 / 3], [2 / 3, 1]]) {
     const camera = new THREE.PerspectiveCamera(30, width / height, 0.01, 40);
     camera.position.set(0.1, -0.05, 4); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
     const world = new THREE.Matrix4().compose(new THREE.Vector3(0.2, 0.1, -3),
       new THREE.Quaternion().setFromEuler(new THREE.Euler(0.1, 0.2, -0.12)), new THREE.Vector3(3, 3, 3));
-    const css = projectAccentImage(world, camera, width, height, 768, zoom);
+    const css = projectAccentImage(world, camera, width, height, 768, zoom, imageSize);
     assert.ok(Math.abs(css.determinant()) > 1e-10, 'Browsers discard singular matrix3d images');
-    for (const x of [0, 384, 768]) for (const y of [0, 384, 768]) {
+    for (const x of [0, 384, 768].map(value => value * imageSize[0])) for (const y of [0, 384, 768].map(value => value * imageSize[1])) {
       const actual = new THREE.Vector3(x, y, 0).applyMatrix4(css);
-      const projected = new THREE.Vector3((x / 768 - 0.5) * zoom, (0.5 - y / 768) * zoom, 0).applyMatrix4(world).project(camera);
+      const projected = new THREE.Vector3((x / 768 - imageSize[0] / 2) * zoom, (imageSize[1] / 2 - y / 768) * zoom, 0).applyMatrix4(world).project(camera);
       assert.ok(Math.abs(actual.x - (projected.x + 1) * width / 2) < 1e-9);
       assert.ok(Math.abs(actual.y - (1 - projected.y) * height / 2) < 1e-9);
       assert.equal(actual.z, 0);
@@ -115,9 +115,11 @@ test('Hard Light shares product readiness, fades continuously, resizes and dispo
       const splash = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.find(node => node.kind === 'splash');
       const configured = { ...sceneConfig([{ ...splash, opacity: 0.8 }]), opacity: 0.5 };
       layer.configure(configured, 'can-330:lime', 'lime');
-      update(); textureRequests[0].resolve(fakeTexture()); await flush();
+      update(); textureRequests[0].resolve(fakeTexture(3, 2)); await flush();
       const host = hero.children[0], image = host.children[0];
       assert.equal(image.style.mixBlendMode, 'hard-light');
+      assert.equal(image.style.width, '768px'); assert.equal(image.style.height, '512px', 'Hard Light must retain the same rectangle as its WebGL plane');
+      assert.equal(root.children[0].children[0].geometry.parameters.height, 2 / 3);
       assert.equal(host.style.zIndex, 'auto', 'Wrapper must not isolate the image from the live flavor background');
       assert.equal(update().phase, 'waiting', 'Decoded Three texture alone cannot reveal a pending DOM image');
       image.onload();
@@ -182,16 +184,53 @@ test('layer waits for product settle and every assigned sprite/GLB asset before 
   assert.equal(model.scene.children.some(child => child instanceof THREE.Light), false, 'Assigned objects cannot import competing lights');
 }));
 
+test('uploaded landscape, portrait and square cutouts retain their pixel proportions and fit rotated mobile/desktop frames', async () => harness(async ({ layer, root, textureRequests, update }) => {
+  const images = [
+    ['mango', 'fruit', 640, 427], ['pomegranate', 'fruit', 640, 600],
+    ['portrait-fruit', 'fruit', 320, 640], ['long-leaf', 'leaf', 640, 240], ['square-ice', 'ice', 320, 320],
+  ];
+  layer.configure(sceneConfig(images.map(([id, kind], index) => node(id, {
+    kind, assetUrl: `/demo/${id}.webp`, imageBounds: [0.06, 0.08, 0.94, 0.92],
+    position: [index % 2 ? 0.45 : -0.45, 0.25, -0.1], rotation: [0.18, -0.24, 0.65], blur: 0,
+  }))), 'can-330:peach', 'peach');
+  update();
+  images.forEach(([, , width, height], index) => textureRequests[index].resolve(fakeTexture(width, height)));
+  await flush();
+  for (const aspect of [390 / 560, 800 / 700, 1.8]) {
+    const camera = new THREE.PerspectiveCamera(30, aspect, 0.01, 20); camera.position.z = 4;
+    update({ camera, reducedMotion: true });
+    root.updateMatrixWorld(true);
+    for (const [index, group] of root.children.entries()) {
+      const mesh = group.children[0];
+      const { width, height } = mesh.geometry.parameters;
+      const sourceRatio = images[index][2] / images[index][3];
+      assert.ok(Math.abs(width / height - sourceRatio) < 1e-12, `${group.name} is stretched`);
+      assert.equal(Math.max(width, height), 1, 'The existing slot scale describes the longest canvas edge');
+      const horizontal = new THREE.Vector3(width, 0, 0).applyQuaternion(group.quaternion).multiplyScalar(group.scale.x).length();
+      const vertical = new THREE.Vector3(0, height, 0).applyQuaternion(group.quaternion).multiplyScalar(group.scale.x).length();
+      assert.ok(Math.abs(horizontal / vertical - sourceRatio) < 1e-12, 'Position and rotation must not deform the bitmap');
+      const radius = Math.hypot(width, height) / 2;
+      assert.ok(group.position.z + radius * group.scale.x < -1.27 * 1.2, 'The full rectangle stays behind a rotating product');
+      for (const x of [-width / 2 * 0.88, width / 2 * 0.88]) for (const y of [-height / 2 * 0.84, height / 2 * 0.84]) {
+        const corner = new THREE.Vector3(x, y, 0).applyMatrix4(group.matrixWorld).project(camera);
+        assert.ok(Math.abs(corner.x) <= 1 + 1e-10 && Math.abs(corner.y) <= 1 + 1e-10, `${group.name} clips at aspect ${aspect}`);
+      }
+    }
+  }
+}));
+
 test('outgoing flavor keeps its atlas crop through fading and a new flavor reuses the decoded atlas', async () => harness(async ({ layer, root, textureRequests, update, settle }) => {
   layer.configure(sceneConfig([baseNode]), 'can-330:citrus', 'citrus');
   update();
   assert.equal(textureRequests.length, 1);
-  const atlas = fakeTexture();
+  const atlas = fakeTexture(3, 2);
   textureRequests[0].resolve(atlas);
   await flush();
   await settle();
   const outgoing = root.children[0];
   const material = outgoing.children[0].material;
+  assert.equal(outgoing.children[0].geometry.parameters.width, 1);
+  assert.equal(outgoing.children[0].geometry.parameters.height, 1, 'The full atlas ratio must not change the authored cell geometry');
   assert.equal(material.map.offset.x, 0);
   layer.configure(sceneConfig([baseNode]), 'can-330:lime', 'lime');
   const result = update({ viewerIdle: false, deltaSeconds: 0.04 });

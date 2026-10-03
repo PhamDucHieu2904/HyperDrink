@@ -59,7 +59,7 @@
 .catalog-showcase .catalog-dialog-flavors { display:grid; gap:7px; margin:20px 0 24px; }
 .catalog-showcase .catalog-dialog-flavors button { display:flex; align-items:center; gap:12px; min-height:64px; padding:8px 12px; border:1px solid #ffffff38; border-radius:16px; background:#ffffff0d; color:var(--catalog-text); text-align:start; cursor:pointer; }
 .catalog-showcase .catalog-dialog-flavors button[aria-pressed='true'] { background:color-mix(in srgb,var(--flavor-accent) 45%,transparent); border-color:var(--catalog-text); }
-.catalog-showcase .catalog-dialog-flavors button>img,.catalog-showcase .catalog-dialog-flavors button>.catalog-image-placeholder { flex:none; width:48px; height:48px; border-radius:10px; object-fit:cover; object-position:center; }
+.catalog-showcase .catalog-dialog-flavors button>img,.catalog-showcase .catalog-dialog-flavors button>.catalog-image-placeholder { flex:none; width:48px; height:48px; border-radius:10px; object-fit:contain; object-position:center; }
 .catalog-showcase .catalog-dialog-flavors button>span:not(.catalog-image-placeholder) { min-width:0; display:grid; gap:4px; }
 .catalog-showcase .catalog-dialog-flavors button strong { font-size:14px; overflow-wrap:anywhere; }
 .catalog-showcase .catalog-dialog-flavors button span span { font-size:12px; line-height:1.5; overflow-wrap:anywhere; }

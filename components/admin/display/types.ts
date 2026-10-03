@@ -1,9 +1,10 @@
-import type { CatalogData, CatalogRecord, CollectionName, Entity, MediaAsset, MediaRole } from '@/lib/catalog/contracts';
+import type { CatalogData, CatalogRecord, CollectionName, DisplayDraftResult, DisplayDraftSave, Entity, MediaAsset, MediaRole } from '@/lib/catalog/contracts';
 export interface WorkspaceCallbacks {
   catalog: CatalogData;
   onSave: (collection: CollectionName, record: CatalogRecord, expectedRevision: number | null) => Promise<CatalogRecord | void>;
   onUpload: (file: File, role: MediaRole) => Promise<MediaAsset>;
   onRefresh: () => Promise<void> | void;
+  onSaveDisplay?: (input: DisplayDraftSave) => Promise<DisplayDraftResult>;
 }
 export function entity(name: string, original?: Entity): Entity {
   if (original) return { ...original, name };

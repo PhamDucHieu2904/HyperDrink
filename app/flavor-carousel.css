@@ -12,7 +12,7 @@
 .catalog-showcase .catalog-flavor-dock .flavor-set button>bdi { max-width:126px; white-space:normal; overflow-wrap:anywhere; line-height:1.35; text-align:center; pointer-events:none; }
 .catalog-showcase .catalog-flavor-dock .flavor-set button>span { width:64px; height:64px; display:grid; place-items:center; border:1px solid #fffc; border-radius:50%; background:#d4e5ed45; box-shadow:inset 0 1px 4px #fff7; transition:transform .25s,box-shadow .25s; pointer-events:none; }
 .catalog-showcase .catalog-flavor-dock .flavor-set button[aria-pressed='true']>span { background:linear-gradient(40deg,#ff7970,#ffdd93); box-shadow:0 0 25px #ffbd69; transform:translateY(-3px); }
-.catalog-showcase .catalog-flavor-dock img { width:38px; height:38px; object-fit:cover; object-position:center; border-radius:50%; pointer-events:none; -webkit-user-drag:none; }
+.catalog-showcase .catalog-flavor-dock img { width:46px; height:46px; object-fit:contain; object-position:center; border-radius:0; pointer-events:none; -webkit-user-drag:none; }
 .catalog-showcase .catalog-flavor-dock .catalog-image-placeholder { width:38px; height:38px; display:grid; place-items:center; background:transparent; color:inherit; border:0; border-radius:50%; }
 .catalog-showcase .catalog-flavor-dock .flavor-set button:focus-visible { outline:2px solid var(--catalog-text,#fff); outline-offset:-2px; border-radius:12px; }
 .catalog-showcase .catalog-carousel-static .catalog-carousel-viewport { mask-image:none; -webkit-mask-image:none; cursor:default; }

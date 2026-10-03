@@ -3,8 +3,10 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createSeedCatalog } from '@/lib/catalog/seed';
-import type { AdminSession, CatalogData, CatalogRecord, CatalogRelease, CatalogRepository, CollectionName, MediaAsset } from '@/lib/catalog/contracts';
+import type { AdminSession, CatalogData, CatalogRecord, CatalogRelease, CatalogRepository, CollectionName, DisplayDraftResult, DisplayDraftSave, MediaAsset } from '@/lib/catalog/contracts';
 import { archiveCatalogRecord, updateCatalogRecord, prepareCatalogRelease, CatalogDomainError, assertRevision } from '@/lib/catalog/service';
+import { deleteCatalogRecord, getDeletionImpact } from '@/lib/catalog/deletion';
+import { saveDisplayDraft } from '@/lib/catalog/display-drafts';
 import { preflightCatalog, hasValidationErrors } from '@/lib/catalog/validation';
 import type { ValidationIssue } from '@/lib/catalog/contracts';
 import { inspectMedia } from './media/inspect';
@@ -29,6 +31,8 @@ export class LocalCatalogRepository implements CatalogRepository {
       CREATE TABLE IF NOT EXISTS login_attempts (email TEXT PRIMARY KEY, attempts INTEGER NOT NULL, window_start INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, actor TEXT NOT NULL, action TEXT NOT NULL, entity_id TEXT NOT NULL, created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS publish_requests (request_key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, release_id TEXT NOT NULL REFERENCES releases(id));
+      CREATE TABLE IF NOT EXISTS deleted_publish_requests (request_key TEXT PRIMARY KEY);
+      CREATE TABLE IF NOT EXISTS retained_public_media (id TEXT PRIMARY KEY, data TEXT NOT NULL);
       PRAGMA foreign_keys = ON;
     `);
     if (!this.database.prepare('SELECT id FROM draft_catalog WHERE id=1').get()) {
@@ -63,6 +67,29 @@ export class LocalCatalogRepository implements CatalogRepository {
   async archiveRecord(collection: CollectionName, id: string, expectedRevision: number, actor = 'admin'): Promise<void> {
     this.atomic(() => { this.writeDraft(archiveCatalogRecord(this.draftSync(), collection, id, expectedRevision)); this.audit(actor, `archive:${collection}`, id); });
   }
+  async saveDisplayDraft(input: DisplayDraftSave, actor: string): Promise<DisplayDraftResult> {
+    return this.atomic(() => {
+      const result = saveDisplayDraft(this.draftSync(), input);
+      this.writeDraft(result.catalog);
+      this.audit(actor, 'save:productVariants', input.variant.id);
+      this.audit(actor, `save:${input.mode === '3d' ? 'displays3d' : 'displays2d'}`, result.display.id);
+      if (input.slot) this.audit(actor, 'save:packagingSlots', input.slot.id);
+      return result;
+    });
+  }
+  async deleteRecord(collection: CollectionName, id: string, expectedRevision: number, expectedDraftHash: string, actor: string): Promise<{ catalog: CatalogData; issues: ValidationIssue[] }> {
+    return this.atomic(() => {
+      const draft = this.draftSync();
+      if (createHash('sha256').update(JSON.stringify(draft)).digest('hex') !== expectedDraftHash) throw new CatalogDomainError('revision_conflict', 'Bản nháp đã thay đổi sau khi mở hộp xác nhận. Tải lại và kiểm tra dữ liệu trước khi xóa.');
+      const impact = getDeletionImpact(draft, collection, id);
+      const catalog = deleteCatalogRecord(draft, collection, id, expectedRevision);
+      this.writeDraft(catalog);
+      for (const record of impact.records) this.audit(actor, `delete:${record.collection}`, record.id);
+      for (const slot of impact.defaults) this.audit(actor, 'save:packagingSlots', slot.id);
+      const issues = preflightCatalog(catalog);
+      return { catalog, issues: hasValidationErrors(issues) ? issues : [...issues, ...this.fileIssues(prepareCatalogRelease(catalog))] };
+    });
+  }
   async reorder(collection: CollectionName, id: string, direction: 'up' | 'down', expectedRevisions:Record<string,number>, actor = 'admin'): Promise<CatalogData> {
     return this.atomic(() => {
       const data = this.draftSync();
@@ -87,14 +114,15 @@ export class LocalCatalogRepository implements CatalogRepository {
     return row ? { id: row.id as string, schemaVersion: 1, createdAt: row.created_at as string, createdBy: row.created_by as string, note: row.note as string, data: JSON.parse(row.data as string) } : null;
   }
   async readActiveRelease(): Promise<CatalogRelease | null> { const id = this.activeId(); return id ? this.releaseSync(id) : null; }
-  /** Retained releases keep their immutable media URLs available to already-open pages. */
+  /** Previously published immutable URLs stay available even after their release is removed. */
   async readPublishedMedia(id: string): Promise<MediaAsset | null> {
     for (const row of this.database.prepare('SELECT data FROM releases ORDER BY created_at DESC').all()) {
       const data:CatalogData = JSON.parse(row.data as string);
       const media=data.media.find(item=>item.id===id&&item.status==='ready');
       if(media) return media;
     }
-    return null;
+    const retained = this.database.prepare('SELECT data FROM retained_public_media WHERE id=?').get(id);
+    return retained ? JSON.parse(retained.data as string) : null;
   }
   private fileIssues(data:CatalogData):ValidationIssue[] {
     const issues:ValidationIssue[]=[];
@@ -127,6 +155,7 @@ export class LocalCatalogRepository implements CatalogRepository {
       const requestKey=options.requestKey?actor+':'+options.requestKey:null;
       const fingerprint=createHash('sha256').update(JSON.stringify({note,expectedReleaseId,expectedDraftHash:options.expectedDraftHash||null})).digest('hex');
       if(requestKey) {
+        if (this.database.prepare('SELECT request_key FROM deleted_publish_requests WHERE request_key=?').get(requestKey)) throw new CatalogDomainError('release_deleted_conflict', 'Bản phát hành của yêu cầu này đã bị xóa. Tải lại và tạo yêu cầu xuất bản mới.');
         const prior=this.database.prepare('SELECT * FROM publish_requests WHERE request_key=?').get(requestKey);
         if(prior) {if(prior.fingerprint!==fingerprint)throw new CatalogDomainError('idempotency_conflict','Yêu cầu xuất bản đã được dùng cho dữ liệu khác.');return this.releaseSync(prior.release_id as string)!;}
       }
@@ -151,6 +180,23 @@ export class LocalCatalogRepository implements CatalogRepository {
       const fileIssues=this.fileIssues(release.data);
       if(fileIssues.length) throw new CatalogDomainError('rollback_assets_invalid','Không thể khôi phục phiên bản do tài nguyên không còn sẵn sàng.',fileIssues);
       this.database.prepare('UPDATE publication SET release_id=? WHERE id=1').run(releaseId); this.audit(actor, 'rollback', releaseId);
+    });
+  }
+  async deleteRelease(releaseId: string, actor: string, expectedReleaseId: string | null): Promise<void> {
+    this.atomic(() => {
+      const activeId = this.activeId();
+      if (activeId !== expectedReleaseId) throw new CatalogDomainError('release_conflict', 'Bản đang sử dụng đã thay đổi. Tải lại lịch sử và kiểm tra trước khi xóa.');
+      if (releaseId === activeId) throw new CatalogDomainError('active_release', 'Không thể xóa bản phát hành đang sử dụng.');
+      const release = this.releaseSync(releaseId);
+      if (!release) throw new CatalogDomainError('release_not_found', 'Bản phát hành này không còn trong lịch sử. Tải lại danh sách.');
+      // Preserve only published media metadata, not the deleted catalog snapshot or draft-only uploads.
+      const retain = this.database.prepare('INSERT OR IGNORE INTO retained_public_media(id,data) VALUES(?,?)');
+      for (const media of release.data.media) if (media.status === 'ready') retain.run(media.id, JSON.stringify(media));
+      // A delayed network retry must not recreate a deliberately deleted release.
+      this.database.prepare('INSERT INTO deleted_publish_requests SELECT request_key FROM publish_requests WHERE release_id=?').run(releaseId);
+      this.database.prepare('DELETE FROM publish_requests WHERE release_id=?').run(releaseId);
+      this.database.prepare('DELETE FROM releases WHERE id=?').run(releaseId);
+      this.audit(actor, 'delete:release', releaseId);
     });
   }
   needsSetup(): boolean { return !this.database.prepare('SELECT id FROM admin_users LIMIT 1').get(); }
