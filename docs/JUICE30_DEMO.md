@@ -85,3 +85,11 @@ Canvas 3D dùng `pan-y pinch-zoom` để vuốt ở vùng trống vẫn cuộn t
 Hai video người dùng cung cấp đã được đọc offline để đối chiếu nhịp kéo; video mobile thể hiện thanh chỉ tự trôi dù có kéo ngang rõ ràng. Chưa kiểm chứng bản sửa bằng trình duyệt hoặc thiết bị cảm ứng thật trong phiên này.
 
 Kiểm tra bản sửa: 28 carousel, 53 viewer/appearance/loader và 29 catalog/fetch/export/hero đều đạt. Lint, typecheck và build Pages với base path `/demo-catalog` đạt; trang chính cổng 3000 trả HTTP 200. Các regression bao gồm timestamp/coalesced samples, capture transfer của touch, kéo nhẹ/spike/giữ tay, kéo nhanh liên tục, đường bao có lỗ, vùng trống/mesh ẩn/decoration, resize, đa chạm, hủy gesture và cleanup. Đây là kiểm tra bằng mã, chưa thay thế thao tác trên điện thoại thật.
+
+## Bố cục mobile — 03/10/2026
+
+CSS catalog ở breakpoint 760 px giữ tên SKU trên một hàng riêng, ẩn mô tả/CTA khỏi hàng tiêu đề. Tên dài vượt chiều rộng có thể cuộn ngang để đọc hết. Vùng sản phẩm dùng phần chiều cao còn lại sau header, tiêu đề, BEST SELLER và carousel; canvas 3D mở rộng 108% quanh tâm. Theo phản hồi tiếp theo, giảm từ 135% xuống 108% để lon nhỏ hơn 20%, giữ nguyên diện tích bố cục. Framing, ánh sáng và dữ liệu admin giữ nguyên.
+
+BEST SELLER giữ nhãn nhỏ và nút cao 30 px trong tổng hàng 44 px; nhiều nút cuộn ngang một hàng. Carousel giữ vòng tròn 58 px, dành hàng tối thiểu 102 px cho ảnh và tên hương tối đa hai dòng của bộ demo. Khoảng dưới tính thêm safe-area của thiết bị.
+
+Đã xem trực tiếp WebGL tại localhost ở viewport 320 × 640, 390 × 780, 412 × 800 và kiểm tra desktop 1280 × 900. Orange/Pomegranate đổi đúng nhãn và tiêu đề; tên hương nằm trong màn hình. Lint, typecheck, 29 catalog và 28 carousel tests đạt. Chưa kiểm tra trên điện thoại thật; chưa phát hành dữ liệu hoặc push/deploy.

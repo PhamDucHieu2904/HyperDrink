@@ -83,12 +83,21 @@
   .catalog-showcase .showcase-stats strong { font-size:23px; }
 }
 @media(max-width:760px) {
-  .catalog-showcase .showcase-intro { min-height:36px; height:auto; padding:4px 0; }
-  .catalog-showcase .showcase-copy h1 { font-size:clamp(18px,5.2vw,24px); text-transform:none; letter-spacing:normal; line-height:1.25; text-align:center; }
-  .catalog-showcase .showcase-product { height:clamp(240px,calc(100svh - 365px),700px); }
-  .catalog-showcase .model-picker { height:auto; min-height:44px; }
-  .catalog-showcase .model-options { justify-content:center; height:auto; }
-  .catalog-showcase .model-options button { min-width:70px; min-height:44px; height:auto; max-height:none; padding:8px 12px; }
+  /* Budget the first screen for header, title, product and both selection rows. */
+  .catalog-showcase { padding-bottom:calc(12px + env(safe-area-inset-bottom,0px)); }
+  .catalog-showcase .showcase-intro { min-height:32px; height:32px; padding:0; }
+  .catalog-showcase .showcase-intro .eyebrow,
+  .catalog-showcase .showcase-intro .showcase-tagline,
+  .catalog-showcase .showcase-intro .showcase-actions { display:none; }
+  .catalog-showcase .showcase-copy h1 { flex:none; width:100%; font-size:clamp(14px,4.4vw,20px); text-transform:none; letter-spacing:normal; line-height:1.3; text-align:center; white-space:nowrap; overflow-wrap:normal; overflow-x:auto; scrollbar-width:none; }
+  .catalog-showcase .showcase-copy h1::-webkit-scrollbar { display:none; }
+  .catalog-showcase .showcase-product { height:max(240px,calc(100svh - 330px - env(safe-area-inset-bottom,0px))); }
+  /* 108% is 80% of the previous 135% scene footprint, centered in the same space. */
+  .catalog-showcase .showcase-product .scene-shell { position:absolute; inset:-4%; width:108%; height:108%; }
+  .catalog-showcase .model-picker { height:44px; min-height:44px; }
+  .catalog-showcase .model-picker-label { font-size:9px; line-height:10px; letter-spacing:.12em; margin-bottom:4px; }
+  .catalog-showcase .model-options { flex-wrap:nowrap; justify-content:safe center; height:30px; overflow-x:auto; overflow-y:hidden; }
+  .catalog-showcase .model-options button { min-width:70px; min-height:30px; height:30px; max-height:30px; max-width:none; padding:0 12px; line-height:1; white-space:nowrap; overflow-wrap:normal; }
   .catalog-showcase .model-options button:focus-visible { outline-offset:-3px; }
   .catalog-showcase .notes-card>.catalog-image-placeholder,.catalog-showcase .notes-card>.catalog-notes-symbol { width:52px; height:52px; margin-bottom:8px; border-radius:12px; }
   .catalog-showcase .catalog-product-image { padding-inline:5%; }
