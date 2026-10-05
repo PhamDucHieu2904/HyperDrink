@@ -4,7 +4,7 @@ import { showcaseFlavors } from './showcase-flavors';
 export const backgroundIconNames = ['citrus', 'berry', 'peach', 'lime', 'leaf', 'mango', 'pineapple', 'apple', 'grape', 'coconut'] as const;
 export type FruitIcon = typeof backgroundIconNames[number];
 /** A stable item ID keeps transitions aligned when catalog items are reordered. */
-export interface BackgroundTheme { id?: string; color: string; icon: string }
+export interface BackgroundTheme { id?: string; color: string; icon: string; iconUrl?: string }
 export interface BackgroundConfig {
   version: 1;
   cellSize: number;
@@ -46,7 +46,14 @@ export function normalizeBackgroundThemes(input: readonly BackgroundTheme[] = ba
     let id = originalId, suffix = 1;
     while (ids.has(id)) id = `${originalId}-${suffix++}`;
     ids.add(id);
-    return { id, color: /^#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i.test(theme.color) ? theme.color : '#54684f', icon: normalizeBackgroundIcon(theme.icon) };
+    let iconUrl: string | undefined;
+    if (typeof theme.iconUrl === 'string' && /^(?:\/[^/]|https?:\/\/)/i.test(theme.iconUrl) && !/[\\\u0000-\u0020]/.test(theme.iconUrl)) {
+      try {
+        const url = new URL(theme.iconUrl, 'https://background.invalid');
+        if (!url.username && !url.password) iconUrl = theme.iconUrl;
+      } catch { /* Malformed URLs fall back to the built-in symbol. */ }
+    }
+    return { id, color: /^#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i.test(theme.color) ? theme.color : '#54684f', icon: normalizeBackgroundIcon(theme.icon), ...(iconUrl ? { iconUrl } : {}) };
   });
 }
 export function normalizeBackgroundConfig(input: Partial<BackgroundConfig>): BackgroundConfig {

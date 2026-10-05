@@ -1,0 +1,73 @@
+.panel { --ink: #20372f; --muted: #67736a; --paper: #faf9f5; --line: #e2e4da; width: min(1160px, calc(100vw - 64px)); height: min(820px, calc(100dvh - 64px)); max-width: none; max-height: none; border: 0; border-radius: 26px; padding: 0; margin: auto; background: var(--paper); color: var(--ink); overflow: hidden; box-shadow: 0 40px 140px #10221766; text-align: start; animation: arrive .3s ease-out; }
+.panel::backdrop { background: #17241ed9; backdrop-filter: blur(9px); }
+.panel *, .panel *::before, .panel *::after { box-sizing: border-box; }
+.layout { height: 100%; display: grid; grid-template-columns: 43% 57%; }
+.close { position: absolute; z-index: 4; top: 20px; right: 20px; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid #d9ded4; border-radius: 50%; background: #faf9f5f2; color: var(--ink); cursor: pointer; transition: background .18s, transform .18s; }
+.close:hover { background: #e7ece1; transform: rotate(90deg); }
+.panel button:focus-visible, .tabContent:focus-visible { outline: 3px solid #56745b; outline-offset: 3px; }
+.poster { min-width: 0; height: 100%; background: var(--detail-color, #72445e); position: relative; color: white; overflow: hidden; }
+.posterImage { display: block; width: 100%; height: 100%; object-fit: contain; }
+.composedPoster { height: 100%; position: relative; isolation: isolate; display: flex; flex-direction: column; padding: 34px; background: radial-gradient(ellipse at 56% 52%, #ffffff44, transparent 66%), linear-gradient(160deg, #00000024, transparent 70%); }
+.posterBrand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; letter-spacing: .17em; }
+.posterEyebrow { margin: 44px 0 12px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .22em; opacity: .88; }
+.posterHeadline { position: relative; z-index: 2; font-size: clamp(24px, 3vw, 43px); font-weight: 650; line-height: 1.1; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.posterHeadline span { display: block; margin-top: 12px; font-size: 12px; letter-spacing: .06em; font-weight: 400; }
+.posterHalo { position: absolute; z-index: -1; width: 86%; aspect-ratio: 1; left: 7%; top: 31%; border: 1px solid #ffffff45; border-radius: 50%; box-shadow: 0 0 0 28px #ffffff08, 0 0 0 70px #ffffff05; }
+.can { position: absolute; z-index: 1; left: 5%; top: 23%; bottom: 10%; width: 90%; }
+.can :global(.collection-card-image) { width: 100%; height: 100%; padding: 0; background: transparent; border: 0; border-radius: 0; display: grid; place-items: center; }
+.can :global(.collection-card-image img) { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 26px 22px #20082355); }
+.fruit { position: absolute; z-index: 2; right: -8%; bottom: 8%; width: 48%; height: auto; max-height: 32%; object-fit: contain; filter: drop-shadow(0 15px 14px #180d2e30); transform: rotate(-12deg); pointer-events: none; }
+.posterFooter { position: absolute; inset-inline: 34px; bottom: 30px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; letter-spacing: .1em; padding-top: 18px; border-top: 1px solid #ffffff50; }
+.content { min-width: 0; height: 100%; overflow: auto; overscroll-behavior: contain; padding: 42px 40px 24px; scrollbar-width: thin; scrollbar-color: #aab6a3 transparent; }
+.header { padding-inline-end: 18px; }
+.eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 18px; font-size: 10px; font-weight: 650; letter-spacing: .16em; text-transform: uppercase; }
+.eyebrow > span { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: #637c53; }
+.header h2 { margin: 0; font-size: clamp(32px, 3.8vw, 53px); line-height: 1.12; letter-spacing: -.045em; font-weight: 650; overflow-wrap: anywhere; }
+.titleDot { color: #8b9b7d; }
+.subtitle { color: #66705e; font-size: 17px; line-height: 1.55; margin: 16px 0 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 26px; font-size: 10px; font-weight: 550; }
+.meta > span { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 30px; padding: 6px 10px; color: #53604f; }
+.tabs { position: sticky; z-index: 3; top: -42px; display: flex; justify-content: space-between; gap: 8px; background: var(--paper); border-bottom: 1px solid var(--line); padding: 10px 0 0; }
+.tabs button { font: inherit; font-size: 12px; font-weight: 550; color: var(--muted); min-height: 44px; border: 0; border-bottom: 2px solid transparent; background: transparent; padding: 0 4px 10px; cursor: pointer; }
+.tabs button[aria-selected="true"] { border-color: var(--ink); color: var(--ink); }
+.tabs button:hover { color: var(--ink); }
+.tabContent { min-height: 205px; padding-top: 23px; padding-bottom: 22px; }
+.sectionIndex { font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: #7a8371; margin: 0 0 18px; }
+.story { margin: 0; font-size: 17px; line-height: 1.75; font-weight: 400; white-space: pre-line; }
+.tabContent h3, .productInfo h3 { font-size: 18px; font-weight: 600; letter-spacing: -.02em; margin: 0 0 14px; }
+.paragraph, .extraSection p { font-size: 14px; line-height: 1.8; margin: 0; white-space: pre-line; }
+.extraSection { margin-top: 22px; }
+.extraSection h3 { font-size: 16px; }
+.callout { padding: 15px 18px; margin-top: 20px; background: #eff1e9; border-radius: 12px; }
+.callout h4 { margin: 0 0 8px; font-size: 12px; }
+.callout p { margin: 0; font-size: 12px; line-height: 1.65; white-space: pre-line; }
+.nutrition { width: 100%; border-collapse: collapse; font-size: 12px; }
+.nutrition caption { text-align: start; border-bottom: 3px solid var(--ink); padding-bottom: 14px; }
+.nutrition caption strong { display: block; font-size: 27px; letter-spacing: -.035em; }
+.nutrition caption span { display: block; font-size: 11px; margin-top: 6px; color: var(--muted); }
+.nutrition th, .nutrition td { padding: 9px 0; border-bottom: 1px solid var(--line); text-align: end; vertical-align: top; }
+.nutrition tr > :first-child { text-align: start; padding-inline-end: 12px; }
+.nutrition thead th { font-weight: 500; font-size: 10px; color: var(--muted); padding-top: 12px; }
+.nutrition tbody th { font-weight: 500; }
+.nutrition tbody td { white-space: nowrap; padding-inline-start: 10px; font-variant-numeric: tabular-nums; }
+.nutrition tbody tr:first-child { font-weight: 750; border-bottom: 2px solid var(--ink); }
+.productInfo { border-top: 1px solid var(--line); padding-top: 23px; }
+.productInfo h3 { font-size: 10px; text-transform: uppercase; letter-spacing: .14em; margin-bottom: 20px; }
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 20px; margin: 0; }
+.facts dt { color: var(--muted); font-size: 10px; margin-bottom: 7px; }
+.facts dd { margin: 0; font-size: 12px; font-weight: 500; line-height: 1.7; white-space: pre-line; }
+.wideFact { grid-column: 1 / -1; }
+.company { display: flex; align-items: flex-start; gap: 12px; padding: 22px 0; margin-top: 22px; border-top: 1px solid var(--line); }
+.company > svg { flex-shrink: 0; margin-top: 4px; color: #6d7e62; }
+.company p { margin: 0 0 6px; color: var(--muted); font-size: 10px; }
+.company strong { display: block; font-size: 10px; font-weight: 650; letter-spacing: .03em; }
+.company address { margin-top: 7px; font-size: 11px; font-style: normal; line-height: 1.7; color: #6a7668; white-space: pre-line; }
+.footer { border-top: 1px solid var(--line); padding-top: 19px; display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--muted); font-size: 9px; }
+.footer > :first-child { font-weight: 750; letter-spacing: .18em; font-size: 11px; color: var(--ink); }
+@keyframes arrive { from { opacity: 0; transform: translateY(16px) scale(.985); } to { opacity: 1; transform: none; } }
+@media (max-width: 1000px) { .panel { width: calc(100vw - 40px); height: calc(100dvh - 40px); } .content { padding: 36px 28px 22px; } .tabs { top: -36px; } .composedPoster { padding: 26px; } .posterFooter { inset-inline: 26px; } }
+@media (max-width: 760px) { .panel { width: calc(100vw - 24px); height: calc(100dvh - 24px); border-radius: 20px; overflow: auto; overscroll-behavior: contain; } .layout { height: auto; grid-template-columns: 1fr; } .poster { height: 340px; } .composedPoster { padding: 24px; } .posterBrand { font-size: 15px; } .posterEyebrow { margin-top: 26px; font-size: 8px; max-width: 45%; } .posterHeadline { font-size: 27px; max-width: 42%; padding-bottom: 90px; } .posterHeadline span { font-size: 10px; line-height: 1.4; } .can { top: 7%; bottom: 6%; left: 30%; width: 70%; } .posterHalo { width: 63%; left: 37%; top: 18%; } .fruit { bottom: 8%; right: 0; width: 30%; max-height: 40%; } .posterFooter { bottom: 20px; inset-inline: 24px; padding-top: 12px; font-size: 10px; } .posterFooter svg { visibility: hidden; } .content { height: auto; overflow: visible; padding: 28px 24px 22px; } .header { padding-inline-end: 0; } .header h2 { font-size: 36px; } .subtitle { font-size: 15px; } .eyebrow { font-size: 9px; margin-bottom: 12px; } .close { position: sticky; float: right; top: 14px; right: auto; margin-right: 14px; margin-bottom: -58px; margin-top: 14px; } .tabs { top: 0; margin-inline: -4px; } .tabs button { font-size: 11px; padding-inline: 3px; } .story { font-size: 15px; line-height: 1.85; } .meta { margin: 18px 0; } .tabContent { min-height: 190px; } }
+@media (max-width: 370px) { .content { padding-inline: 18px; } .poster { height: 300px; } .posterHeadline { font-size: 23px; } }
+@media (max-width: 760px) { .posterHeadline { font-size: clamp(18px, 5.1vw, 23px); max-width: 44%; } }
+.tabs { padding-right: 48px; }
+@media (prefers-reduced-motion: reduce) { .panel { animation: none; } .close { transition: none; } }

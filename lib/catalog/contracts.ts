@@ -34,6 +34,8 @@ export interface Flavor extends Entity {
   backgroundColor: string;
   textColor: string;
   icon: string;
+  /** Optional reusable uploaded icon; the built-in icon remains the fallback. */
+  iconId?: EntityId | null;
   thumbnailId: EntityId | null;
   position: number;
 }
@@ -44,12 +46,23 @@ export interface FlavorAsset extends Entity {
   position: number;
   enabled: boolean;
 }
+/** The pool supplies its flavor; names, ordering and enabled state are assigned on save. */
+export interface FlavorPoolAssetInput {
+  id: EntityId;
+  flavorId: EntityId;
+  mediaId: EntityId;
+  role: FlavorAsset['role'];
+}
 export interface ProductGroup extends Entity {
   drinkTypeId: EntityId;
   description: string;
   buttonLabel: string;
   position: number;
   visible: boolean;
+  /** Collection settings are independent of the Best seller buttons; old releases inherit visible/position. */
+  collectionVisible?: boolean;
+  collectionTitle?: string;
+  collectionPosition?: number;
 }
 export interface ProductVariant extends Entity {
   groupId: EntityId;
@@ -116,6 +129,27 @@ export interface Display2D extends Entity {
   alt: string;
   enabled: boolean;
 }
+export interface NutritionRow { label: string; amount: string; dailyValue: string }
+export interface ProductDetail extends Entity {
+  labelId: EntityId;
+  posterId: EntityId | null;
+  eyebrow: string;
+  headline: string;
+  subtitle: string;
+  introduction: string;
+  ingredients: string;
+  allergens: string;
+  servingSize: string;
+  nutrition: NutritionRow[];
+  companyName: string;
+  companyAddress: string;
+  countryOfOrigin: string;
+  netContent: string;
+  storage: string;
+  shelfLife: string;
+  sections: { title: string; body: string }[];
+  enabled: boolean;
+}
 export interface CatalogData {
   schemaVersion: 1;
   drinkTypes: DrinkType[];
@@ -132,6 +166,11 @@ export interface CatalogData {
   assets2d: Asset2D[];
   displays3d: Display3D[];
   displays2d: Display2D[];
+  productDetails: ProductDetail[];
+}
+/** New editorial data does not invalidate immutable releases created before this collection existed. */
+export function catalogWithDefaults(data: CatalogData): CatalogData {
+  return data.productDetails === undefined ? { ...data, productDetails: [] } : data;
 }
 export type CollectionName = Exclude<keyof CatalogData, 'schemaVersion'>;
 export type CatalogRecord = CatalogData[CollectionName][number];
@@ -145,6 +184,14 @@ export interface DisplayDraftSave {
   expectedSlotRevision: number | null;
 }
 export interface DisplayDraftResult { catalog: CatalogData; display: Display3D | Display2D }
+export interface DisplayAction {
+  mode: '3d' | '2d';
+  id: EntityId;
+  expectedRevision: number;
+  expectedDraftHash: string;
+  action: 'set-enabled' | 'delete';
+  enabled?: boolean;
+}
 export interface ValidationIssue {
   code: string;
   message: string;
@@ -161,6 +208,10 @@ export interface CatalogRelease {
   note: string;
   data: CatalogData;
 }
+/** Includes the active release. Older releases are removed only by an admin. */
+export const MAX_CATALOG_RELEASES = 10;
+export interface DeleteRecordResult { catalog: CatalogData; issues: ValidationIssue[] }
+export type DeleteRecordHandler = (collection: CollectionName, id: string, expectedRevision: number, expectedDraftHash: string) => Promise<DeleteRecordResult>;
 export interface ApiError { code: string; message: string; fieldErrors?: Record<string, string> }
 export interface AdminSession { userId: string; email: string; role: AdminRole }
 export interface CatalogRepository {

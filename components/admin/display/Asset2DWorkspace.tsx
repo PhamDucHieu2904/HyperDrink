@@ -2,10 +2,11 @@
 /* eslint-disable @next/next/no-img-element -- Draft uploads require the session cookie and remain compatible with static-export admin. */
 
 import { useState } from 'react';
-import { Plus, Save } from 'lucide-react';
+import { Plus, Save, Trash2 } from 'lucide-react';
 import type { Asset2D, CatalogData, CatalogRecord } from '@/lib/catalog/contracts';
 import { mediaUrl } from '@/lib/catalog/resolve';
 import MediaPicker from '../ui/MediaPicker';
+import DeleteRecordDialog from '../ui/DeleteRecordDialog';
 import { mediaSummary } from '../ui/upload-info';
 import { entity, message, type WorkspaceCallbacks } from './types';
 import styles from './workspace.module.css';
@@ -13,11 +14,15 @@ import styles from './workspace.module.css';
 export default function Asset2DWorkspace(props: WorkspaceCallbacks) {
   const [selectedId, setSelectedId] = useState('');
   const [newKey, setNewKey] = useState(0);
+  const [deleteId, setDeleteId] = useState('');
+  const [notice, setNotice] = useState('');
   const items = props.catalog.assets2d.filter(item => item.lifecycle === 'active');
   return <>
     <div className={styles.heading}><div><h2>Kho hình / render 2D</h2><p>Lưu ảnh bao bì đã hoàn thiện, đúng loại nước và hương. Sau đó ghép vào cấu hình hiển thị.</p></div><button type="button" className={styles.secondary} onClick={() => { setSelectedId(''); setNewKey(value => value + 1); }}><Plus size={17} />Thêm hình 2D</button></div>
-    {!!items.length && <div className={styles.list}>{items.map(item => <button className={`${styles.listRow} ${selectedId === item.id ? styles.selectedRow : ''}`} type="button" key={item.id} onClick={() => setSelectedId(item.id)}><span><strong>{item.name}</strong><small>{props.catalog.packagingVariants.find(pack => pack.id === item.packagingVariantId)?.name} · {props.catalog.drinkTypes.find(drink => drink.id === item.drinkTypeId)?.name}</small></span><span className={styles.tag}>{item.galleryIds.length + (item.mediaId ? 1 : 0)} hình</span></button>)}</div>}
+    {notice && <p className={styles.success} role="status">{notice}</p>}
+    {!!items.length && <div className={styles.list}>{items.map(item => <article className={`${styles.displayCard} ${selectedId === item.id ? styles.selectedRow : ''}`} key={item.id}><button className={styles.cardDetails} type="button" onClick={() => setSelectedId(item.id)}><strong>{item.name}</strong><small>{props.catalog.packagingVariants.find(pack => pack.id === item.packagingVariantId)?.name} · {props.catalog.drinkTypes.find(drink => drink.id === item.drinkTypeId)?.name}</small></button><span className={styles.tag}>{item.galleryIds.length + (item.mediaId ? 1 : 0)} hình</span>{props.onDeleteRecord && <button type="button" className={`${styles.secondary} ${styles.deleteAction}`} aria-label={`Xóa ${item.name}`} onClick={() => setDeleteId(item.id)}><Trash2 size={15} aria-hidden="true" />Xóa</button>}</article>)}</div>}
     <AssetEditor key={selectedId || `new-${newKey}`} {...props} selectedId={selectedId} onSelect={setSelectedId} />
+    {deleteId && props.onDeleteRecord && <DeleteRecordDialog key={deleteId} catalog={props.catalog} target={{ collection: 'assets2d', id: deleteId }} onDelete={props.onDeleteRecord} onClose={() => setDeleteId('')} onDeleted={(_result, name) => { if (selectedId === deleteId) { setSelectedId(''); setNewKey(value => value + 1); } setNotice(`Đã gỡ “${name}” khỏi kho hình 2D của bản nháp. Kiểm tra lại dữ liệu trước khi phát hành.`); }} />}
   </>;
 }
 

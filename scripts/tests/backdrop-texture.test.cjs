@@ -19,6 +19,7 @@ const painter = loadSource('lib/viewer/backdrop-texture.ts', name => {
   if (name === 'three') return THREE;
   if (name.endsWith('background-config')) return config;
   if (name.endsWith('background-render-state')) return rendering;
+  if (name.endsWith('background-image-tile')) return loadSource('lib/background-image-tile.ts', dependency => dependency.endsWith('background-render-state') ? rendering : require(dependency));
   throw new Error(`Unexpected painter dependency: ${name}`);
 });
 

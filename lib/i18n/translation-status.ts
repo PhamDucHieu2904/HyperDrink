@@ -1,0 +1,13 @@
+import type { Locale } from './catalog';
+
+type Copy = { translating: string; downloading: string; activate: string; unsupported: string; ready: string; error: string };
+export const translationStatus: Record<Locale, Copy> = {
+  en: { translating: 'Translating product text…', downloading: 'Preparing translation…', activate: 'Translate product text', unsupported: 'This browser cannot translate product text automatically. Original text is shown.', ready: 'Product text translated automatically.', error: 'Some text could not be translated. Try again.' },
+  fr: { translating: 'Traduction des textes produits…', downloading: 'Préparation de la traduction…', activate: 'Traduire les textes produits', unsupported: 'Ce navigateur ne peut pas traduire les textes produits automatiquement. Le texte original est affiché.', ready: 'Textes produits traduits automatiquement.', error: 'Certains textes n’ont pas pu être traduits. Réessayez.' },
+  zh: { translating: '正在翻译产品文字…', downloading: '正在准备翻译…', activate: '翻译产品文字', unsupported: '此浏览器无法自动翻译产品文字，现显示原文。', ready: '产品文字已自动翻译。', error: '部分文字无法翻译，请重试。' },
+  es: { translating: 'Traduciendo textos de productos…', downloading: 'Preparando la traducción…', activate: 'Traducir textos de productos', unsupported: 'Este navegador no puede traducir automáticamente los textos de productos. Se muestra el texto original.', ready: 'Textos de productos traducidos automáticamente.', error: 'No se pudieron traducir algunos textos. Inténtalo de nuevo.' },
+  ar: { translating: 'جارٍ ترجمة نصوص المنتجات…', downloading: 'جارٍ تجهيز الترجمة…', activate: 'ترجمة نصوص المنتجات', unsupported: 'هذا المتصفح لا يدعم الترجمة التلقائية لنصوص المنتجات. يُعرض النص الأصلي.', ready: 'تمت ترجمة نصوص المنتجات تلقائيًا.', error: 'تعذّرت ترجمة بعض النصوص. حاول مرة أخرى.' },
+  ru: { translating: 'Перевод текстов товаров…', downloading: 'Подготовка перевода…', activate: 'Перевести тексты товаров', unsupported: 'Этот браузер не поддерживает автоматический перевод текстов товаров. Показан исходный текст.', ready: 'Тексты товаров переведены автоматически.', error: 'Некоторые тексты не удалось перевести. Повторите попытку.' },
+  ko: { translating: '제품 텍스트 번역 중…', downloading: '번역 준비 중…', activate: '제품 텍스트 번역', unsupported: '이 브라우저는 제품 텍스트 자동 번역을 지원하지 않습니다. 원문을 표시합니다.', ready: '제품 텍스트가 자동으로 번역되었습니다.', error: '일부 텍스트를 번역하지 못했습니다. 다시 시도하세요.' },
+  de: { translating: 'Produkttexte werden übersetzt…', downloading: 'Übersetzung wird vorbereitet…', activate: 'Produkttexte übersetzen', unsupported: 'Dieser Browser kann Produkttexte nicht automatisch übersetzen. Der Originaltext wird angezeigt.', ready: 'Produkttexte automatisch übersetzt.', error: 'Einige Texte konnten nicht übersetzt werden. Bitte erneut versuchen.' },
+};

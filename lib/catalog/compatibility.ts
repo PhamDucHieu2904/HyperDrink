@@ -1,4 +1,4 @@
-import type { CatalogData, Display2D, Display3D, MediaAsset, PackagingCategory, ValidationIssue } from './contracts';
+import type { CatalogData, Display2D, Display3D, MediaAsset, PackagingCategory, PackagingSlot, ValidationIssue } from './contracts';
 
 /** PP remains its own business category; the existing generic GLB renderer accepts it as other. */
 export function viewerKindForCategory(category: Pick<PackagingCategory, 'viewerKind'>): 'can' | 'glass' | 'pet' | 'pouch' | 'other' {
@@ -59,11 +59,23 @@ export function checkDisplay2DCompatibility(data: CatalogData, display: Display2
   return issues;
 }
 
+/** All products explicitly switched off is different from an unfinished slot
+ * with no products. Omit the former while keeping validation for the latter. */
+export function slotHasOnlyDisabledProducts(data: CatalogData, slot: PackagingSlot): boolean {
+  const products = data.productVariants.filter(item => item.lifecycle === 'active' && item.groupId === slot.groupId && item.packagingVariantId === slot.packagingVariantId);
+  return slot.defaultVariantId === null && products.length > 0 && products.every(item => !item.enabled);
+}
+
+export function groupHasOnlyDisabledProducts(data: CatalogData, groupId: string): boolean {
+  const slots = data.packagingSlots.filter(item => item.lifecycle === 'active' && item.enabled && item.groupId === groupId);
+  return slots.length > 0 && slots.every(slot => slotHasOnlyDisabledProducts(data, slot));
+}
+
 /** Reachability determines publication; untouched, incomplete library drafts never leak into a release. */
 export function collectPublicCatalog(data: CatalogData): CatalogData {
-  const groups = data.productGroups.filter(item => item.lifecycle === 'active' && item.visible);
+  const groups = data.productGroups.filter(item => item.lifecycle === 'active' && (item.visible || item.collectionVisible === true) && !groupHasOnlyDisabledProducts(data, item.id));
   const groupIds = new Set(groups.map(item => item.id));
-  const slots = data.packagingSlots.filter(item => item.lifecycle === 'active' && item.enabled && groupIds.has(item.groupId));
+  const slots = data.packagingSlots.filter(item => item.lifecycle === 'active' && item.enabled && groupIds.has(item.groupId) && !slotHasOnlyDisabledProducts(data, item));
   const variants = data.productVariants.filter(item => item.lifecycle === 'active' && item.enabled && slots.some(slot => slot.groupId === item.groupId && slot.packagingVariantId === item.packagingVariantId));
   const variantIds = new Set(variants.map(item => item.id));
   const displays3d = data.displays3d.filter(item => item.lifecycle === 'active' && item.enabled && variantIds.has(item.productVariantId) && slots.some(slot => slot.mode !== '2d' && variants.some(variant => variant.id === item.productVariantId && variant.groupId === slot.groupId && variant.packagingVariantId === slot.packagingVariantId)));
@@ -72,10 +84,11 @@ export function collectPublicCatalog(data: CatalogData): CatalogData {
   const models = data.models3d.filter(item => modelIds.has(item.id)); const labels = data.labels.filter(item => labelIds.has(item.id)); const assets = data.assets2d.filter(item => assetIds.has(item.id));
   const flavorIds = new Set(variants.map(item => item.flavorId));
   const flavors = data.flavors.filter(item => flavorIds.has(item.id));
+  const productDetails = (data.productDetails ?? []).filter(item => item.lifecycle === 'active' && item.enabled && labelIds.has(item.labelId));
   const flavorAssets = data.flavorAssets.filter(item => item.lifecycle === 'active' && item.enabled && flavorIds.has(item.flavorId));
   const packageIds = new Set([...slots.map(item => item.packagingVariantId), ...variants.map(item => item.packagingVariantId), ...models.map(item => item.packagingVariantId), ...assets.map(item => item.packagingVariantId), ...labels.flatMap(item => item.compatibilities.map(entry => entry.packagingVariantId))]);
   const packaging = data.packagingVariants.filter(item => packageIds.has(item.id)); const categoryIds = new Set(packaging.map(item => item.categoryId));
   const drinkIds = new Set([...groups.map(item => item.drinkTypeId), ...labels.map(item => item.drinkTypeId), ...assets.map(item => item.drinkTypeId)]);
-  const mediaIds = new Set([...flavors.map(item => item.thumbnailId), ...flavorAssets.map(item => item.mediaId), ...models.flatMap(item => [item.mediaId, item.posterId]), ...labels.map(item => item.mediaId), ...assets.flatMap(item => [item.mediaId, ...item.galleryIds])]);
-  return { schemaVersion: 1, drinkTypes: data.drinkTypes.filter(item => drinkIds.has(item.id)), packagingCategories: data.packagingCategories.filter(item => categoryIds.has(item.id)), packagingVariants: packaging, flavors, flavorAssets, productGroups: groups, productVariants: variants, packagingSlots: slots, media: data.media.filter(item => mediaIds.has(item.id)), labels, models3d: models, assets2d: assets, displays3d, displays2d };
+  const mediaIds = new Set([...flavors.flatMap(item => [item.thumbnailId, item.iconId]), ...flavorAssets.map(item => item.mediaId), ...models.flatMap(item => [item.mediaId, item.posterId]), ...labels.map(item => item.mediaId), ...assets.flatMap(item => [item.mediaId, ...item.galleryIds]), ...productDetails.map(item => item.posterId)]);
+  return { schemaVersion: 1, drinkTypes: data.drinkTypes.filter(item => drinkIds.has(item.id)), packagingCategories: data.packagingCategories.filter(item => categoryIds.has(item.id)), packagingVariants: packaging, flavors, flavorAssets, productGroups: groups, productVariants: variants, packagingSlots: slots, media: data.media.filter(item => mediaIds.has(item.id)), labels, models3d: models, assets2d: assets, displays3d, displays2d, productDetails };
 }

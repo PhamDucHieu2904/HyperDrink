@@ -1,0 +1,89 @@
+.collection-section { color:#163d43; padding-block:80px 96px; }
+.collection-section .section-kicker,.collection-kicker { color:#ad4b27; font-size:11px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; }
+.collection-section .section-description { color:#527279; }
+.collection-heading-end { display:grid; justify-items:end; gap:5px; }
+.collection-see-all { display:inline-flex; align-items:center; gap:12px; min-height:44px; color:#1d5b58; font-weight:600; font-size:13px; border-bottom:1px solid transparent; }
+.collection-see-all:hover { border-bottom-color:currentColor; }
+.collection-section .section-heading { margin-bottom:56px; }
+.collection-rows { display:grid; gap:58px; }
+.collection-row-heading { display:flex; align-items:end; justify-content:space-between; gap:20px; margin-bottom:24px; }
+.collection-row-heading h3 { margin:5px 0 0; font:700 clamp(28px,3vw,42px)/1.1 'Space Grotesk',sans-serif; letter-spacing:-.04em; }
+.collection-row-count { color:#66837e; font-size:11px; letter-spacing:.06em; }
+.collection-row-tools { display:flex; align-items:center; gap:26px; flex-wrap:wrap; }
+.collection-pager { display:flex; align-items:center; gap:10px; font-size:11px; color:#617c78; }
+.collection-pager button { width:44px; height:44px; flex-shrink:0; display:grid; place-items:center; border:1px solid #bed6ce; border-radius:50%; color:#204d47; background:#fff; cursor:pointer; transition:background .2s,border-color .2s; }
+.collection-pager button:hover:not(:disabled) { background:#d8eee5; border-color:#43816e; }
+.collection-pager button:disabled { opacity:.35; cursor:default; }
+.collection-pager span { min-width:70px; text-align:center; }
+.collection-row-cards { display:grid; grid-template-columns:repeat(var(--row-count),minmax(0,1fr)); gap:24px; }
+.collection-card { min-width:0; border:1px solid #ffffff; background:#fff; border-radius:32px; box-shadow:0 7px 14px #153e3210,0 20px 28px #153e3209; transition:box-shadow .2s,border-color .2s; overflow:hidden; }
+.collection-card:hover { border-color:#a2c6b8; box-shadow:0 12px 24px #153e321a; }
+.collection-card-link { height:100%; display:flex; flex-direction:column; color:#143c3e; padding:18px; }
+.collection-card-link:focus-visible { outline:3px solid #28664e; outline-offset:-4px; border-radius:32px; }
+.collection-card-image { aspect-ratio:1; width:100%; display:grid; place-items:center; border:1px solid #2f51484a; border-radius:23px; overflow:hidden; background:radial-gradient(ellipse at 50% 40%,#fff 20%,color-mix(in srgb,var(--card-accent,#bfdec9) 9%,#fff)); }
+.collection-card-image img { display:block; width:100%; height:100%; object-fit:contain; padding:8px; filter:drop-shadow(0 12px 9px #13382b1a); }
+.collection-card-image svg { color:#779186; }
+.collection-card-copy { padding:21px 3px 0; }
+.collection-card-copy h3 { margin:0 0 8px; text-transform:uppercase; font:800 clamp(20px,2.15vw,30px)/1.06 'Be Vietnam Pro',sans-serif; letter-spacing:-.04em; overflow-wrap:anywhere; }
+.collection-card-copy p { margin:0; font-size:12px; line-height:1.7; color:#5b726d; }
+.collection-card-action { min-height:44px; display:flex; justify-content:center; align-items:center; gap:10px; padding-top:14px; margin-top:auto; color:#275648; font-size:14px; font-style:italic; }
+.collection-card-action svg { width:16px; height:16px; }
+.collection-empty { padding:38px 24px; border:1px dashed #aacbc1; border-radius:22px; color:#55746c; text-align:center; }
+.collection-empty button { min-height:44px; padding:8px 20px; border:1px solid #90b5a6; border-radius:24px; background:#fff; color:#204e3e; cursor:pointer; }
+.products-page { min-height:100svh; background:#eff7f3; color:#183e39; padding-inline:clamp(16px,4vw,68px); }
+.products-page :focus-visible,.collection-section :focus-visible { outline-color:#28674e; }
+.products-header { max-width:1480px; min-height:94px; margin:auto; display:flex; align-items:center; gap:30px; border-bottom:1px solid #d4e2da; position:relative; z-index:5; }
+.products-brand { display:flex; align-items:center; gap:12px; margin-inline-end:auto; color:#165c40; letter-spacing:.1em; }
+.products-brand svg { width:38px; height:38px; }
+.products-header nav { display:flex; gap:28px; font-size:13px; }
+.products-header nav a { min-height:44px; display:flex; align-items:center; }
+.products-header nav a[aria-current] { color:#176342; font-weight:700; border-bottom:2px solid #176342; }
+.products-header .icon-btn { color:#165a3e; background:#fff; border-color:#bdd7c8; }
+.products-header .language-popover { color:#163e36; background:#fff; border-color:#c2d8cd; }
+.products-intro { max-width:1480px; margin:0 auto; padding:36px 0 42px; }
+.products-back { display:inline-flex; align-items:center; gap:9px; min-height:44px; color:#688278; font-size:12px; margin-bottom:18px; }
+.products-intro h1 { margin:12px 0 0; font:700 clamp(32px,4vw,56px)/1.06 'Space Grotesk',sans-serif; letter-spacing:-.045em; }
+.products-layout { max-width:1480px; margin:0 auto; display:grid; grid-template-columns:220px minmax(0,1fr); gap:40px; align-items:start; }
+.products-sidebar { position:sticky; top:24px; }
+.products-sidebar h2 { font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:#738980; margin:10px 12px 20px; }
+.products-sidebar nav { display:grid; gap:7px; }
+.products-sidebar button { min-height:50px; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 15px; background:transparent; border:1px solid transparent; border-radius:13px; color:#426559; font-size:13px; text-align:start; cursor:pointer; }
+.products-sidebar button span { padding:4px 7px; border-radius:7px; background:#e2ede5; font-size:10px; }
+.products-sidebar button[aria-pressed='true'] { color:#fff; background:#216346; border-color:#216346; }
+.products-sidebar button[aria-pressed='true'] span { background:#ffffff24; }
+.products-sidebar button:hover:not([aria-pressed='true']) { background:#e1efe6; }
+.products-results { min-width:0; padding-bottom:64px; }
+.products-filters { display:flex; flex-wrap:wrap; align-items:end; gap:12px; }
+.products-filters label:not(.products-search) { display:grid; gap:6px; flex:1; min-width:140px; }
+.products-filters label>span { font-size:10px; color:#6f857a; }
+.products-filters select { min-height:46px; border:1px solid #c0d5ca; border-radius:12px; padding:0 12px; color:#365d4d; background:#fff; width:100%; font:inherit; font-size:12px; }
+.products-search { display:flex; align-items:center; gap:10px; padding:0 13px; border:1px solid #c0d5ca; background:#fff; border-radius:12px; min-height:46px; flex:2; min-width:230px; }
+.products-search input { border:0; color:#284f3e; outline:none; background:transparent; width:100%; min-width:0; font-size:12px; }
+.products-search:focus-within { outline:2px solid #43896a; outline-offset:2px; }
+.products-results-heading { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; margin:24px 0 20px; }
+.products-results-heading p { margin:0; color:#637c71; font-size:12px; }
+.products-card-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
+.products-bottom-pager { margin-top:36px; display:flex; justify-content:center; }
+.products-footer { max-width:1480px; margin:auto; border-top:1px solid #d4e2da; padding:24px 0 32px; display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; color:#648071; font-size:11px; }
+.products-footer strong { letter-spacing:.14em; color:#22533b; }
+.products-footer p { margin:0; }
+.collection-product-dialog { width:min(860px,calc(100vw - 32px)); max-height:calc(100svh - 32px); border:1px solid #d5e4db; border-radius:30px; padding:24px; color:#143b2b; background:#f8fcf9; overflow:auto; box-shadow:0 30px 120px #061d3380; }
+.collection-product-dialog[open] { display:grid; grid-template-columns:1fr 1fr; gap:32px; }
+.collection-product-dialog::backdrop { background:#122b39a3; backdrop-filter:blur(6px); }
+.collection-dialog-close { position:absolute; inset-inline-end:14px; top:14px; width:44px; height:44px; border:1px solid #c7dbd0; background:#fff; color:#275a43; border-radius:50%; display:grid; place-items:center; cursor:pointer; z-index:2; }
+.collection-dialog-visual { align-self:center; min-width:0; }
+.collection-dialog-visual .collection-card-image { border:0; background:transparent; }
+.collection-dialog-visual .scene-shell { height:450px; }
+.collection-dialog-copy { align-self:center; padding:42px 10px 30px 0; min-width:0; }
+.collection-dialog-copy h2 { font:800 36px/1.1 'Be Vietnam Pro',sans-serif; letter-spacing:-.04em; margin:18px 0; overflow-wrap:anywhere; }
+.collection-dialog-copy>p:not(.collection-kicker) { font-size:13px; color:#5f7b6d; line-height:1.8; }
+.collection-dialog-copy dl { display:grid; gap:12px; border-top:1px solid #d6e3da; padding-top:20px; margin-top:24px; }
+.collection-dialog-copy dl>div { display:flex; align-items:center; justify-content:space-between; gap:14px; font-size:12px; }
+.collection-dialog-copy dt { color:#749080; }
+.collection-dialog-copy dd { margin:0; }
+.collection-dialog-hint { font-size:10px!important; }
+@media(min-width:1600px) { .collection-section { width:min(1480px,calc(100% - 96px)); }.products-card-grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media(max-width:1050px) { .products-layout { grid-template-columns:180px minmax(0,1fr); gap:24px; }.products-card-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.collection-row-tools { gap:12px; }.collection-card-copy h3 { font-size:25px; } }
+@media(max-width:760px) { .collection-section { padding-block:52px 64px; }.collection-section .section-heading { display:grid; align-items:start; margin-bottom:40px; }.collection-heading-end { justify-items:start; gap:0; }.collection-section .section-description { margin:0 0 10px; }.collection-row-heading { align-items:start; flex-wrap:wrap; }.collection-row-tools { width:100%; justify-content:space-between; gap:8px; }.collection-rows { gap:42px; }.collection-row-cards { gap:16px; }.products-header { min-height:80px; gap:16px; }.products-header nav { gap:18px; font-size:12px; }.products-header nav a:nth-child(2) { display:none; }.products-brand { gap:6px; font-size:13px; }.products-brand svg { width:28px; height:28px; }.products-intro { padding:22px 0 28px; }.products-layout { grid-template-columns:minmax(0,1fr); gap:24px; }.products-sidebar { position:static; }.products-sidebar h2 { margin-inline:0; }.products-sidebar nav { display:flex; flex-wrap:wrap; gap:6px; }.products-sidebar nav h2 { width:100%; margin-bottom:6px; }.products-sidebar button { min-height:44px; padding:9px 12px; font-size:12px; border-color:#c8dcd0; }.products-filters { gap:10px; }.products-search { flex-basis:100%; }.products-card-grid { gap:16px; }.collection-product-dialog[open] { grid-template-columns:1fr; gap:0; padding:20px; }.collection-dialog-visual .scene-shell { height:310px; }.collection-dialog-copy { padding:10px 0 14px; }.collection-dialog-copy h2 { font-size:30px; }.products-back svg { flex-shrink:0; } }
+@media(max-width:520px) { .products-card-grid { grid-template-columns:minmax(0,1fr); }.collection-card-copy h3 { font-size:30px; }.collection-card { border-radius:30px; }.collection-row-tools { align-items:start; }.collection-see-all { font-size:12px; }.collection-pager { gap:6px; }.collection-pager span { min-width:68px; font-size:10px; }.products-header nav { gap:12px; }.products-header { gap:10px; }.products-intro h1 { max-width:310px; }.products-results-heading { align-items:center; }.products-results { padding-bottom:42px; } }
+@media(prefers-reduced-motion:reduce) { .collection-card,.collection-pager button { transition:none; } }

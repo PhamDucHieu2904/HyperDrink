@@ -6,6 +6,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 const { exportPublishedCatalog } = require('../export-public-catalog.cjs');
+const { pathToFileURL } = require('node:url');
 
 function fixture() {
   fs.mkdirSync(path.resolve('.tmp'), { recursive: true });
@@ -72,4 +73,45 @@ test('an unpublished database has no public snapshot to export', () => {
     assert.throws(() => exportPublishedCatalog(f), /No active published catalog/);
     assert.equal(fs.existsSync(path.join(f.outputDir, 'current.json')), false);
   } finally { cleanup(f.root); }
+});
+
+test('committed standalone catalog includes readable media for every published pool assignment', () => {
+  const publicDir = path.resolve('public');
+  const snapshot = JSON.parse(fs.readFileSync(path.join(publicDir, 'catalog/current.json'), 'utf8')).data;
+  const catalog = snapshot.catalog;
+  for (const media of catalog.media) {
+    assert.equal(media.storageKey, '', `Private media path leaked: ${media.id}`);
+    assert.match(media.url, /^\/(catalog\/media|assets|models)\//);
+    const filename = path.resolve(publicDir, `.${media.url}`);
+    assert.ok(filename.startsWith(publicDir + path.sep));
+    const bytes = fs.readFileSync(filename);
+    assert.equal(bytes.length, media.bytes, media.id);
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), media.sha256, media.id);
+  }
+  for (const assignment of catalog.flavorAssets) {
+    assert.ok(catalog.flavors.some(flavor => flavor.id === assignment.flavorId));
+    const media = catalog.media.find(item => item.id === assignment.mediaId);
+    assert.ok(media, `Missing public pool image: ${assignment.id}`);
+    assert.equal(media.role, assignment.role, assignment.id);
+    assert.equal(media.status, 'ready'); assert.equal(media.lifecycle, 'active');
+  }
+});
+
+test('local and Pages storefronts default to standalone data; an explicitly configured API retains live mode', async () => {
+  const previousApi = process.env.NEXT_PUBLIC_ADMIN_API_URL, previousPages = process.env.GITHUB_PAGES;
+  const configUrl = pathToFileURL(path.resolve('next.config.mjs')).href;
+  try {
+    delete process.env.NEXT_PUBLIC_ADMIN_API_URL;
+    for (const pages of ['false', 'true']) {
+      process.env.GITHUB_PAGES = pages;
+      const { default: config } = await import(`${configUrl}?standalone=${pages}`);
+      assert.equal(config.env.NEXT_PUBLIC_CATALOG_MODE, 'static');
+    }
+    process.env.NEXT_PUBLIC_ADMIN_API_URL = 'https://catalog.example.test';
+    const { default: configured } = await import(`${configUrl}?standalone=hosted`);
+    assert.equal(configured.env.NEXT_PUBLIC_CATALOG_MODE, 'api');
+  } finally {
+    if (previousApi === undefined) delete process.env.NEXT_PUBLIC_ADMIN_API_URL; else process.env.NEXT_PUBLIC_ADMIN_API_URL = previousApi;
+    if (previousPages === undefined) delete process.env.GITHUB_PAGES; else process.env.GITHUB_PAGES = previousPages;
+  }
 });

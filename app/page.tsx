@@ -4,13 +4,16 @@ import ShowcaseHero from '@/components/ShowcaseHero';
 import BeverageCategoryRail from '@/components/BeverageCategoryRail';
 import LanguageSelector from '@/components/LanguageSelector';
 import { LanguageProvider, useLanguage } from '@/components/LanguageProvider';
-import { normalizeSearch } from '@/lib/i18n/catalog';
+import { collectionCopy } from '@/lib/i18n/collection-copy';
+import { collectionSections, filterCollectionProducts } from '@/lib/catalog/collection';
+import { publicUrl } from '@/lib/public-url';
+import CollectionRows from '@/components/collection/CollectionRows';
 import { storefrontStatus } from '@/lib/i18n/storefront-status';
 import { usePublishedCatalog } from '@/components/usePublishedCatalog';
-import { catalogProducts, resolveStorefrontSelection, type StorefrontSelectionRequest } from '@/lib/catalog/storefront';
-import { mediaUrl } from '@/lib/catalog/resolve';
-import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
+import { useTranslatedCatalog } from '@/components/useTranslatedCatalog';
+import { useStorefrontTelemetry } from '@/components/useStorefrontTelemetry';
+import { catalogProducts, randomStorefrontEntry, resolveStorefrontSelection, type StorefrontSelectionRequest } from '@/lib/catalog/storefront';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Check, Menu, Search, X } from 'lucide-react';
 
 
@@ -30,30 +33,38 @@ export default function HomePage() {
 
 function Storefront() {
   const { t, locale } = useLanguage();
+  const track = useStorefrontTelemetry(locale);
   const copy = storefrontStatus[locale];
+  const collectionText = collectionCopy(locale);
   const { published, loading, error, refresh } = usePublishedCatalog();
   const usingSnapshotFallback = published?.source === 'static' && process.env.NEXT_PUBLIC_CATALOG_MODE !== 'static';
-  const data = published?.catalog;
+  const data = useTranslatedCatalog(published?.catalog);
   const [selection, setSelection] = useState<StorefrontSelectionRequest>({});
+  const [entryReady, setEntryReady] = useState(false);
+  const entryInitialized = useRef(false);
   const current = useMemo(() => data ? resolveStorefrontSelection(data, selection) : null, [data, selection]);
-  const products = useMemo(() => data ? catalogProducts(data) : [], [data]);
-  const [filter, setFilter] = useState('all');
+  const products = useMemo(() => data ? catalogProducts(data, 'catalog') : [], [data]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
-  const categories = useMemo(() => [...new Map(products.map(product => [product.category.id, product.category])).values()].sort((a, b) => a.position - b.position), [products]);
 
-  const visibleProducts = useMemo(() => {
-    const byPacking = products.filter(product =>
-      filter === 'all' || !categories.some(category => category.id === filter) || product.category.id === filter);
-    const query = normalizeSearch(searchQuery);
-    if (!query) return byPacking;
-    return byPacking.filter(product => normalizeSearch([product.variant.name, product.variant.code, product.variant.description,
-      product.group.name, product.flavor.name, product.flavor.shortName, product.flavor.description,
-      product.packaging.name, product.packaging.volumeMl, product.category.name,
-      data?.drinkTypes.find(type => type.id === product.group.drinkTypeId)?.name].join(' ')).includes(query));
-  }, [products, categories, filter, searchQuery, data]);
+  useEffect(() => {
+    const catalog = published?.catalog;
+    if (!catalog || entryInitialized.current) return;
+    let live = true;
+    queueMicrotask(() => {
+      if (!live || entryInitialized.current) return;
+      entryInitialized.current = true;
+      const sample = Math.random();
+      setSelection(previous => randomStorefrontEntry(catalog, previous, sample));
+      setEntryReady(true);
+    });
+    return () => { live = false; };
+  }, [published?.catalog]);
+
+  const visibleProducts = useMemo(() => filterCollectionProducts(products, searchQuery, published?.catalog), [products, searchQuery, published?.catalog]);
+  const sections = useMemo(() => data ? collectionSections(data, visibleProducts) : [], [data, visibleProducts]);
 
   useEffect(() => {
     if (!searchOpen) return;
@@ -63,6 +74,11 @@ function Storefront() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [searchOpen]);
+  useEffect(() => {
+    if(!searchOpen||!searchQuery.trim())return;
+    const timer=window.setTimeout(()=>track('search_use'),700);
+    return()=>window.clearTimeout(timer);
+  },[searchOpen,searchQuery,track]);
 
   const scrollTo = (id: string) => {
     setMenuOpen(false);
@@ -77,14 +93,14 @@ function Storefront() {
         <nav id="primary-navigation" className={`main-nav ${menuOpen ? 'is-open' : ''}`} aria-label={t('nav.label')}>
           <a className="nav-link" aria-current="page" href="#top" onClick={() => setMenuOpen(false)}>{t('nav.home')}</a>
           <a className="nav-link" href="#collection" onClick={() => setMenuOpen(false)}>{t('nav.flavors')}</a>
-          <a className="nav-link" href="#collection" onClick={() => setMenuOpen(false)}>{t('nav.products')}</a>
+          <a className="nav-link" href={publicUrl('/products/')} onClick={() => setMenuOpen(false)}>{t('nav.products')}</a>
           <a className="nav-link" href="#story" onClick={() => setMenuOpen(false)}>{t('nav.story')}</a>
         </nav>
         <BeverageCategoryRail />
         <div className="header-actions">
-          <button type="button" className="icon-btn" aria-label={searchOpen ? t('search.close') : t('search.open')} aria-expanded={searchOpen} onClick={() => { setLanguageOpen(false); setMenuOpen(false); setSearchOpen((open) => !open); }}>{searchOpen ? <X /> : <Search />}</button>
+          <button type="button" className="icon-btn" aria-label={searchOpen ? t('search.close') : t('search.open')} aria-expanded={searchOpen} onClick={() => { if(!searchOpen)track('search_open'); setLanguageOpen(false); setMenuOpen(false); setSearchOpen((open) => !open); }}>{searchOpen ? <X /> : <Search />}</button>
           <LanguageSelector open={languageOpen} onOpenChange={open => { setLanguageOpen(open); if (open) { setSearchOpen(false); setMenuOpen(false); } }} />
-          <button type="button" className="icon-btn menu-toggle" aria-label={menuOpen ? t('nav.closeMenu') : t('nav.openMenu')} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => { setLanguageOpen(false); setSearchOpen(false); setMenuOpen((open) => !open); }}>{menuOpen ? <X /> : <Menu />}</button>
+          <button type="button" className="icon-btn menu-toggle" aria-label={menuOpen ? t('nav.closeMenu') : t('nav.openMenu')} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => { if(!menuOpen)track('menu_open'); setLanguageOpen(false); setSearchOpen(false); setMenuOpen((open) => !open); }}>{menuOpen ? <X /> : <Menu />}</button>
         </div>
         {searchOpen && (
           <form className="search-popover" role="search" onSubmit={(event) => { event.preventDefault(); scrollTo('collection'); }}>
@@ -95,45 +111,21 @@ function Storefront() {
         )}
       </header>
 
-      {data && published ? <ShowcaseHero catalog={data} releaseId={published.releaseId} selection={selection}
-        onSelectGroup={id => setSelection({ groupId: id })}
-        onSelectVariant={id => setSelection({ groupId: current?.group?.id, slotId: current?.slot?.id, variantId: id })}
-        onExplore={() => scrollTo('collection')} /> : <section className="catalog-placeholder" aria-busy={loading}>
-        <p role={error ? 'alert' : 'status'}>{loading ? copy.loading : error ? copy.unavailable : copy.empty}</p>
+      {data && published && entryReady ? <ShowcaseHero catalog={data} releaseId={published.releaseId} selection={selection}
+        onSelectGroup={id => { track('group_select',id); setSelection({ groupId: id }); }}
+        onSelectVariant={id => { track('flavor_select',id); setSelection({ groupId: current?.group?.id, slotId: current?.slot?.id, variantId: id }); }}
+        onExplore={() => scrollTo('collection')} /> : <section className="catalog-placeholder" aria-busy={loading || Boolean(data && !entryReady)}>
+        <p role={error ? 'alert' : 'status'}>{loading || (data && !entryReady) ? copy.loading : error ? copy.unavailable : copy.empty}</p>
         {!loading && <button type="button" className="btn btn-primary" onClick={() => void refresh()}>{copy.retry}</button>}
       </section>}
       {published && (error || usingSnapshotFallback) && <div className="catalog-update-notice" role="status"><span>{copy.refreshFailed}</span><button type="button" disabled={loading} onClick={() => void refresh()}>{copy.retry}</button></div>}
 
-      <section id="collection" className="section" aria-labelledby="collection-title">
+      <section id="collection" className="section collection-section" aria-labelledby="collection-title">
         <div className="section-heading">
           <div><p className="section-kicker">{t('collection.kicker')}</p><h2 id="collection-title" className="section-title">{t('collection.title')}</h2></div>
-          <p className="section-description">{t('collection.copy')}</p>
+          <div className="collection-heading-end"><p className="section-description">{t('collection.copy')}</p><a className="collection-see-all" href={publicUrl('/products/')}>{collectionText.allProducts}<ArrowRight size={18} /></a></div>
         </div>
-        <div className="catalog-controls">
-          <div className="filter-group" role="group" aria-label={t('collection.filter')}>
-            <button type="button" className="filter-btn" aria-pressed={filter === 'all' || !categories.some(category => category.id === filter)} onClick={() => setFilter('all')}>{t('packaging.all')}</button>
-            {categories.map(item => <button type="button" key={item.id} className="filter-btn" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.name}</button>)}
-          </div>
-          <span className="catalog-count" aria-live="polite">{t(visibleProducts.length === 1 ? 'collection.countOne' : 'collection.count', { count: visibleProducts.length })}</span>
-        </div>
-        <div className="product-grid" aria-live="polite">
-          {visibleProducts.length > 0 ? visibleProducts.map((product) => (
-            <article key={product.variant.id} className="product-card catalog-product-card">
-              <button type="button" className="catalog-product-link" onClick={() => {
-                setSelection({ groupId: product.group.id, slotId: product.slot.id, variantId: product.variant.id });
-                scrollTo('top');
-              }}>
-                <div className="product-art" style={{ '--catalog-accent': product.flavor.accentColor } as React.CSSProperties}>
-                  {(product.image2d || product.thumbnail) ? <Image unoptimized width={512} height={280} sizes="(max-width:760px) 46vw, 23vw" className="catalog-card-image" src={mediaUrl(product.image2d || product.thumbnail)} alt={product.flavor.name} /> : <span>{product.flavor.shortName || product.flavor.name}</span>}
-                  {!product.image2d && product.thumbnail && <span className="catalog-artwork-caption">{copy.artwork}</span>}
-                </div>
-                <h3>{product.variant.name}</h3>
-                <p className="product-meta">{product.flavor.shortName || product.flavor.name} · <bdi>{product.packaging.volumeMl ? `${product.packaging.volumeMl} ml` : product.packaging.name}</bdi></p>
-                <div className="product-footer"><span className="product-tag">{product.group.buttonLabel || product.group.name}</span><span className="product-arrow" aria-hidden="true"><ArrowRight size={15} /></span></div>
-              </button>
-            </article>
-          )) : <p className="empty-state">{!published ? (loading ? copy.loading : error ? copy.unavailable : copy.empty) : !products.length ? copy.empty : t('collection.emptySearch')}</p>}
-        </div>
+        {data && sections.length > 0 ? <CollectionRows catalog={data} sections={sections} /> : <p className="collection-empty" role="status">{!published ? (loading ? copy.loading : error ? copy.unavailable : copy.empty) : !products.length || !searchQuery.trim() ? copy.empty : t('collection.emptySearch')}</p>}
       </section>
 
       <section id="story" className="section" aria-labelledby="story-title">
@@ -153,7 +145,7 @@ function Storefront() {
         </div>
       </section>
 
-      <footer className="site-footer"><span className="footer-brand">VINUT</span><span>{t('footer.copy')}</span><div className="footer-links"><a href="#collection">{t('nav.products')}</a><a href="#story">{t('nav.story')}</a><a href="mailto:hello@vinut.com">{t('nav.contact')}</a></div></footer>
+      <footer className="site-footer"><span className="footer-brand">VINUT</span><span>{t('footer.copy')}</span><div className="footer-links"><a href={publicUrl('/products/')}>{t('nav.products')}</a><a href="#story">{t('nav.story')}</a><a href="mailto:hello@vinut.com">{t('nav.contact')}</a></div></footer>
     </main>
   );
 }

@@ -129,6 +129,7 @@
 .recordIdentity { display: flex; align-items: center; gap: 13px; min-width: 230px; }
 .thumbnail { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border: 1px solid #e6ece7; border-radius: 9px; flex-shrink: 0; overflow: hidden; color: #b5c2b8; background-color: #f3f7f4; background-image: linear-gradient(45deg, #eaf0eb 25%, transparent 25%), linear-gradient(-45deg, #eaf0eb 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #eaf0eb 75%), linear-gradient(-45deg, transparent 75%, #eaf0eb 75%); background-size: 14px 14px; background-position: 0 0, 0 7px, 7px -7px, -7px 0; }
 .thumbnail img { width: 100%; height: 100%; object-fit: contain; }
+.iconThumbnail { background: #285b46; background-image: none; }
 .recordName { display: block; font-size: 11px !important; font-weight: 600 !important; border: 0; background: transparent; padding: 0; color: #385742; text-align: left; }
 .recordName:hover:not(:disabled) { color: #1e6945; text-decoration: underline; }
 .recordName:disabled { opacity: 1 !important; cursor: default !important; }
@@ -147,6 +148,8 @@
 .statusPending { color: #9f823d; background: #fcf7e8; border-color: #f2e7c6; }
 .statusFailed { color: #b46560; background: #fdf0ef; border-color: #f4dedc; }
 .rowActions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+.smallButton.deleteButton { color: #922d25; border-color: #e7b8b2; background: #fff; min-width: 58px; min-height: 44px; }
+.deleteButton:hover:not(:disabled) { background: #ffebe7; }
 .tableFooter { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 13px 20px; background: #fcfdfc; border-top: 1px solid #edf1ed; font-size: 9px; color: #95a398; }
 .tableFooter > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
 .pagination { display: flex; align-items: center; gap: 6px; }
@@ -231,6 +234,19 @@
 .mediaSelection .thumbnail { width: 42px; height: 42px; }
 .pickerDialog { width: min(800px, calc(100% - 36px)); }
 .pickerTools { display: flex; align-items: center; justify-content: space-between; gap: 17px; padding: 20px 24px; }
+.pickerTools > .search { flex: 1; min-width: 150px; }
+.pickerTools input[type="file"] { width: 1px; height: 1px; }
+.pickerCategory { display: grid; gap: 4px; font-size: 11px; color: var(--muted); }
+.pickerCategory select { width: 190px; min-height: 42px; }
+.mediaRoleBadge { display: inline-block; justify-self: start; border: 1px solid #d9e7df; border-radius: 5px; background: #f2f7f4; color: #285640; padding: 3px 6px; font-size: 10px; }
+.flavorIconField { display: grid; gap: 14px; }
+.iconSourceTabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.iconSourceTabs button { min-height: 40px; border: 1px solid #ccdcd3; border-radius: 7px; background: white; padding: 8px 12px; color: #285640; font: inherit; font-size: 12px; cursor: pointer; }
+.iconSourceTabs button[aria-pressed="true"] { border-color: #1c6a46; background: #e6f2eb; font-weight: 600; }
+.iconSourceTabs button:disabled { cursor: default; opacity: .6; }
+.iconPreviewRow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.iconGridPreview { width: 72px; height: 72px; border-radius: 7px; flex-shrink: 0; }
+.iconPreviewRow > p { flex: 1; min-width: 170px; margin: 0; }
 .pickerDialog > .help, .pickerDialog > .errorBanner { margin: 0 24px 16px; }
 .pickerGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; padding: 0 24px 24px; }
 .assetOption { display: flex; flex-direction: column; align-items: stretch; text-align: left; gap: 6px; padding: 9px; background: #fff; border: 1px solid #e4ece6; border-radius: 8px; color: #5e7866; }

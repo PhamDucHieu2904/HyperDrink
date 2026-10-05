@@ -1,0 +1,27 @@
+.dialog { width: min(680px, calc(100vw - 24px)); }
+.body { padding: 24px 28px 12px; display: grid; gap: 18px; }
+.field { display: grid; gap: 9px; }
+.field label { font-size: 14px; font-weight: 650; color: #3f6552; }
+.field select { min-height: 46px; padding: 10px 13px; background: white; border: 1px solid #ceded5; border-radius: 8px; color: #224c3b; }
+.choose { display: grid; justify-items: center; gap: 9px; padding: 25px 18px; min-height: 170px; border: 1px dashed #8ebda2; border-radius: 12px; background: #f4f9f6; color: #195f40; }
+.choose:hover { background: #eaf4ed; border-color: #1e754c; }
+.choose strong { font-size: 17px; }
+.choose > span:last-child { color: #627e6f; font-size: 12px; line-height: 1.6; }
+.uploadIcon { width: 48px; height: 48px; border-radius: 14px; background: #e4f1e8; display: grid; place-items: center; }
+.help { color: #657d71; font-size: 12px; line-height: 1.7; }
+.queue { border: 1px solid #dbe7df; border-radius: 10px; overflow: hidden; }
+.queueHeading { display: flex; gap: 12px; justify-content: space-between; padding: 12px 14px; background: #f6f9f7; font-size: 12px; }
+.queueHeading span { color: #5e786a; }
+.queue ul { list-style: none; padding: 0; margin: 0; }
+.queue li { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid #e7eee9; }
+.queue img { width: 48px; height: 48px; flex: none; object-fit: contain; background: repeating-conic-gradient(#eef3ef 0% 25%, #fff 0% 50%) 50% / 12px 12px; border-radius: 6px; }
+.fileInfo { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.fileInfo strong { font-size: 13px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #244b38; }
+.fileInfo span { font-size: 12px; line-height: 1.5; color: #667e70; overflow-wrap: anywhere; }
+.queue .errorItem { background: #fff8f6; }
+.fileInfo .errorText { color: #a53726; }
+.success { color: #1c7446; flex: none; }
+.notice { min-height: 20px; color: #38604b; font-size: 13px; line-height: 1.5; }
+.footer { flex-wrap: wrap; gap: 12px; }
+.footer > div { display: flex; gap: 8px; margin-left: auto; }
+@media (max-width: 520px) { .body { padding: 20px 18px 10px; } .queueHeading { flex-wrap: wrap; gap: 5px; } .footer > span { width: 100%; } .footer > div { width: 100%; justify-content: flex-end; } }

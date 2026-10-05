@@ -98,6 +98,7 @@ test('FlavorBackground emits one layer per catalog item with unique keys even wh
     if (name === 'react') return { useRef: () => ({ current: null }), useMemo: factory => factory(), useEffect: effect => effects.push(effect) };
     if (name.endsWith('background-config')) return config;
     if (name.endsWith('background-render-state')) return rendering;
+    if (name === './BackgroundPattern') return { default: () => null };
     if (name.endsWith('background-motion')) return loadSource('lib/background-motion.ts');
     return require(name);
   }).default;
@@ -108,7 +109,7 @@ test('FlavorBackground emits one layer per catalog item with unique keys even wh
   assert.equal(colors.length, 32); assert.equal(patterns.length, 32);
   assert.equal(new Set(colors.map(layer => layer.key)).size, 32); assert.equal(new Set(patterns.map(layer => layer.key)).size, 32);
   assert.equal(colors[23].props.style.backgroundColor, catalogThemes[23].color);
-  assert.equal(patterns[23].props.style.opacity, 1);
+  assert.equal(patterns[23].props.opacity, 1);
   const originalMedia = global.matchMedia, originalPerformance = global.performance;
   try {
     global.matchMedia = () => ({ matches: true }); global.performance = { now: () => 200 };
@@ -122,6 +123,7 @@ test('the first FlavorBackground effect keeps the already selected startup color
     if (name === 'react') return { useRef: () => ({ current: null }), useMemo: factory => factory(), useEffect: effect => effects.push(effect) };
     if (name.endsWith('background-config')) return config;
     if (name.endsWith('background-render-state')) return rendering;
+    if (name === './BackgroundPattern') return { default: () => null };
     if (name.endsWith('background-motion')) return loadSource('lib/background-motion.ts');
     return require(name);
   }).default;
@@ -129,11 +131,57 @@ test('the first FlavorBackground effect keeps the already selected startup color
   state.setFlavor(23, 0, true);
   const tree = component({ flavorIndex: 23, themes, renderState: state });
   assert.equal(tree.props.children[0][23].props.style.opacity, 1);
-  assert.equal(tree.props.children[1].props.children[23].props.style.backgroundImage, `url("${rendering.backgroundTileUrl(themes[23].icon, config.backgroundConfig)}")`);
+  assert.equal(tree.props.children[1].props.children[23].props.theme.icon, themes[23].icon);
   const originalMedia = global.matchMedia, originalPerformance = global.performance;
   try {
     global.matchMedia = () => ({ matches: false }); global.performance = { now: () => 50 };
     effects[0](); state.advance(200, false);
     assert.equal(state.weights[23], 1); assert.equal(state.weights[0], 0);
   } finally { global.matchMedia = originalMedia; global.performance = originalPerformance; }
+});
+
+
+test('custom icon URLs survive normalization, reject unsafe schemes and invalidate a live theme replacement', () => {
+  for (const url of ['/catalog/media/icon.webp', '/api/public/v1/media/icon', 'https://cdn.example.test/icon.webp']) {
+    const state = new rendering.BackgroundRenderState({}, [{ id: 'one', color: '#123456', icon: 'apple', iconUrl: url }]);
+    assert.equal(state.themes[0].iconUrl, url);
+    state.setThemes([{ ...state.themes[0], iconUrl: '/catalog/media/replacement.webp' }], 500, true);
+    assert.equal(state.themeRevision, 1); assert.equal(state.weights[0], 1);
+  }
+  for (const url of ['javascript:alert(1)', 'data:image/svg+xml,<svg/>', '//external.test/file', '/a\n.webp']) {
+    assert.equal(config.normalizeBackgroundThemes([{ color: '#123456', icon: 'apple', iconUrl: url }])[0].iconUrl, undefined);
+  }
+});
+
+const imageTiles = loadSource('lib/background-image-tile.ts', name => name.endsWith('background-render-state') ? rendering : require(name));
+test('portrait, landscape and square custom symbols fit inside the same centered background slot', () => {
+  for (const [width, height] of [[20, 80], [400, 80], [128, 128]]) {
+    const rect = imageTiles.backgroundIconRect(width, height, 88, 38);
+    assert.equal(rect.width / rect.height, width / height);
+    assert.equal(Math.max(rect.width, rect.height), 38);
+    assert.equal(rect.x + rect.width / 2, 44); assert.equal(rect.y + rect.height / 2, 44);
+    assert.ok(rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= 88 && rect.y + rect.height <= 88);
+  }
+});
+
+test('custom symbols produce one shared self-contained tile for DOM and water, with proportional size and opacity', async () => {
+  const prior = new Map(['Image', 'document', 'window'].map(key => [key, global[key]]));
+  const draws = [], images = [], context = { globalAlpha: 1, scale() {}, drawImage(image, ...area) { draws.push({ url: image.src, alpha: this.globalAlpha, area }); } };
+  try {
+    global.window = { location: { origin: 'http://127.0.0.1:3100' } };
+    global.document = { createElement: () => ({ getContext: () => context, toDataURL: () => 'data:image/png;base64,tile' }) };
+    global.Image = class {
+      constructor() { images.push(this); }
+      set src(value) { this.url = value; this.naturalWidth = value.startsWith('data:') ? 264 : 20; this.naturalHeight = value.startsWith('data:') ? 264 : 80; queueMicrotask(() => this.onload?.()); }
+      get src() { return this.url; }
+    };
+    const theme = { icon: 'apple', iconUrl: '/catalog/media/narrow-test.webp' };
+    const pending = imageTiles.loadBackgroundTile(theme, config.backgroundConfig);
+    assert.equal(imageTiles.loadBackgroundTile(theme, config.backgroundConfig), pending, 'Both consumers reuse one conversion');
+    assert.equal(await pending, 'data:image/png;base64,tile'); assert.equal(images.length, 2);
+    const icon = draws[1]; assert.equal(icon.alpha, .65); assert.deepEqual(icon.area, [39.25, 25, 9.5, 38]);
+    assert.doesNotMatch(decodeURIComponent(draws[0].url), /<circle/);
+    global.Image = class { set src(value) { this.url = value; queueMicrotask(() => this.onerror?.()); } };
+    assert.equal(await imageTiles.loadBackgroundTile({ icon: 'grape', iconUrl: '/catalog/media/missing.webp' }, config.backgroundConfig), rendering.backgroundTileUrl('grape', config.backgroundConfig));
+  } finally { for (const [key, value] of prior) if (value === undefined) delete global[key]; else global[key] = value; }
 });

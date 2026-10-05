@@ -1,12 +1,16 @@
 'use client';
+import { trackUsage } from '@/lib/operations/client';
 
-import { Check, Search, X } from 'lucide-react';
+import { Check, LoaderCircle, Search, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { findLanguages, languages } from '@/lib/i18n/catalog';
 import { useLanguage } from './LanguageProvider';
+import { translationStatus } from '@/lib/i18n/translation-status';
 
 export default function LanguageSelector({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { locale, setLocale, t } = useLanguage();
+  const { locale, setLocale, t, translation, activateTranslation } = useLanguage();
+  const statusCopy = translationStatus[locale];
+  const translating = translation.status === 'translating' || translation.status === 'downloading';
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -44,7 +48,7 @@ export default function LanguageSelector({ open, onOpenChange }: { open: boolean
   }}>
     <button ref={triggerRef} type="button" className="icon-btn language-trigger" aria-label={`${locale.toUpperCase()} — ${t('language.open')}`}
       title={t('language.current', { language: current.nativeName })} aria-haspopup="dialog" aria-expanded={open} aria-controls={`${id}-panel`}
-      onClick={() => { setQuery(''); onOpenChange(!open); }}><span className="language-trigger-code" aria-hidden="true" lang="en" dir="ltr">{locale.toUpperCase()}</span></button>
+      onClick={() => { activateTranslation(); setQuery(''); onOpenChange(!open); }}><span className="language-trigger-code" aria-hidden="true" lang="en" dir="ltr">{locale.toUpperCase()}</span>{translating && <LoaderCircle size={10} className="language-progress" aria-hidden="true" />}</button>
     {open && <div id={`${id}-panel`} className="language-popover" role="dialog" aria-labelledby={`${id}-title`}>
       <div className="language-popover-heading"><h2 id={`${id}-title`}>{t('language.title')}</h2>
         <button type="button" className="language-close" aria-label={t('language.close')} onClick={() => close(true)}><X size={18} aria-hidden="true" /></button></div>
@@ -53,13 +57,17 @@ export default function LanguageSelector({ open, onOpenChange }: { open: boolean
         autoComplete="off" spellCheck={false} placeholder={t('language.placeholder')} value={query} onChange={event => setQuery(event.target.value)} /></div>
       <ul className="language-options" aria-label={t('language.title')}>
         {choices.map(language => <li key={language.code}><button type="button" data-language-option aria-pressed={locale === language.code}
-          onClick={() => { setLocale(language.code); close(true); }}>
+          onClick={() => { if(language.code!==locale)trackUsage('language_select',language.code); setLocale(language.code); close(true); }}>
           <span className="language-code" aria-hidden="true">{language.code.toUpperCase()}</span>
           <span className="language-names"><strong lang={language.code}>{language.nativeName}</strong><span>{language.name}</span></span>
           {locale === language.code && <Check size={18} aria-label={t('language.selected')} />}
         </button></li>)}
       </ul>
       {!choices.length && <p className="language-empty" role="status">{t('language.empty')}</p>}
+      {translation.status !== 'idle' && <div className="language-translation-status" aria-live="polite">
+        <p>{translation.status === 'downloading' ? `${statusCopy.downloading}${translation.download !== undefined ? ` ${Math.round(translation.download * 100)}%` : ''}` : translation.status === 'translating' ? statusCopy.translating : translation.status === 'unsupported' ? statusCopy.unsupported : translation.status === 'error' ? statusCopy.error : translation.status === 'ready' ? statusCopy.ready : ''}</p>
+        {(translation.status === 'needs-activation' || translation.status === 'error') && <button type="button" onClick={activateTranslation}>{statusCopy.activate}</button>}
+      </div>}
     </div>}
   </div>;
 }

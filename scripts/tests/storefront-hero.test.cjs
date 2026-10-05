@@ -12,6 +12,7 @@ require.extensions['.tsx'] = function(module, filename) {
   const { outputText } = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } });
   module._compile(outputText, filename);
 };
+require.extensions['.css'] = module => { module.exports = { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) }; };
 
 let viewerCalls = [];
 let visualCalls = [];
@@ -34,13 +35,48 @@ Module._load = function(request, ...args) {
 const ShowcaseHero = require('../../components/ShowcaseHero.tsx').default;
 const BeverageCategoryRail = require('../../components/BeverageCategoryRail.tsx').default;
 const { LanguageProvider } = require('../../components/LanguageProvider.tsx');
+const ProductDetailPanel = require('../../components/product-detail/ProductDetailPanel.tsx').default;
+const { resolveProductDetail } = require('../../lib/catalog/product-detail.ts');
+const { catalogProducts, parsePublishedCatalog } = require('../../lib/catalog/storefront.ts');
 Module._load = originalLoad;
 
-let pagePublished, pageHeroCalls = [], pageStateWrites = [];
+test('product panel follows the selected label, escapes editorial text, and handles missing, disabled and archived details', () => {
+  const data = fixture(); const products = catalogProducts(data);
+  const product = products.find(item => item.label);
+  const detail = { ...entity('linked-detail'), labelId: product.label.id, posterId: null, eyebrow: 'Fruit collection', headline: 'Editorial headline', subtitle: 'A fresh story', introduction: '<script>alert(1)</script>', ingredients: 'Water & fruit', allergens: '', servingSize: 'Per 100 ml', nutrition: [], companyName: 'Manufacturer', companyAddress: 'Public address', countryOfOrigin: 'Vietnam', netContent: '330 ml', storage: 'Serve chilled', shelfLife: '', sections: [{ title: 'Extra', body: 'Additional information' }], enabled: true };
+  data.productDetails = [detail];
+  assert.equal(resolveProductDetail(data, product).id, detail.id);
+  assert.equal(resolveProductDetail(data, products.find(item => item.label && item.label.id !== product.label.id)), undefined);
+  const html = renderToStaticMarkup(React.createElement(LanguageProvider, null, React.createElement(ProductDetailPanel, { catalog: data, product, onClose: () => {} })));
+  assert.match(html, /Editorial headline/); assert.match(html, /role="tablist"/); assert.match(html, /role="tabpanel"/);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/); assert.doesNotMatch(html, /<script>alert/);
+  assert.match(html, /Manufacturer/); assert.match(html, /Public address/); assert.match(html, /Additional information/);
+  detail.enabled = false; assert.equal(resolveProductDetail(data, product), undefined);
+  detail.enabled = true; detail.lifecycle = 'archived'; assert.equal(resolveProductDetail(data, product), undefined);
+  delete data.productDetails;
+  const parsed = parsePublishedCatalog({ data: { schemaVersion: 1, catalog: data, releaseId: 'legacy-release', publishedAt: '2026-10-01T04:00:00Z' } }, 'static');
+  assert.deepEqual(parsed.catalog.productDetails, []);
+});
+
+let pagePublished, pageHeroCalls = [], pageStateWrites = [], pageStateValues = [], pageEffects = [], pageStateIndex = 0;
 Module._load = function(request, ...args) {
   if (request === '@/components/usePublishedCatalog') return { usePublishedCatalog: () => ({ published: pagePublished, loading: false, error: '', refresh: async () => {} }) };
+  if (request === '@/components/useTranslatedCatalog') return { useTranslatedCatalog: catalog => catalog };
+  if (request === '@/components/useStorefrontTelemetry') return { useStorefrontTelemetry: () => () => {} };
   if (request === '@/components/ShowcaseHero') return { __esModule: true, default: props => { pageHeroCalls.push(props); return React.createElement(ShowcaseHero, props); } };
-  if (request === 'react') return { ...React, useState: initial => { const [value] = React.useState(initial); return [value, next => pageStateWrites.push(next)]; } };
+  if (request === 'react') return { ...React,
+    useEffect: effect => { pageEffects.push(effect); },
+    useState: initial => {
+      const index = pageStateIndex++;
+      const [value] = React.useState(initial);
+      if (!(index in pageStateValues)) pageStateValues[index] = value;
+      return [pageStateValues[index], next => {
+        const updated = typeof next === 'function' ? next(pageStateValues[index]) : next;
+        pageStateValues[index] = updated;
+        pageStateWrites.push(updated);
+      }];
+    },
+  };
   return originalLoad.call(this, request, ...args);
 };
 const HomePage = require('../../app/page.tsx').default;
@@ -170,10 +206,16 @@ test('the advertising banner restores all ten beverage labels as noninteractive 
   assert.doesNotMatch(html, /<button|<a |tabindex|aria-pressed|aria-selected|onclick|onSelect/);
 });
 
-test('the page group selection clears the previous SKU and resolves the ordered default slot and flavor without filtering the collection', () => {
+test('the page initializes a stable random entry then group selection resets the SKU without filtering the collection', async () => {
   const data = fixture();
   pagePublished = { catalog: data, releaseId: 'committed-release-7', schemaVersion: 1, publishedAt: '2026-10-01T04:00:00Z', source: 'api' };
-  pageHeroCalls = []; pageStateWrites = [];
+  pageHeroCalls = []; pageStateWrites = []; pageStateValues = []; pageEffects = []; pageStateIndex = 0;
+  renderToStaticMarkup(React.createElement(HomePage));
+  assert.equal(pageHeroCalls.length, 0, 'Wait for the client entry choice before showing a default can');
+  pageEffects.forEach(effect => effect());
+  await Promise.resolve();
+  assert.equal(pageStateWrites[0].variantId, 'other-product');
+  pageStateIndex = 0; pageEffects = []; pageStateWrites = [];
   const html = renderToStaticMarkup(React.createElement(HomePage));
   const heroProps = pageHeroCalls[0];
   assert.equal(typeof heroProps.onSelectGroup, 'function'); assert.equal(heroProps.onSelectSlot, undefined);
@@ -182,10 +224,11 @@ test('the page group selection clears the previous SKU and resolves the ordered 
   const selected = render(data, pageStateWrites[0]);
   assert.match(selected.html, /data-variant="glass-product"/); assert.match(productFigure(selected.html), /uploaded-glass-guava/);
   assert.match(selected.text, /250/); assert.equal(selected.viewers.length, 0);
-  const collection = html.match(/<section id="collection"[\s\S]*?<\/section>/)?.[0];
+  const collection = html.slice(html.indexOf('<section id="collection"'), html.indexOf('<section id="story"'));
   assert.match(collection, /Juice 30% Lychee 330 ml/); assert.match(collection, /other-product/);
   assert.doesNotMatch(collection, /category-filter-summary/);
-  assert.match(collection, /aria-label="Filter by packaging"/);
+  assert.match(collection, /collection-row/);
+  assert.match(collection, /See all products/);
 });
 
 test('uploaded model and label plus this flavor decoration reach the actual 3D boundary without procedural label data', () => {
@@ -284,4 +327,15 @@ test('empty or disabled packaging slots render a useful empty state without lega
   assert.match(text, /Juice 30% from admin/); assert.doesNotMatch(html, /flavor-background-color|uploaded-product|Sparkling/);
   data.productGroups = [];
   assert.doesNotThrow(() => render(data));
+});
+
+
+test('an uploaded flavor icon reaches the actual hero and shared water backdrop state, with a built-in fallback', () => {
+  const data = fixture(), icon = media('reusable-symbol', 'icon'); data.media.push(icon); data.flavors[4].iconId = icon.id;
+  const state = render(data).visuals[0].backgroundState;
+  assert.equal(state.themes[4].iconUrl, '/api/public/v1/media/reusable-symbol');
+  assert.equal(state.flavorIndex, 4); assert.equal(state.weights[4], 1);
+  icon.lifecycle = 'archived';
+  const fallback = render(data).visuals[0].backgroundState;
+  assert.equal(fallback.themes[4].iconUrl, undefined); assert.equal(fallback.themes[4].icon, data.flavors[4].icon);
 });

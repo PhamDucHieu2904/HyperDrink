@@ -5,6 +5,7 @@ import { ImageIcon, LoaderCircle, Search, Upload, X } from 'lucide-react';
 import Image from 'next/image';
 import type { CatalogData, MediaAsset, MediaRole } from '@/lib/catalog/contracts';
 import { mediaUrl as resolveMediaUrl } from '@/lib/catalog/resolve';
+import { MEDIA_ROLE_LABELS, mediaUploadAccept } from '@/lib/catalog/media-roles';
 import { imageUploadHelp, mediaSummary, uploadPendingText } from './upload-info';
 import styles from '@/app/admin/admin.module.css';
 
@@ -26,7 +27,7 @@ export function mediaUrl(url: string): string {
 export function MediaThumbnail({ media, className = '' }: { media?: MediaAsset; className?: string }) {
   const [failedUrl, setFailedUrl] = useState('');
   const isImage = media?.mime.startsWith('image/') || /\.(png|jpe?g|webp|avif)(\?|$)/i.test(media?.url ?? '');
-  return <span className={`${styles.thumbnail} ${className}`}>
+  return <span className={`${styles.thumbnail} ${media?.role === 'icon' ? styles.iconThumbnail : ''} ${className}`}>
     {media && isImage && failedUrl !== media.url ? <Image src={mediaUrl(media.url)} alt="" width={media.width || 160} height={media.height || 160} unoptimized loading="lazy" onError={() => setFailedUrl(media.url)} /> : <ImageIcon size={22} aria-hidden="true" />}
   </span>;
 }
@@ -35,13 +36,15 @@ export default function MediaPicker({ data, value, onChange, roles, label, allow
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [lastUpload, setLastUpload] = useState<MediaAsset | null>(null);
   const selected = data.media.find(item => item.id === value) ?? (lastUpload?.id === value ? lastUpload : undefined);
   const selectedIssue = value && !selected ? 'Tài nguyên không còn trong danh mục.' : selected?.lifecycle === 'archived' ? 'Tài nguyên này đã được lưu trữ. Chọn file khác trước khi phát hành.' : selected && roles?.length && !roles.includes(selected.role) ? 'File đã chọn không đúng vai trò cần dùng.' : selected && selected.status !== 'ready' ? 'File đã chọn chưa sẵn sàng sử dụng.' : '';
-  const available = data.media.filter(item => item.lifecycle === 'active' && item.status === 'ready' && (!roles?.length || roles.includes(item.role)) && item.name.toLocaleLowerCase('vi').includes(query.toLocaleLowerCase('vi')));
-  const role = roles?.[0] ?? 'thumbnail';
+  const roleChoices = roles?.length ? roles : Object.keys(MEDIA_ROLE_LABELS) as MediaRole[];
+  const available = data.media.filter(item => item.lifecycle === 'active' && item.status === 'ready' && (!roles?.length || roles.includes(item.role)) && (roleFilter === 'all' || item.role === roleFilter) && item.name.toLocaleLowerCase('vi').includes(query.toLocaleLowerCase('vi')));
+  const role = roleFilter !== 'all' && roleChoices.includes(roleFilter as MediaRole) ? roleFilter as MediaRole : roles?.[0] ?? 'thumbnail';
   async function upload(file?: File) {
     if (!file || !onUpload) return;
     setUploading(true); setError('');
@@ -63,12 +66,12 @@ export default function MediaPicker({ data, value, onChange, roles, label, allow
     {lastUpload && selected?.id === lastUpload.id && !selectedIssue && <p className={styles.uploadResult} role="status">Đã lưu {mediaSummary(lastUpload)}.</p>}
     <dialog ref={dialogRef} className={styles.pickerDialog} aria-label={`Chọn ${label}`} onCancel={event => { if (uploading) event.preventDefault(); else setError(''); }}>
       <div className={styles.dialogHeader}><div><p className={styles.eyebrow}>THƯ VIỆN TÀI NGUYÊN</p><h2>Chọn {label.toLocaleLowerCase('vi')}</h2></div><button type="button" className={styles.iconButton} aria-label="Đóng thư viện" disabled={uploading} onClick={() => dialogRef.current?.close()}><X size={20} /></button></div>
-      <div className={styles.pickerTools}><label className={styles.search}><Search size={17} /><input aria-label="Tìm tài nguyên" placeholder="Tìm theo tên file…" value={query} onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }} onChange={event => setQuery(event.target.value)} /></label><button type="button" className={styles.primaryButton} disabled={!onUpload || uploading || disabled} onClick={() => inputRef.current?.click()}>{uploading ? <LoaderCircle size={17} className={styles.spin} /> : <Upload size={17} />} {uploading ? uploadPendingText(role) : 'Tải file mới'}</button><input ref={inputRef} className={styles.visuallyHidden} type="file" accept={role === 'model' ? '.glb' : 'image/png,image/jpeg,image/webp'} onChange={event => void upload(event.target.files?.[0])} /></div>
+      <div className={styles.pickerTools}><label className={styles.search}><Search size={17} /><input aria-label="Tìm tài nguyên" placeholder="Tìm theo tên file…" value={query} onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }} onChange={event => setQuery(event.target.value)} /></label>{roleChoices.length > 1 && <label className={styles.pickerCategory}><span>Loại ảnh</span><select aria-label="Lọc loại ảnh" value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="all">Tất cả loại ảnh</option>{roleChoices.map(item => <option key={item} value={item}>{MEDIA_ROLE_LABELS[item]}</option>)}</select></label>}<button type="button" className={styles.primaryButton} disabled={!onUpload || uploading || disabled} onClick={() => inputRef.current?.click()}>{uploading ? <LoaderCircle size={17} className={styles.spin} /> : <Upload size={17} />} {uploading ? uploadPendingText(role) : 'Tải file mới'}</button><input ref={inputRef} className={styles.visuallyHidden} type="file" accept={mediaUploadAccept(role)} onChange={event => void upload(event.target.files?.[0])} /></div>
       <p className={styles.help}>{imageUploadHelp(role)}</p>
       {uploading && <p className={styles.uploadProgress} role="status">{uploadPendingText(role)} {role !== 'model' && 'Ảnh chỉ sẵn sàng sau khi chuyển đổi và lưu thành công.'}</p>}
       {error && <p role="alert" className={styles.errorBanner}>{error}</p>}
       {!onUpload && <p className={styles.help}>Upload sẽ khả dụng sau khi cấu hình kết nối lưu trữ.</p>}
-      <div className={styles.pickerGrid}>{available.map(media => <button type="button" key={media.id} disabled={uploading || disabled} className={`${styles.assetOption} ${value === media.id ? styles.assetSelected : ''}`} onClick={() => { onChange(media.id); dialogRef.current?.close(); }}><MediaThumbnail media={media} /><strong>{media.name}</strong><small>{mediaSummary(media)}</small></button>)}</div>
+      <div className={styles.pickerGrid}>{available.map(media => <button type="button" key={media.id} disabled={uploading || disabled} className={`${styles.assetOption} ${value === media.id ? styles.assetSelected : ''}`} onClick={() => { onChange(media.id); dialogRef.current?.close(); }}><MediaThumbnail media={media} /><strong>{media.name}</strong><span className={styles.mediaRoleBadge}>{MEDIA_ROLE_LABELS[media.role]}</span><small>{mediaSummary(media)}</small></button>)}</div>
       {!available.length && <div className={styles.emptyState}><ImageIcon size={34} /><h3>Chưa có file phù hợp</h3><p>Tài nguyên phải đúng loại và có trạng thái sẵn sàng để được chọn.</p></div>}
     </dialog>
   </div>;

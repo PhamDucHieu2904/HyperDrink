@@ -11,11 +11,14 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+The storefront reads the committed public catalog and images, so it works without running or signing in to admin. Run `npm run dev:admin` for the local product studio at `http://localhost:3100/admin`. Publishing or restoring a release synchronizes the standalone catalog automatically; draft edits remain private.
+
 ## GitHub Pages
 
 Live website: https://phamduchieu2904.github.io/HyperDrink/
 
 The Pages workflow builds and deploys automatically when `main` changes. In repository Settings → Pages, use **GitHub Actions** as the source.
+Include `public/catalog/current.json` and every new file in `public/catalog/media/` in the commit after publishing. The private SQLite database is excluded from Git. Use `npm run catalog:export` to regenerate the public files manually if needed. A push of application code alone cannot include new images or pool assignments stored only in the local database.
 `GITHUB_PAGES=true` enables static export to `.next-pages/`; `NEXT_PUBLIC_BASE_PATH=/HyperDrink` prefixes application and public asset URLs. Local development keeps its root URL and a separate build directory.
 
 ## Verification commands
@@ -56,7 +59,9 @@ npm run build
 
 Model geometry, flavor artwork and presentation settings are separate. Future bottles/pouches use the same viewer with their own geometry/material slots; those assets are not bundled yet. The six source `.blend` files remain unchanged outside this project. Their current printed artwork is demo artwork and can be replaced independently.
 
-Admin authentication, persistence, upload processing and draft/publish workflows are future work. The serializable contracts prepare that integration; this prototype does not contain a working admin. `npm run convert:model` is the historical OBJ demo converter and does not rebuild the new model registry. Its source/output archive lives locally in `source-assets/legacy-can` and is excluded from Git.
+The local admin includes authentication, SQLite persistence, upload processing and draft/publish workflows; its public catalog is exported for the standalone storefront. See `docs/ADMIN_RUNBOOK.md` for operation and backup details. `npm run convert:model` is the historical OBJ demo converter and does not rebuild the new model registry. Its source/output archive lives locally in `source-assets/legacy-can` and is excluded from Git.
+
+The admin also includes traffic charts, interaction rankings, API security alerts and operational logs. See [Website operations](docs/WEBSITE_OPERATIONS.md) for local usage, retention, monitoring coverage and future online collector configuration.
 
 ## Repository size
 

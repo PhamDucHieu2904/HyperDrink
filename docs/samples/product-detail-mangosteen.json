@@ -1,0 +1,32 @@
+{
+  "name": "Mangosteen · Juice 30% · 330 ml",
+  "slug": "mangosteen-juice30-330-detail",
+  "labelId": "juice30-can330-mangosteen-label",
+  "posterId": null,
+  "enabled": true,
+  "eyebrow": "The fruit collection",
+  "headline": "Mangosteen",
+  "subtitle": "Tropical. Delicate. Refreshingly different.",
+  "introduction": "Beneath its deep purple rind, mangosteen reveals soft, ivory segments with a delicately sweet, gently tangy taste. Often called the queen of tropical fruits, it brings a distinctive character to the Vinut fruit collection.\n\nDiscover that tropical flavor in a convenient 330 ml can, made with 30% mangosteen juice. Serve chilled and enjoy a refreshing pause, wherever the day takes you.",
+  "ingredients": "Water, mangosteen juice 30%, sugar, citric acid, mangosteen flavour, ascorbic acid, sweeteners (E951, E955), colours (E102).",
+  "allergens": "",
+  "servingSize": "Per 100 ml",
+  "nutrition": [
+    { "label": "Calories", "amount": "38 kcal", "dailyValue": "2%" },
+    { "label": "Total fat", "amount": "0 g", "dailyValue": "0%" },
+    { "label": "Saturated fat", "amount": "0 g", "dailyValue": "0%" },
+    { "label": "Trans fat", "amount": "0 g", "dailyValue": "" },
+    { "label": "Total carbohydrate", "amount": "9.5 g", "dailyValue": "3%" },
+    { "label": "Dietary fiber", "amount": "0.2 g", "dailyValue": "" },
+    { "label": "Total sugar", "amount": "9.0 g", "dailyValue": "" },
+    { "label": "Sodium", "amount": "25 mg", "dailyValue": "1%" },
+    { "label": "Protein", "amount": "0 g", "dailyValue": "0%" }
+  ],
+  "companyName": "NAM VIET FOODS AND BEVERAGE JSC",
+  "companyAddress": "994/1C Nguyen Thi Minh Khai Street, Tan Thang Quarter, Tan Binh Ward, Di An City, Binh Duong Province, Vietnam",
+  "countryOfOrigin": "Vietnam",
+  "netContent": "330 ml (11.2 fl oz)",
+  "storage": "Store in a dry and cool place. Shake well. Best served chilled.",
+  "shelfLife": "Use by date on the bottom of the can. Do not drink after the expiration date.",
+  "sections": []
+}

@@ -1,5 +1,6 @@
 import type { CatalogData, CollectionName, DisplayDraftResult, DisplayDraftSave, Entity } from './contracts';
 import { CatalogDomainError, updateCatalogRecord } from './service';
+import { synchronizeDisplayAvailability } from './display-management';
 
 /** Display forms do not expose slugs. Reuse stable slugs on edits, and allocate
  * an available slug for new records against the current transaction snapshot. */
@@ -20,6 +21,7 @@ export function saveDisplayDraft(data: CatalogData, input: DisplayDraftSave, now
     if (revision !== null && (!Number.isInteger(revision) || revision < 1)) throw new CatalogDomainError('display_draft_invalid', 'Thông tin phiên bản không hợp lệ. Tải lại dữ liệu trước khi lưu.');
   }
   const collection = mode === '3d' ? 'displays3d' : 'displays2d';
+  const previousVariantId = data[collection].find(item => item.id === display.id)?.productVariantId;
   if (data[collection].some(item => item.lifecycle === 'active' && item.productVariantId === variant.id && item.id !== display.id)) throw new CatalogDomainError('display_exists', 'Tổ hợp này đã có cấu hình hiển thị. Mở cấu hình đang có để chỉnh sửa.');
   // Prevent creating a second product for an existing tuple, including retries
   // from another tab that was opened before the first configuration was saved.
@@ -27,5 +29,9 @@ export function saveDisplayDraft(data: CatalogData, input: DisplayDraftSave, now
   let catalog = updateCatalogRecord(data, 'productVariants', automaticSlug(data, 'productVariants', variant, input.expectedVariantRevision), input.expectedVariantRevision, now);
   catalog = updateCatalogRecord(catalog, collection, automaticSlug(catalog, collection, display, input.expectedDisplayRevision), input.expectedDisplayRevision, now);
   if (slot) catalog = updateCatalogRecord(catalog, 'packagingSlots', automaticSlug(catalog, 'packagingSlots', slot, input.expectedSlotRevision), input.expectedSlotRevision, now);
+  // Changing the flavor may move this display to a different product tuple.
+  // Retain the previous tuple, but update its visibility and slot default too.
+  if (previousVariantId && previousVariantId !== variant.id) synchronizeDisplayAvailability(catalog, previousVariantId, now);
+  synchronizeDisplayAvailability(catalog, variant.id, now);
   return { catalog, display: catalog[collection].find(item => item.id === display.id)! };
 }

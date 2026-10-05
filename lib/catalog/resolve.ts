@@ -2,6 +2,8 @@ import type { CatalogData, Display3D, Flavor, MediaAsset, ProductVariant } from 
 import type { ProductAsset, ProductAppearance } from '@/lib/viewer-config';
 import { DEFAULT_PRODUCT_ACCENT_SCENE, type ProductAccentScene } from '@/lib/viewer/accent-config';
 import { publicUrl } from '@/lib/public-url';
+import { isImageMedia } from './media-roles';
+export { resolveFlavorFruitImage } from './flavor-media';
 
 export function mediaUrl(media: MediaAsset | string | null | undefined): string {
   const url = typeof media === 'string' ? media : media?.url || '';
@@ -12,15 +14,8 @@ export function mediaUrl(media: MediaAsset | string | null | undefined): string 
   return publicUrl(url);
 }
 
-/** Keep flavor buttons recognizable while the scene draws random pool images. */
-export function resolveFlavorFruitImage(data: CatalogData, flavorId: string): MediaAsset | undefined {
-  const assignments = data.flavorAssets.filter(item => item.flavorId === flavorId && item.role === 'fruit' && item.enabled && item.lifecycle === 'active')
-    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
-  for (const assignment of assignments) {
-    const image = data.media.find(item => item.id === assignment.mediaId);
-    if (image?.role === 'fruit' && image.status === 'ready' && image.lifecycle === 'active' && image.mime.startsWith('image/') && image.url) return image;
-  }
-  return undefined;
+export function resolveFlavorIcon(data: CatalogData, flavor: Pick<Flavor, 'iconId'>): MediaAsset | undefined {
+  return data.media.find(item => item.id === flavor.iconId && item.role === 'icon' && item.lifecycle === 'active' && item.status === 'ready' && isImageMedia(item) && !!item.url);
 }
 
 function seeded(seed: string): () => number {

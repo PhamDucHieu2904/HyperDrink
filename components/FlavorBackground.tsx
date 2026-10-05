@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { backgroundConfig, backgroundThemes, normalizeBackgroundConfig, normalizeBackgroundThemes, type BackgroundConfig, type BackgroundTheme } from '@/lib/background-config';
-import { BackgroundRenderState, backgroundTileUrl } from '@/lib/background-render-state';
+import { BackgroundRenderState } from '@/lib/background-render-state';
+import BackgroundPattern from './BackgroundPattern';
 import { BackgroundAutodrift, backgroundPointerVelocity } from '@/lib/background-motion';
 
 export default function FlavorBackground({ flavorIndex, themes = backgroundThemes, config = backgroundConfig, renderState }: { flavorIndex: number; themes?: readonly BackgroundTheme[]; config?: Partial<BackgroundConfig>; renderState: BackgroundRenderState }) {
@@ -118,7 +119,7 @@ export default function FlavorBackground({ flavorIndex, themes = backgroundTheme
   return <div ref={rootRef} className="flavor-background" aria-hidden="true">
     {normalizedThemes.map((theme, i) => <div key={theme.id} className="flavor-background-color" style={{ backgroundColor: theme.color, opacity: flavorIndex === i ? 1 : 0 }} />)}
     <div ref={trackRef} className="flavor-background-track" style={{ inset: -period }}>
-      {normalizedThemes.map((theme, i) => <div key={theme.id} className="flavor-background-pattern" style={{ backgroundImage: `url("${backgroundTileUrl(theme.icon, settings)}")`, backgroundSize: `${period}px ${period}px`, opacity: flavorIndex === i ? 1 : 0 }} />)}
+      {normalizedThemes.map((theme, i) => <BackgroundPattern key={theme.id} className="flavor-background-pattern" theme={theme} config={settings} opacity={flavorIndex === i ? 1 : 0} />)}
     </div>
     <div className="flavor-background-light" />
     <div className="product-backlight" />

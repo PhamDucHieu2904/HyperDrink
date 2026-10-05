@@ -11,5 +11,11 @@ const copy = {
   de: { previous: 'Vorherige Sorte', next: 'Nächste Sorte', pause: 'Sortenkarussell pausieren', resume: 'Sortenkarussell fortsetzen', empty: 'Für diese Auswahl ist kein Produkt verfügbar.', unavailable: 'Das Produktbild ist nicht verfügbar.', image: 'Produktbild', poster: 'Verpackungsreferenz · Produktetikett nicht verfügbar', volume: 'Volumen' },
 } as const;
 
-/** System UI stays localized; catalog names and descriptions are editorial content. */
-export function heroCopy(locale: Locale) { return copy[locale]; }
+const badges: Record<Locale, { bestSeller: string; hot: string }> = {
+  en: { bestSeller: 'BEST SELLER', hot: 'Hot' }, fr: { bestSeller: 'MEILLEURES VENTES', hot: 'Populaire' },
+  zh: { bestSeller: '热销系列', hot: '热门' }, es: { bestSeller: 'MÁS VENDIDOS', hot: 'Popular' },
+  ar: { bestSeller: 'الأكثر مبيعًا', hot: 'رائج' }, ru: { bestSeller: 'ЛИДЕРЫ ПРОДАЖ', hot: 'Хит' },
+  ko: { bestSeller: '베스트셀러', hot: '인기' }, de: { bestSeller: 'BESTSELLER', hot: 'Beliebt' },
+};
+/** Curated system UI copy is independent of the browser's catalog translation. */
+export function heroCopy(locale: Locale) { return { ...copy[locale], ...badges[locale] }; }

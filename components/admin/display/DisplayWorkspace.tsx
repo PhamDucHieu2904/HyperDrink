@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Save, Search, X } from 'lucide-react';
+import { LoaderCircle, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import type { CatalogData, Display2D, Display3D, Entity, PackagingSlot, ProductVariant, RenderMode } from '@/lib/catalog/contracts';
 import { checkDisplay2DCompatibility, checkDisplay3DCompatibility } from '@/lib/catalog/compatibility';
+import { displayListGroups, type DisplayStatusFilter } from '@/lib/catalog/display-list';
 import DisplayPreview from '../preview/DisplayPreview';
 import Asset2DWorkspace from './Asset2DWorkspace';
 import { entity, message, type WorkspaceCallbacks } from './types';
@@ -23,24 +24,76 @@ function DisplayModule(props: Props) {
   const [newKey, setNewKey] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
   const [notice, setNotice] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [busyId, setBusyId] = useState('');
   const [query, setQuery] = useState('');
+  const [groupFilter, setGroupFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<DisplayStatusFilter>('all');
+  const [deletion, setDeletion] = useState<{ record: Display3D | Display2D; signature: string } | null>(null);
+  const deleteDialogRef = useRef<HTMLDialogElement>(null);
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const [tab, setTab] = useState<'displays' | 'assets'>('displays');
-  const records = (mode === '3d' ? catalog.displays3d : catalog.displays2d).filter(item => active(item) && item.name.toLocaleLowerCase('vi').includes(query.toLocaleLowerCase('vi')));
+  const allGroups = displayListGroups(catalog, mode, { query: '', groupId: '', status: 'all' });
+  const groups = displayListGroups(catalog, mode, { query, groupId: groupFilter, status: statusFilter });
+  const total = allGroups.reduce((count, group) => count + group.records.length, 0);
+  const count = groups.reduce((sum, group) => sum + group.records.length, 0);
+  const filtered = !!query || !!groupFilter || statusFilter !== 'all';
+  const staleDeletion = !!deletion && deletion.signature !== JSON.stringify(catalog);
+  useEffect(() => {
+    if (!deletion) return;
+    const dialog = deleteDialogRef.current;
+    dialog?.showModal(); cancelDeleteRef.current?.focus();
+    return () => dialog?.close();
+  }, [deletion]);
+  function edit(record: Display3D | Display2D) { setSelectedId(record.id); setEditorOpen(true); setNotice(''); setActionError(''); }
+  async function manage(record: Display3D | Display2D, action: 'set-enabled' | 'delete', signature = JSON.stringify(catalog)) {
+    if (busyId || !props.onDisplayAction) return;
+    setBusyId(record.id); setNotice(''); setActionError('');
+    try {
+      const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signature));
+      const expectedDraftHash = Array.from(new Uint8Array(bytes)).map(value => value.toString(16).padStart(2, '0')).join('');
+      const updated = await props.onDisplayAction({ mode, id: record.id, expectedRevision: record.revision, expectedDraftHash, action, ...(action === 'set-enabled' ? { enabled: !record.enabled } : {}) });
+      if (action === 'delete') {
+        setDeletion(null); if (selectedId === record.id) setSelectedId('');
+        if (groupFilter && !displayListGroups(updated, mode, { query: '', groupId: '', status: 'all' }).some(group => group.id === groupFilter)) setGroupFilter('');
+      }
+      setNotice(action === 'delete' ? `Đã xóa cấu hình “${record.name}” khỏi bản nháp. Tài nguyên dùng chung được giữ lại.` : `Đã chuyển “${record.name}” sang ${record.enabled ? 'Off' : 'On'} trong bản nháp.`);
+    } catch (cause) { setActionError(message(cause)); if (action === 'delete') setDeletion(null); }
+    finally { setBusyId(''); }
+  }
+  function closeDeletion() { if (!busyId) setDeletion(null); }
   return <section className={styles.workspace}>
-    <div className={styles.heading}><div><p className={styles.eyebrow}>CẤU HÌNH HIỂN THỊ</p><h2>{mode === '3d' ? '3D Packaging display' : '2D Packaging display'}</h2><p>Ghép dòng sản phẩm, bao bì và hương vị thành một lựa chọn trên website.</p></div><button type="button" className={styles.button} onClick={() => { setTab('displays'); setSelectedId(''); setNewKey(value => value + 1); setEditorOpen(true); setNotice(''); }}><Plus size={17} />Tạo hiển thị {mode.toUpperCase()}</button></div>
+    <div className={styles.heading}><div><p className={styles.eyebrow}>CẤU HÌNH HIỂN THỊ</p><h2>{mode === '3d' ? '3D Packaging display' : '2D Packaging display'}</h2><p>Quản lý cấu hình theo nút Best Seller. Phát hành bản nháp để cập nhật hiển thị trên website.</p></div><button type="button" className={styles.button} disabled={!!busyId} onClick={() => { setTab('displays'); setSelectedId(''); setNewKey(value => value + 1); setEditorOpen(true); setNotice(''); setActionError(''); }}><Plus size={17} />Tạo hiển thị {mode.toUpperCase()}</button></div>
     {notice && <p className={styles.success} role="status">{notice}</p>}
+    {actionError && <p className={styles.error} role="alert">{actionError}</p>}
     {mode === '2d' && <div className={styles.tabs}><button type="button" className={`${styles.tab} ${tab === 'displays' ? styles.selectedTab : ''}`} aria-pressed={tab === 'displays'} onClick={() => setTab('displays')}>Cấu hình hiển thị</button><button type="button" className={`${styles.tab} ${tab === 'assets' ? styles.selectedTab : ''}`} aria-pressed={tab === 'assets'} onClick={() => setTab('assets')}>Kho hình / render 2D</button></div>}
     {tab === 'assets' ? <Asset2DWorkspace {...props} /> : <>
-      <div className={styles.toolbar}><Search size={17} aria-hidden="true" /><input aria-label="Tìm cấu hình hiển thị" placeholder="Tìm cấu hình theo tên…" value={query} onChange={event => setQuery(event.target.value)} /><span className={styles.tag}>{records.length} cấu hình</span></div>
-      {!!records.length && <div className={styles.list}>{records.map(record => {
+      <div className={styles.displayFilters}>
+        <label className={styles.filterSearch}><span>Tìm cấu hình</span><div><Search size={17} aria-hidden="true" /><input placeholder="Tên, hương vị, bao bì hoặc mã sản phẩm…" value={query} onChange={event => setQuery(event.target.value)} /></div></label>
+        <label><span>Best Seller</span><select value={groupFilter} onChange={event => setGroupFilter(event.target.value)}><option value="">Tất cả Best Seller</option>{allGroups.map(group => <option key={group.id} value={group.id}>{group.label}{group.group?.name && group.group.name !== group.label ? ` · ${group.group.name}` : ''}</option>)}</select></label>
+        <label><span>Active</span><select value={statusFilter} onChange={event => setStatusFilter(event.target.value as DisplayStatusFilter)}><option value="all">Tất cả trạng thái</option><option value="on">On — đang bật</option><option value="off">Off — đang tắt</option></select></label>
+      </div>
+      <div className={styles.filterSummary}><span role="status">{count} / {total} cấu hình{filtered ? ' khớp bộ lọc' : ''}</span>{filtered && <button type="button" className={styles.secondary} onClick={() => { setQuery(''); setGroupFilter(''); setStatusFilter('all'); }}><X size={15} aria-hidden="true" />Xóa bộ lọc</button>}</div>
+      {groups.map(listGroup => <section key={listGroup.id} className={styles.displayGroup} aria-labelledby={`display-group-${listGroup.id}`}>
+        <div className={styles.groupHeading}><div><h3 id={`display-group-${listGroup.id}`}>{listGroup.label}</h3>{listGroup.group && listGroup.group.name !== listGroup.label && <p>{listGroup.group.name}</p>}</div><span className={styles.tag}>{listGroup.records.length} cấu hình · {listGroup.records.filter(item => item.enabled).length} On</span></div>
+        <div className={styles.list}>{listGroup.records.map(record => {
         const variant = catalog.productVariants.find(item => item.id === record.productVariantId);
-        const group = catalog.productGroups.find(item => item.id === variant?.groupId);
         const pack = catalog.packagingVariants.find(item => item.id === variant?.packagingVariantId);
         const flavor = catalog.flavors.find(item => item.id === variant?.flavorId);
-        return <button type="button" className={`${styles.listRow} ${selectedId === record.id ? styles.selectedRow : ''}`} key={record.id} onClick={() => { setSelectedId(record.id); setEditorOpen(true); setNotice(''); }}><span><strong>{record.name}</strong><small>{group?.name || 'Chưa có dòng'} · {pack?.name || 'Chưa có bao bì'} · {flavor?.shortName || 'Chưa có hương'}</small></span><span className={styles.tag}>{record.enabled ? 'Đã bật trong nháp' : 'Đã tắt'}</span></button>;
-      })}</div>}
-      {!records.length && <p className={styles.empty}>{query ? 'Không có cấu hình khớp với tìm kiếm.' : 'Chưa có cấu hình. Bấm “Tạo hiển thị” để thêm lựa chọn sản phẩm.'}</p>}
-      {editorOpen && <DisplayEditor key={selectedId || `new-${newKey}`} {...props} selectedId={selectedId} onClose={() => setEditorOpen(false)} onSaved={(id, name) => { setSelectedId(id); setEditorOpen(false); setQuery(''); setNotice(`Đã lưu “${name}” vào danh sách nháp. Xem trước và phát hành khi sẵn sàng.`); }} />}
+        return <article className={`${styles.displayCard} ${selectedId === record.id ? styles.selectedRow : ''} ${!record.enabled ? styles.disabledCard : ''}`} key={record.id} aria-busy={busyId === record.id}>
+          <button type="button" className={styles.cardDetails} disabled={!!busyId} onClick={() => edit(record)}><strong>{record.name}</strong><small>{pack?.name || 'Chưa có bao bì'} · {flavor?.shortName || 'Chưa có hương'}{variant?.code ? ` · ${variant.code}` : ''}</small></button>
+          <div className={styles.cardActions}><div className={styles.activeControl}><span>Active</span><button type="button" role="switch" aria-checked={record.enabled} aria-label={`Active · ${record.name}`} className={styles.activeSwitch} disabled={!!busyId || !props.onDisplayAction} onClick={() => void manage(record, 'set-enabled')}><span className={styles.switchTrack} aria-hidden="true"><span /></span>{busyId === record.id ? <LoaderCircle size={15} className={styles.spinner} aria-hidden="true" /> : <span>{record.enabled ? 'On' : 'Off'}</span>}</button></div>
+            <button type="button" className={styles.secondary} aria-label={`Sửa · ${record.name}`} disabled={!!busyId} onClick={() => edit(record)}><Pencil size={15} aria-hidden="true" />Sửa</button>
+            <button type="button" className={`${styles.secondary} ${styles.deleteAction}`} aria-label={`Xóa · ${record.name}`} disabled={!!busyId || !props.onDisplayAction} onClick={() => { setActionError(''); setDeletion({ record, signature: JSON.stringify(catalog) }); }}><Trash2 size={15} aria-hidden="true" />Xóa</button>
+          </div>
+        </article>;
+      })}</div></section>)}
+      {!count && <p className={styles.empty}>{filtered ? 'Không có cấu hình khớp bộ lọc. Thử đổi Best Seller, trạng thái hoặc từ khóa.' : 'Chưa có cấu hình. Bấm “Tạo hiển thị” để thêm lựa chọn sản phẩm.'}</p>}
+      {editorOpen && <DisplayEditor key={selectedId || `new-${newKey}`} {...props} selectedId={selectedId} onClose={() => setEditorOpen(false)} onSaved={(id, name) => { setSelectedId(id); setEditorOpen(false); setQuery(''); setGroupFilter(''); setStatusFilter('all'); setNotice(`Đã lưu “${name}” vào danh sách nháp. Xem trước và phát hành khi sẵn sàng.`); }} />}
+      <dialog ref={deleteDialogRef} className={`${styles.workspace} ${styles.dialog} ${styles.deleteDialog}`} aria-labelledby="delete-display-title" aria-describedby="delete-display-description" onCancel={event => { event.preventDefault(); closeDeletion(); }} onClose={() => { if (!busyId) setDeletion(null); }}>
+        <div className={styles.deleteHeading}><h3 id="delete-display-title">Xóa cấu hình hiển thị {mode.toUpperCase()}?</h3><button type="button" className={styles.closeButton} aria-label="Đóng xác nhận xóa" disabled={!!busyId} onClick={closeDeletion}><X size={18} aria-hidden="true" /></button></div>
+        {deletion && <><ul className={styles.deleteRecords}><li><strong>{deletion.record.name}</strong><span>Cấu hình này sẽ bị xóa khỏi danh sách bản nháp.</span></li></ul><p id="delete-display-description">Model, nhãn và ảnh hương vị được giữ lại. Nếu không còn cấu hình phù hợp, sản phẩm sẽ được ẩn; hương mặc định sẽ tự chuyển sang lựa chọn còn lại.</p><p className={styles.help}>Website đang phát hành chỉ thay đổi khi bạn phát hành bản nháp mới.</p>{staleDeletion && <p className={styles.error} role="alert">Dữ liệu đã thay đổi. Đóng xác nhận và kiểm tra lại thẻ trước khi xóa.</p>}<div className={styles.actions}><button ref={cancelDeleteRef} type="button" className={styles.secondary} disabled={!!busyId} onClick={closeDeletion}>Hủy</button><button type="button" className={`${styles.button} ${styles.deleteConfirm}`} disabled={!!busyId || staleDeletion} onClick={() => void manage(deletion.record, 'delete', deletion.signature)}>{busyId ? <LoaderCircle size={16} className={styles.spinner} aria-hidden="true" /> : <Trash2 size={16} aria-hidden="true" />}Xóa cấu hình</button></div></>}
+      </dialog>
     </>}
   </section>;
 }
@@ -142,7 +195,7 @@ export function DisplayEditor({ catalog, mode, selectedId, initialVariantId, foc
           <div className={styles.fields}><label className={styles.field}><span>Quy cách bao bì *</span><select value={packagingId} required onChange={event => resetSelection('packaging', event.target.value)}><option value="">Chọn bao bì</option>{catalog.packagingCategories.filter(active).sort((a, b) => a.position - b.position).map(category => <optgroup key={category.id} label={category.name}>{catalog.packagingVariants.filter(item => active(item) && item.categoryId === category.id).sort((a, b) => a.position - b.position).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</optgroup>)}</select></label><label className={styles.field}><span>Flavor data *</span><select value={flavorId} required onChange={event => resetSelection('flavor', event.target.value)}><option value="">Chọn hương vị</option>{catalog.flavors.filter(active).sort((a, b) => a.position - b.position).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div>
         </div>
         <div className={styles.step}><h3><span className={styles.stepNumber}>2</span>{mode === '3d' ? 'Ghép model và nhãn' : 'Chọn hình sản phẩm'}</h3>
-          {mode === '3d' ? <><label className={styles.field}><span>3D Packaging</span><select id="display-modelId" value={modelId} disabled={!packagingId} onChange={event => { setModelId(event.target.value); setLabelId(''); }}><option value="">Chọn model đúng bao bì</option>{models.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>{model ? 'Đã chọn model. Kiểu trải nhãn được kiểm tra tự động.' : 'Model và poster được quản lý trong kho 3D Packaging.'}</small></label><label className={styles.field}><span>Label tương thích</span><select id="display-labelId" value={labelId} disabled={!groupId || !packagingId} onChange={event => setLabelId(event.target.value)}><option value="">Chọn nhãn phù hợp với sản phẩm</option>{labels.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>Chỉ hiện nhãn khớp bao bì, loại nước, hương vị và kiểu trải nhãn của model.</small></label></> : <><label className={styles.field}><span>Ảnh / render 2D</span><select id="display-assetId" value={assetId} disabled={!groupId || !packagingId} onChange={event => setAssetId(event.target.value)}><option value="">Chọn hình đúng sản phẩm</option>{assets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>Thêm ảnh mới ở tab “Kho hình / render 2D” phía trên.</small></label><label className={styles.field}><span>Mô tả ảnh (alt)</span><input id="display-alt" maxLength={300} value={alt} onChange={event => setAlt(event.target.value)} placeholder="Ví dụ: Chai nước xoài Juice 30%, 330 ml" /></label></>}
+          {mode === '3d' ? <><label className={styles.field}><span>3D Packaging</span><select id="display-modelId" value={modelId} disabled={!packagingId} onChange={event => { setModelId(event.target.value); setLabelId(''); }}><option value="">Chọn model đúng bao bì</option>{models.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>{model ? 'Đã chọn model. Kiểu trải nhãn được kiểm tra tự động.' : 'Model và poster được quản lý trong Kho tài nguyên → 3D model.'}</small></label><label className={styles.field}><span>Label tương thích</span><select id="display-labelId" value={labelId} disabled={!groupId || !packagingId} onChange={event => setLabelId(event.target.value)}><option value="">Chọn nhãn phù hợp với sản phẩm</option>{labels.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>Chỉ hiện nhãn khớp bao bì, loại nước, hương vị và kiểu trải nhãn của model.</small></label></> : <><label className={styles.field}><span>Ảnh / render 2D</span><select id="display-assetId" value={assetId} disabled={!groupId || !packagingId} onChange={event => setAssetId(event.target.value)}><option value="">Chọn hình đúng sản phẩm</option>{assets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>Thêm ảnh mới ở tab “Kho hình / render 2D” phía trên.</small></label><label className={styles.field}><span>Mô tả ảnh (alt)</span><input id="display-alt" maxLength={300} value={alt} onChange={event => setAlt(event.target.value)} placeholder="Ví dụ: Chai nước xoài Juice 30%, 330 ml" /></label></>}
           {groupId && packagingId && flavorId && issues.length > 0 && <div className={styles.notice}><strong>Cần bổ sung trước khi xuất bản:</strong><ul>{issues.map((issue, index) => <li key={`${issue.code}-${index}`}>{issue.message}</li>)}</ul><span>Bạn vẫn có thể lưu bản nháp.</span></div>}
         </div>
         <div className={styles.step}><h3><span className={styles.stepNumber}>3</span>Nội dung và nút bao bì</h3>

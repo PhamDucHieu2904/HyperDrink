@@ -12,7 +12,9 @@ const nextConfig = {
     ];
   } } : {}),
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
-  env: { NEXT_PUBLIC_CATALOG_MODE: pages && !process.env.NEXT_PUBLIC_ADMIN_API_URL ? 'static' : 'api' },
+  // The public storefront works independently of the local admin process.
+  // Publishing synchronizes this snapshot; an explicit hosted API can override it.
+  env: { NEXT_PUBLIC_CATALOG_MODE: process.env.NEXT_PUBLIC_ADMIN_API_URL ? 'api' : 'static', NEXT_PUBLIC_TELEMETRY_MODE: pages && !process.env.NEXT_PUBLIC_TELEMETRY_URL ? 'disabled' : 'enabled' },
   reactStrictMode: true,
   poweredByHeader: false,
   images: { unoptimized: true },

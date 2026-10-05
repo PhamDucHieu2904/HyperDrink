@@ -6,6 +6,7 @@ import './showcase.css';
 import './catalog-showcase.css';
 import './flavor-carousel.css';
 import './storefront-catalog.css';
+import './catalog-collection.css';
 
 export const metadata: Metadata = {
   title: 'Vinut — Taste the extraordinary',

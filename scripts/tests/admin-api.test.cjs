@@ -10,17 +10,21 @@ const { LocalCatalogRepository } = require('../../lib/server/local-repository.ts
 const { createAdminHandler } = require('../../lib/server/admin-api.ts');
 const { newEntity } = require('../../lib/catalog/seed.ts');
 const { getMediaPath } = require('../../lib/server/media/upload.ts');
+const { exportPublishedCatalog } = require('../export-public-catalog.cjs');
 const project = path.resolve(__dirname, '../..');
 const allowedOrigin = 'http://localhost:3100';
 const owner = { email: 'owner@example.test', password: 'demo-owner-password-2026' };
 
-async function withBackend(callback) {
+async function withBackend(callback, options = {}) {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'vinut-admin-api-'));
   let repository = new LocalCatalogRepository(folder);
-  let handle = createAdminHandler(repository, { allowedOrigins: [allowedOrigin], dataDir: folder });
+  const staticOutputDir = path.join(folder, 'export/catalog');
+  const handlerOptions = { allowedOrigins: [allowedOrigin], dataDir: folder, ...(options.syncPublicCatalog ? { syncPublicCatalog: () => exportPublishedCatalog({ dataDir: folder, outputDir: staticOutputDir }) } : {}) };
+  let handle = createAdminHandler(repository, handlerOptions);
   let ownerCookie = '';
   const context = {
     folder,
+    staticOutputDir,
     get repository() { return repository; },
     async request(endpoint, options = {}) {
       const method = options.method || 'GET';
@@ -61,7 +65,7 @@ async function withBackend(callback) {
     },
     reopen() {
       repository.close(); repository = new LocalCatalogRepository(folder);
-      handle = createAdminHandler(repository, { allowedOrigins: [allowedOrigin], dataDir: folder });
+      handle = createAdminHandler(repository, handlerOptions);
     },
   };
   try { await callback(context); }
@@ -85,6 +89,156 @@ async function createVisible2DProduct(context) {
   return { media, bytes, group, flavor, variant, asset, display, slot };
 }
 
+test('pool imports assign names, unique IDs, flavor and append order automatically; retries survive restart without duplicates', async () => withBackend(async context => {
+  await context.setup();
+  const product = await createVisible2DProduct(context);
+  const media = (await context.upload('fruit')).media;
+  const input = { id: randomUUID(), flavorId: product.flavor.id, mediaId: media.id, role: 'fruit' };
+  const denied = await context.request('/api/admin/v1/flavor-pool', { method: 'POST', cookie: '', body: input });
+  assert.equal(denied.response.status, 401);
+  const initialCount = (await context.repository.readDraft()).flavorAssets.length;
+  const first = await context.request('/api/admin/v1/flavor-pool', { method: 'POST', body: input });
+  assert.equal(first.response.status, 200, JSON.stringify(first.payload));
+  const saved = first.payload.data;
+  assert.equal(saved.flavorId, product.flavor.id); assert.equal(saved.mediaId, media.id);
+  assert.equal(saved.position, 0); assert.equal(saved.enabled, true); assert.equal(saved.revision, 1);
+  assert.match(saved.name, /citrus-preview/); assert.ok(saved.name.includes(product.flavor.shortName));
+  assert.equal(saved.slug, `pool-${input.id}`);
+  context.reopen();
+  const retry = await context.request('/api/admin/v1/flavor-pool', { method: 'POST', body: input });
+  assert.equal(retry.response.status, 200); assert.deepEqual(retry.payload.data, saved);
+  assert.equal((await context.repository.readDraft()).flavorAssets.length, initialCount + 1);
+  const leaf = (await context.upload('leaf')).media;
+  const batch = await Promise.all(['fruit', 'leaf'].map(role => context.request('/api/admin/v1/flavor-pool', { method: 'POST', body: { ...input, id: randomUUID(), role, mediaId: role === 'leaf' ? leaf.id : media.id } })));
+  batch.forEach(result => assert.equal(result.response.status, 200, JSON.stringify(result.payload)));
+  assert.deepEqual(batch.map(result => result.payload.data.position).sort(), [1, 2]);
+  assert.equal((await context.repository.readActiveRelease()), null);
+  const conflict = await context.request('/api/admin/v1/flavor-pool', { method: 'POST', body: { ...input, role: 'leaf', mediaId: leaf.id } });
+  assert.equal(conflict.response.status, 409);
+  const audits = context.repository.database.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE entity_id=? AND action='save:flavorAssets'").get(input.id);
+  assert.equal(audits.count, 1);
+}));
+
+test('pool rejects wrong-role, missing or archived resources and cannot accept manual metadata', async () => withBackend(async context => {
+  await context.setup(); const product = await createVisible2DProduct(context);
+  const fruit = (await context.upload('fruit')).media;
+  const input = { id: randomUUID(), flavorId: product.flavor.id, mediaId: fruit.id, role: 'fruit' };
+  for (const body of [{ ...input, role: 'leaf' }, { ...input, role: 'model' }, { ...input, flavorId: 'missing' }, { ...input, mediaId: 'missing' }, { ...input, id: '../../invalid' }, { ...input, position: 999, enabled: false, name: 'Manual' }]) {
+    const rejected = await context.request('/api/admin/v1/flavor-pool', { method: 'POST', body });
+    assert.equal(rejected.response.status, 422, JSON.stringify(rejected.payload));
+  }
+  await context.save('media', { ...fruit, lifecycle: 'archived' }, fruit.revision);
+  assert.equal((await context.request('/api/admin/v1/flavor-pool', { method: 'POST', body: input })).response.status, 422);
+  assert.equal((await context.repository.readDraft()).flavorAssets.some(item => item.id === input.id), false);
+}));
+
+test('product detail CRUD is authenticated, revision checked, published by label and retained in backups after deletion', async () => withBackend(async context => {
+  await context.setup(); const product = await createVisible2DProduct(context);
+  const labelMedia = (await context.upload('label')).media;
+  const poster = (await context.upload('poster')).media;
+  const catalog = await context.repository.readDraft();
+  const baseModel = catalog.models3d.find(model => model.packagingVariantId === 'can-330');
+  const model = await context.save('models3d', { ...baseModel, posterId: poster.id }, baseModel.revision);
+  const label = await context.save('labels', { ...newEntity('Citrus label', 'api-detail-label'), drinkTypeId: 'juice', flavorId: product.flavor.id, mediaId: labelMedia.id, compatibilities: [{ packagingVariantId: 'can-330', layoutProfile: model.layoutProfile }] });
+  await context.save('packagingSlots', { ...product.slot, mode: '3d' }, product.slot.revision);
+  await context.save('displays3d', { ...newEntity('Citrus 3D', 'api-detail-display'), productVariantId: product.variant.id, modelId: model.id, labelId: label.id, enabled: true });
+  const sample = JSON.parse(fs.readFileSync(path.join(project, 'docs/samples/product-detail-mangosteen.json'), 'utf8'));
+  const record = { ...newEntity('Citrus detail', 'api-product-detail'), ...sample, name: 'Citrus detail', slug: 'citrus-detail', labelId: label.id, posterId: poster.id, headline: 'Citrus' };
+  const unauthorized = await context.request('/api/admin/v1/record', { method: 'POST', cookie: '', body: { collection: 'productDetails', record, expectedRevision: null } });
+  assert.equal(unauthorized.response.status, 401);
+  const saved = await context.save('productDetails', record);
+  const stale = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'productDetails', record: { ...saved, introduction: 'Stale' }, expectedRevision: null } });
+  assert.equal(stale.response.status, 409);
+  context.reopen();
+  assert.equal((await context.repository.readDraft()).productDetails[0].labelId, label.id);
+  const publication = await context.request('/api/admin/v1/publish', { method: 'POST', body: { expectedReleaseId: null, note: 'Product detail backup' } });
+  assert.equal(publication.response.status, 201, JSON.stringify(publication.payload));
+  const active = await context.repository.readActiveRelease();
+  assert.equal(active.data.productDetails[0].posterId, poster.id);
+  const snapshot = exportPublishedCatalog({ dataDir: context.folder, outputDir: context.staticOutputDir });
+  assert.ok(snapshot.media > 0);
+  const exported = JSON.parse(fs.readFileSync(path.join(context.staticOutputDir, 'current.json'), 'utf8'));
+  assert.equal(exported.data.catalog.productDetails[0].headline, 'Citrus');
+  assert.ok(exported.data.catalog.media.find(media => media.id === poster.id).url.startsWith('/catalog/media/'));
+  const draftHash = createHash('sha256').update(JSON.stringify(await context.repository.readDraft())).digest('hex');
+  await context.repository.deleteRecord('productDetails', saved.id, saved.revision, draftHash, 'owner@example.test');
+  assert.equal((await context.repository.readDraft()).productDetails.length, 0);
+  assert.equal((await context.repository.readActiveRelease()).data.productDetails[0].id, saved.id);
+}, { syncPublicCatalog: true }));
+
+test('collection settings persist through restart and publish a line independently of the Best seller button', async () => withBackend(async context => {
+  await context.setup();
+  const product = await createVisible2DProduct(context);
+  const group = await context.save('productGroups', { ...product.group, visible: false, collectionVisible: true, collectionTitle: 'Summer Juice', collectionPosition: 3 }, product.group.revision);
+  context.reopen();
+  assert.deepEqual((await context.repository.readDraft()).productGroups.find(item => item.id === group.id), group);
+  const publication = await context.request('/api/admin/v1/publish', { method: 'POST', body: { note: 'Collection-only line', expectedReleaseId: null } });
+  assert.equal(publication.response.status, 201, JSON.stringify(publication.payload));
+  const release = await context.repository.readActiveRelease();
+  const publicGroup = release.data.productGroups.find(item => item.id === group.id);
+  assert.equal(publicGroup.visible, false);
+  assert.equal(publicGroup.collectionVisible, true);
+  assert.equal(publicGroup.collectionTitle, 'Summer Juice');
+  assert.equal(publicGroup.collectionPosition, 3);
+  assert.ok(release.data.productVariants.some(item => item.id === product.variant.id));
+  await context.save('productGroups', { ...group, collectionVisible: false }, group.revision);
+  assert.deepEqual(await context.repository.readActiveRelease(), release, 'Draft changes do not alter the active website');
+}));
+
+test('display actions persist On/Off and deletion atomically, repair defaults and preserve the active public release', async () => withBackend(async context => {
+  await context.setup(); const product = await createVisible2DProduct(context);
+  const publication = await context.request('/api/admin/v1/publish', { method: 'POST', body: { note: 'Before card changes', expectedReleaseId: null } });
+  assert.equal(publication.response.status, 201);
+  const release = await context.repository.readActiveRelease();
+  const sibling = await context.save('productVariants', { ...newEntity('Other lime', 'other-card-product'), groupId: product.group.id, packagingVariantId: 'can-330', flavorId: 'lime', code: '', description: '', enabled: true });
+  const asset = await context.save('assets2d', { ...product.asset, ...newEntity('Other render', 'other-card-asset'), flavorId: 'lime' });
+  const display = await context.save('displays2d', { ...product.display, ...newEntity('Other display', 'other-card-display'), productVariantId: sibling.id, assetId: asset.id });
+  const act = async (id, action, enabled) => {
+    const draft = await context.repository.readDraft();
+    const record = draft.displays2d.find(item => item.id === id);
+    return context.request('/api/admin/v1/display/action', { method: 'POST', body: { mode: '2d', id, action, enabled, expectedRevision: record.revision, expectedDraftHash: createHash('sha256').update(JSON.stringify(draft)).digest('hex') } });
+  };
+  const off = await act(product.display.id, 'set-enabled', false);
+  assert.equal(off.response.status, 200, JSON.stringify(off.payload));
+  assert.equal(off.payload.data.productVariants.find(item => item.id === product.variant.id).enabled, false);
+  assert.equal(off.payload.data.packagingSlots.find(item => item.id === product.slot.id).defaultVariantId, sibling.id);
+  assert.deepEqual((await context.repository.preflight()).filter(issue => issue.severity === 'error'), []);
+  const on = await act(product.display.id, 'set-enabled', true);
+  assert.equal(on.response.status, 200); assert.equal(on.payload.data.productVariants.find(item => item.id === product.variant.id).enabled, true);
+  const removed = await act(display.id, 'delete');
+  assert.equal(removed.response.status, 200, JSON.stringify(removed.payload));
+  assert.equal(removed.payload.data.displays2d.some(item => item.id === display.id), false);
+  assert.equal(removed.payload.data.packagingSlots.find(item => item.id === product.slot.id).defaultVariantId, product.variant.id);
+  assert.equal(removed.payload.data.productVariants.find(item => item.id === sibling.id).enabled, false);
+  assert.equal(removed.payload.data.assets2d.some(item => item.id === asset.id), true);
+  assert.deepEqual(await context.repository.readActiveRelease(), release);
+  assert.equal(context.repository.database.prepare('SELECT actor FROM audit_events WHERE action=? AND entity_id=?').get('delete:displays2d', display.id).actor, owner.email);
+  context.reopen(); assert.deepEqual(await context.repository.readDraft(), removed.payload.data);
+}));
+
+test('display action API enforces authentication, full-draft conflict checks and transaction rollback', async () => withBackend(async context => {
+  await context.setup(); const product = await createVisible2DProduct(context);
+  const initial = await context.repository.readDraft();
+  const body = { mode: '2d', id: product.display.id, action: 'set-enabled', enabled: false, expectedRevision: product.display.revision, expectedDraftHash: createHash('sha256').update(JSON.stringify(initial)).digest('hex') };
+  const options = { method: 'POST', body };
+  assert.equal((await context.request('/api/admin/v1/display/action', { ...options, cookie: '' })).response.status, 401);
+  for (const origin of [null, 'https://untrusted.example']) assert.equal((await context.request('/api/admin/v1/display/action', { ...options, origin })).response.status, 403);
+  for (const patch of [{ mode: 'media' }, { action: 'archive' }, { enabled: 'false' }, { expectedRevision: null }, { expectedDraftHash: undefined }]) assert.equal((await context.request('/api/admin/v1/display/action', { method: 'POST', body: { ...body, ...patch } })).response.status, 422);
+  const auditCount = context.repository.database.prepare('SELECT COUNT(*) AS count FROM audit_events').get().count;
+  context.repository.database.exec("CREATE TRIGGER reject_display_action BEFORE INSERT ON audit_events WHEN NEW.entity_id='api-test-display' BEGIN SELECT RAISE(ABORT,'test audit failure'); END;");
+  assert.equal((await context.request('/api/admin/v1/display/action', options)).response.status, 500);
+  assert.deepEqual(await context.repository.readDraft(), initial);
+  assert.equal(context.repository.database.prepare('SELECT COUNT(*) AS count FROM audit_events').get().count, auditCount);
+  context.repository.database.exec('DROP TRIGGER reject_display_action');
+  await context.save('productGroups', { ...product.group, description: 'Changed in another tab' }, product.group.revision);
+  const newer = await context.repository.readDraft();
+  const stale = await context.request('/api/admin/v1/display/action', { method: 'POST', body: { ...body, action: 'delete' } });
+  assert.equal(stale.response.status, 409); assert.equal(stale.payload.error.code, 'revision_conflict');
+  assert.deepEqual(await context.repository.readDraft(), newer);
+  const staleRecord = await context.request('/api/admin/v1/display/action', { method: 'POST', body: { ...body, expectedRevision: body.expectedRevision + 1, expectedDraftHash: createHash('sha256').update(JSON.stringify(newer)).digest('hex') } });
+  assert.equal(staleRecord.response.status, 409);
+}));
+
 test('atomic display API creates a distinct Lychee display when the old display was renamed Peach', async () => withBackend(async context => {
   await context.setup(); const product = await createVisible2DProduct(context);
   const old = await context.save('displays3d', { ...newEntity('Peach renamed from Lychee', 'old-peach-display'), slug: 'lychee-display', productVariantId: product.variant.id, modelId: 'registry-can-330', labelId: null, enabled: false });
@@ -104,6 +258,43 @@ test('atomic display API creates a distinct Lychee display when the old display 
   const duplicate = await context.request('/api/admin/v1/display', { method: 'POST', body: { ...input, display: { ...input.display, id: 'duplicate-attempt' } } });
   assert.equal(duplicate.response.status, 422); assert.equal(duplicate.payload.error.code, 'display_exists');
   assert.deepEqual(await context.repository.readDraft(), beforeDuplicate);
+}));
+
+test('retargeting a display disables its orphaned old tuple, fixes the default and audits both owners without changing releases', async () => withBackend(async context => {
+  await context.setup(); const product = await createVisible2DProduct(context);
+  const release = await context.repository.publish(await context.repository.readDraft(), owner.email, 'Before flavor change', null);
+  const flavor = await context.save('flavors', { ...product.flavor, ...newEntity('Dedicated citrus flavor', 'dedicated-citrus') });
+  const asset = await context.save('assets2d', { ...product.asset, ...newEntity('Dedicated citrus render', 'dedicated-citrus-render'), flavorId: flavor.id });
+  const input = {
+    mode: '2d', variant: { ...product.variant, ...newEntity('Dedicated citrus product', 'dedicated-citrus-product'), flavorId: flavor.id, code: '' }, expectedVariantRevision: null,
+    display: { ...product.display, productVariantId: 'dedicated-citrus-product', assetId: asset.id }, expectedDisplayRevision: product.display.revision,
+    slot: null, expectedSlotRevision: null,
+  };
+  const before = await context.repository.readDraft();
+  const auditBefore = context.repository.database.prepare('SELECT COUNT(*) AS count FROM audit_events').get().count;
+  context.repository.database.exec("CREATE TRIGGER fail_old_owner_audit BEFORE INSERT ON audit_events WHEN NEW.action='save:productVariants' AND NEW.entity_id='api-test-variant' BEGIN SELECT RAISE(ABORT,'test audit failure'); END;");
+  const failed = await context.request('/api/admin/v1/display', { method: 'POST', body: input });
+  assert.equal(failed.response.status, 500);
+  assert.deepEqual(await context.repository.readDraft(), before);
+  assert.equal(context.repository.database.prepare('SELECT COUNT(*) AS count FROM audit_events').get().count, auditBefore);
+  context.repository.database.exec('DROP TRIGGER fail_old_owner_audit');
+  const result = await context.request('/api/admin/v1/display', { method: 'POST', body: input });
+  assert.equal(result.response.status, 200, JSON.stringify(result.payload));
+  const catalog = result.payload.data.catalog;
+  assert.equal(catalog.productVariants.find(item => item.id === product.variant.id).enabled, false);
+  assert.equal(catalog.productVariants.find(item => item.id === input.variant.id).enabled, true);
+  assert.equal(catalog.packagingSlots.find(item => item.id === product.slot.id).defaultVariantId, input.variant.id);
+  assert.equal(catalog.displays2d.filter(item => item.id === product.display.id).length, 1);
+  assert.equal(catalog.displays2d.find(item => item.id === product.display.id).productVariantId, input.variant.id);
+  assert.deepEqual((await context.repository.preflight()).filter(issue => issue.severity === 'error'), []);
+  for (const id of [product.variant.id, input.variant.id]) assert.equal(context.repository.database.prepare("SELECT actor FROM audit_events WHERE entity_id=? AND action='save:productVariants' ORDER BY created_at DESC LIMIT 1").get(id).actor, owner.email);
+  assert.deepEqual(await context.repository.readActiveRelease(), release);
+  for (const collection of ['media', 'flavors', 'labels', 'models3d', 'assets2d']) assert.deepEqual(catalog[collection], before[collection]);
+  context.reopen(); assert.deepEqual(await context.repository.readDraft(), catalog);
+  assert.deepEqual(await context.repository.readActiveRelease(), release);
+  const retry = await context.request('/api/admin/v1/display', { method: 'POST', body: input });
+  assert.equal(retry.response.status, 409);
+  assert.deepEqual(await context.repository.readDraft(), catalog);
 }));
 
 test('a late slot error rolls back the complete 2D save, with no partial product/display or audit entries', async () => withBackend(async context => {
@@ -154,7 +345,7 @@ test('delete API removes a failing default product with owned displays, preserve
   assert.deepEqual(await context.repository.readDraft(), result.payload.data.catalog);
 }));
 
-test('delete API rejects unconfirmed, stale-scope and graph-breaking requests atomically', async () => withBackend(async context => {
+test('delete API rejects unconfirmed and stale-scope requests but accepts an incomplete draft atomically', async () => withBackend(async context => {
   await context.setup(); const product = await createVisible2DProduct(context);
   const draft = await context.repository.readDraft();
   const hash = createHash('sha256').update(JSON.stringify(draft)).digest('hex');
@@ -162,8 +353,6 @@ test('delete API rejects unconfirmed, stale-scope and graph-breaking requests at
   for (const patch of [{ expectedDraftHash: undefined }, { expectedDraftHash: 'invalid' }, { expectedRevision: null }, { expectedRevision: 0 }]) {
     assert.equal((await context.request('/api/admin/v1/delete', { method: 'POST', body: { ...body, ...patch } })).response.status, 422);
   }
-  const blocked = await context.request('/api/admin/v1/delete', { method: 'POST', body });
-  assert.equal(blocked.response.status, 422); assert.equal(blocked.payload.error.code, 'delete_in_use');
   assert.deepEqual(await context.repository.readDraft(), draft);
   const changed = await context.save('productGroups', { ...product.group, description: 'Changed while confirmation is open' }, product.group.revision);
   const newer = await context.repository.readDraft();
@@ -171,7 +360,74 @@ test('delete API rejects unconfirmed, stale-scope and graph-breaking requests at
   assert.equal(stale.response.status, 409); assert.equal(stale.payload.error.code, 'revision_conflict');
   assert.equal(changed.revision, product.group.revision + 1); assert.deepEqual(await context.repository.readDraft(), newer);
   assert.equal(context.repository.database.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE action LIKE 'delete:%'").get().count, 0);
+  const removed = await context.request('/api/admin/v1/delete', { method: 'POST', body: { ...body, expectedDraftHash: createHash('sha256').update(JSON.stringify(newer)).digest('hex') } });
+  assert.equal(removed.response.status, 200, JSON.stringify(removed.payload));
+  assert.ok(removed.payload.data.issues.some(issue => issue.severity === 'error'));
+  assert.equal(removed.payload.data.catalog.productVariants.some(item => item.id === product.variant.id), false);
+  assert.deepEqual(await context.repository.readDraft(), removed.payload.data.catalog);
+  assert.equal((await context.request('/api/admin/v1/publish', { method: 'POST', body: { expectedReleaseId: null } })).response.status, 422, 'Preflight still protects the live site');
 }));
+
+test('deleting a used library asset keeps its released backup, clears draft references and audits the entire change', async () => withBackend(async context => {
+  await context.setup(); const product = await createVisible2DProduct(context);
+  const published = await context.request('/api/admin/v1/publish', { method: 'POST', body: { expectedReleaseId: null } });
+  assert.equal(published.response.status, 201);
+  const release = await context.repository.readActiveRelease(), draft = await context.repository.readDraft();
+  const asset = draft.assets2d.find(item => item.id === product.asset.id);
+  const removed = await context.request('/api/admin/v1/delete', { method: 'POST', body: { collection: 'assets2d', id: asset.id, expectedRevision: asset.revision, expectedDraftHash: createHash('sha256').update(JSON.stringify(draft)).digest('hex') } });
+  assert.equal(removed.response.status, 200, JSON.stringify(removed.payload));
+  assert.equal(removed.payload.data.catalog.displays2d.find(item => item.productVariantId === product.variant.id).assetId, null);
+  assert.ok(removed.payload.data.issues.some(issue => issue.severity === 'error'));
+  assert.deepEqual(await context.repository.readActiveRelease(), release);
+  assert.equal((await context.request(`/api/public/v1/media/${product.media.id}`, { cookie: '' })).response.status, 200);
+  const audit = context.repository.database.prepare("SELECT action, actor FROM audit_events WHERE action='delete:assets2d' OR (action='save:displays2d' AND actor=?)").all(owner.email);
+  assert.ok(audit.some(item => item.action === 'delete:assets2d' && item.actor === owner.email));
+  assert.ok(audit.some(item => item.action === 'save:displays2d'));
+  const unchanged = await context.repository.readDraft();
+  assert.equal((await context.request('/api/admin/v1/rollback', { method: 'POST', body: { releaseId: release.id, expectedReleaseId: release.id } })).response.status, 200);
+  assert.deepEqual(await context.repository.readDraft(), unchanged, 'Rollback uses the released snapshot without overwriting current draft edits');
+  context.reopen(); assert.deepEqual(await context.repository.readActiveRelease(), release);
+}));
+
+test('history retains at most ten releases; manual deletion frees a slot and retries and rollback work at capacity', async () => withBackend(async context => {
+  await context.setup(); await createVisible2DProduct(context);
+  const firstOptions = { method: 'POST', headers: { 'X-Idempotency-Key': randomUUID() }, body: { note: 'Backup 1', expectedReleaseId: null } };
+  const first = await context.request('/api/admin/v1/publish', firstOptions);
+  assert.equal(first.response.status, 201);
+  const ids = [first.payload.data.id]; let active = ids[0];
+  for (let i = 2; i <= 10; i++) {
+    const result = await context.request('/api/admin/v1/publish', { method: 'POST', headers: { 'X-Idempotency-Key': randomUUID() }, body: { note: `Backup ${i}`, expectedReleaseId: active } });
+    assert.equal(result.response.status, 201, JSON.stringify(result.payload));
+    active = result.payload.data.id; ids.push(active);
+  }
+  const releases = await context.repository.listReleases(), draft = await context.repository.readDraft();
+  const auditCount = context.repository.database.prepare('SELECT COUNT(*) AS count FROM audit_events').get().count;
+  const exportBefore = fs.readFileSync(path.join(context.staticOutputDir, 'current.json'), 'utf8');
+  const fullOptions = { method: 'POST', headers: { 'X-Idempotency-Key': randomUUID() }, body: { note: 'Backup 11', expectedReleaseId: active } };
+  const blocked = await context.request('/api/admin/v1/publish', fullOptions);
+  assert.equal(blocked.response.status, 422); assert.equal(blocked.payload.error.code, 'release_limit_reached');
+  assert.match(blocked.payload.error.message, /10\/10/);
+  assert.deepEqual(await context.repository.listReleases(), releases);
+  assert.deepEqual(await context.repository.readDraft(), draft);
+  assert.equal(context.repository.database.prepare('SELECT COUNT(*) AS count FROM audit_events').get().count, auditCount);
+  assert.equal(fs.readFileSync(path.join(context.staticOutputDir, 'current.json'), 'utf8'), exportBefore);
+  assert.equal((await context.request('/api/admin/v1/publish', firstOptions)).payload.data.id, ids[0], 'Existing successful retries work at capacity');
+  assert.equal((await context.repository.readActiveRelease()).id, active, 'An old retry does not reactivate an old backup');
+  const rollback = await context.request('/api/admin/v1/rollback', { method: 'POST', body: { releaseId: ids[0], expectedReleaseId: active } });
+  assert.equal(rollback.response.status, 200);
+  assert.equal((await context.repository.listReleases()).length, 10, 'Rollback consumes no history slot');
+  const activeDelete = await context.request('/api/admin/v1/releases/delete', { method: 'POST', body: { releaseId: ids[0], expectedReleaseId: ids[0] } });
+  assert.equal(activeDelete.response.status, 422);
+  const deletion = await context.request('/api/admin/v1/releases/delete', { method: 'POST', body: { releaseId: ids[1], expectedReleaseId: ids[0] } });
+  assert.equal(deletion.response.status, 200);
+  assert.equal((await context.repository.listReleases()).length, 9);
+  const next = await context.request('/api/admin/v1/publish', { ...fullOptions, body: { ...fullOptions.body, expectedReleaseId: ids[0] } });
+  assert.equal(next.response.status, 201, JSON.stringify(next.payload));
+  assert.equal((await context.repository.listReleases()).length, 10);
+  const removedRetry = await context.request('/api/admin/v1/publish', { method: 'POST', body: { expectedReleaseId: next.payload.data.id } });
+  assert.equal(removedRetry.payload.error.code, 'release_limit_reached');
+  context.reopen(); assert.equal((await context.repository.listReleases()).length, 10);
+}, { syncPublicCatalog: true }));
 
 test('anonymous requests and untrusted origins cannot read or write the admin catalog', async () => withBackend(async context => {
   const initial = await context.request('/api/admin/v1/session', { cookie: '' });
@@ -499,6 +755,62 @@ test('release deletion rolls back snapshot, media metadata and retry-key writes 
   assert.equal((await context.request('/api/admin/v1/releases/delete', deletion)).response.status, 200);
 }));
 
+test('publication exports fruit/leaf pools and standalone images; rollback and delayed retries track the current public release', async () => withBackend(async context => {
+  await context.setup(); const product = await createVisible2DProduct(context);
+  const firstOptions = { method: 'POST', headers: { 'X-Idempotency-Key': randomUUID() }, body: { expectedReleaseId: null } };
+  const first = (await context.request('/api/admin/v1/publish', firstOptions)).payload.data;
+  const readSnapshot = () => JSON.parse(fs.readFileSync(path.join(context.staticOutputDir, 'current.json'), 'utf8')).data;
+  assert.equal(readSnapshot().releaseId, first.id);
+  for (const role of ['fruit', 'leaf']) {
+    const { media } = await context.upload(role, role === 'fruit' ? 'citrus-preview.jpg' : 'lime-preview.jpg');
+    await context.save('flavorAssets', { ...newEntity(`Published ${role}`, `published-${role}`), flavorId: product.flavor.id, mediaId: media.id, role, enabled: true, position: 0 });
+  }
+  const privateUpload = (await context.upload('fruit', 'peach-preview.jpg')).media;
+  assert.equal(readSnapshot().releaseId, first.id, 'Draft changes cannot alter the standalone site');
+  const second = await context.request('/api/admin/v1/publish', { method: 'POST', body: { expectedReleaseId: first.id } });
+  assert.equal(second.response.status, 201); assert.equal(second.payload.data.staticExportWarning, undefined);
+  const snapshot = readSnapshot();
+  assert.equal(snapshot.releaseId, second.payload.data.id);
+  assert.equal(snapshot.catalog.flavorAssets.length, 2);
+  for (const assignment of snapshot.catalog.flavorAssets) {
+    const media = snapshot.catalog.media.find(item => item.id === assignment.mediaId);
+    assert.equal(media.role, assignment.role); assert.match(media.url, /^\/catalog\/media\/[a-f0-9]{64}\.webp$/);
+    assert.equal(media.storageKey, '');
+    const bytes = fs.readFileSync(path.join(context.staticOutputDir, 'media', path.basename(media.url)));
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), media.sha256);
+  }
+  assert.equal(snapshot.catalog.media.some(media => media.id === privateUpload.id), false, 'Draft-only artwork stays private');
+  assert.equal((await context.request('/api/admin/v1/publish', firstOptions)).payload.data.id, first.id);
+  assert.equal(readSnapshot().releaseId, second.payload.data.id, 'Replaying an old publication cannot replace the standalone snapshot');
+  assert.equal((await context.request('/api/admin/v1/rollback', { method: 'POST', body: { releaseId: first.id, expectedReleaseId: second.payload.data.id } })).response.status, 200);
+  assert.equal(readSnapshot().releaseId, first.id);
+  assert.equal((await context.request('/api/admin/v1/rollback', { method: 'POST', body: { releaseId: second.payload.data.id, expectedReleaseId: first.id } })).response.status, 200);
+  assert.equal(readSnapshot().catalog.flavorAssets.length, 2);
+}, { syncPublicCatalog: true }));
+
+test('a standalone export failure reports committed publication accurately and an idempotent retry repairs the snapshot', async () => withBackend(async context => {
+  await context.setup(); await createVisible2DProduct(context);
+  const first = (await context.request('/api/admin/v1/publish', { method: 'POST', body: { expectedReleaseId: null } })).payload.data;
+  const snapshotPath = path.join(context.staticOutputDir, 'current.json');
+  const original = fs.readFileSync(snapshotPath, 'utf8');
+  const mediaDir = path.join(context.staticOutputDir, 'media'), savedDir = path.join(context.staticOutputDir, 'saved-media');
+  fs.renameSync(mediaDir, savedDir); fs.writeFileSync(mediaDir, 'test-only directory blocker');
+  const options = { method: 'POST', headers: { 'X-Idempotency-Key': randomUUID() }, body: { expectedReleaseId: first.id } };
+  const result = await context.request('/api/admin/v1/publish', options);
+  assert.equal(result.response.status, 201);
+  assert.match(result.payload.data.staticExportWarning, /npm run catalog:export/);
+  assert.equal((await context.repository.readActiveRelease()).id, result.payload.data.id);
+  assert.equal(fs.readFileSync(snapshotPath, 'utf8'), original, 'Failed export preserves the previous working snapshot');
+  const rolledBack = await context.request('/api/admin/v1/rollback', { method: 'POST', body: { releaseId: first.id, expectedReleaseId: result.payload.data.id } });
+  assert.equal(rolledBack.response.status, 200); assert.match(rolledBack.payload.data.staticExportWarning, /npm run catalog:export/);
+  fs.unlinkSync(mediaDir); fs.renameSync(savedDir, mediaDir);
+  const retry = await context.request('/api/admin/v1/publish', options);
+  assert.equal(retry.response.status, 201); assert.equal(retry.payload.data.id, result.payload.data.id);
+  assert.equal(retry.payload.data.staticExportWarning, undefined);
+  assert.equal(JSON.parse(fs.readFileSync(snapshotPath, 'utf8')).data.releaseId, first.id, 'Retry exports the active rollback target, not its superseded release');
+  assert.equal((await context.repository.listReleases()).length, 2);
+}, { syncPublicCatalog: true }));
+
 test('published media remains available to older pages while unrelated draft uploads stay private', async () => withBackend(async context => {
   await context.setup(); const product = await createVisible2DProduct(context);
   const first = await context.request('/api/admin/v1/publish', { method: 'POST', body: { expectedReleaseId: null } });
@@ -581,3 +893,36 @@ test('reordering an image pool changes only assets belonging to that flavor', as
   assert.equal(assets.find(asset => asset.id === first.id).revision, 2); assert.equal(assets.find(asset => asset.id === second.id).revision, 2);
   assert.deepEqual(assets.find(asset => asset.id === unrelated.id), unrelated, 'An unrelated flavor pool keeps its position, revision and timestamps');
 }));
+
+
+test('reusable SVG icons publish anonymously, export standalone and retain history after draft deletion', async () => withBackend(async context => {
+  await context.setup(); const product = await createVisible2DProduct(context);
+  const form = new FormData(); form.set('role', 'icon');
+  form.set('file', new File(['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 20"><path fill="white" d="M4 10L40 2L76 10L40 18Z"/></svg>'], 'symbol.svg', { type: 'image/svg+xml' }));
+  const uploaded = await context.request('/api/admin/v1/upload', { method: 'POST', form });
+  assert.equal(uploaded.response.status, 201, JSON.stringify(uploaded.payload)); const icon = uploaded.payload.data;
+  assert.equal(icon.role, 'icon'); assert.equal(icon.mime, 'image/webp'); assert.equal(icon.width, 256); assert.equal(icon.height, 64);
+  assert.equal((await context.request(`/api/public/v1/media/${icon.id}`, { cookie: '' })).response.status, 404);
+  const flavor = await context.save('flavors', { ...product.flavor, iconId: icon.id, thumbnailId: product.media.id }, product.flavor.revision);
+  const first = await context.request('/api/admin/v1/publish', { method: 'POST', body: { expectedReleaseId: null } });
+  assert.equal(first.response.status, 201, JSON.stringify(first.payload));
+  const publicRead = await context.request('/api/public/v1/catalog', { cookie: '' });
+  assert.equal(publicRead.payload.data.catalog.flavors[0].iconId, icon.id);
+  const publicIcon = await context.request(`/api/public/v1/media/${icon.id}`, { cookie: '' });
+  assert.equal(publicIcon.response.status, 200); assert.equal(publicIcon.response.headers.get('Content-Type'), 'image/webp');
+  const exported = JSON.parse(fs.readFileSync(path.join(context.staticOutputDir, 'current.json'), 'utf8'));
+  const exportedIcon = exported.data.catalog.media.find(item => item.id === icon.id);
+  assert.ok(exportedIcon); assert.equal(exported.data.catalog.flavors[0].iconId, icon.id);
+  assert.deepEqual(fs.readFileSync(path.join(context.staticOutputDir, 'media', icon.storageKey)), Buffer.from(await publicIcon.response.arrayBuffer()));
+  const draft = await context.repository.readDraft();
+  const removed = await context.request('/api/admin/v1/delete', { method: 'POST', body: { collection: 'media', id: icon.id, expectedRevision: icon.revision, expectedDraftHash: createHash('sha256').update(JSON.stringify(draft)).digest('hex') } });
+  assert.equal(removed.response.status, 200, JSON.stringify(removed.payload));
+  assert.equal(removed.payload.data.catalog.flavors.find(item => item.id === flavor.id).iconId, null);
+  const second = await context.request('/api/admin/v1/publish', { method: 'POST', body: { expectedReleaseId: first.payload.data.id } });
+  assert.equal(second.response.status, 201, JSON.stringify(second.payload));
+  assert.equal((await context.request('/api/public/v1/catalog', { cookie: '' })).payload.data.catalog.media.some(item => item.id === icon.id), false);
+  const rolled = await context.request('/api/admin/v1/rollback', { method: 'POST', body: { releaseId: first.payload.data.id, expectedReleaseId: second.payload.data.id } });
+  assert.equal(rolled.response.status, 200);
+  assert.equal((await context.request('/api/public/v1/catalog', { cookie: '' })).payload.data.catalog.flavors[0].iconId, icon.id);
+  assert.equal((await context.request(`/api/public/v1/media/${icon.id}`, { cookie: '' })).response.status, 200);
+}, { syncPublicCatalog: true }));

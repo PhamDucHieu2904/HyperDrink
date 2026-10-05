@@ -2,9 +2,12 @@
 require('../register-admin-typescript.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { resolveStorefrontSelection, catalogProducts, parsePublishedCatalog } = require('../../lib/catalog/storefront.ts');
+const { resolveStorefrontSelection, randomStorefrontEntry, catalogProducts, parsePublishedCatalog } = require('../../lib/catalog/storefront.ts');
 const { fetchPublishedCatalog } = require('../../components/usePublishedCatalog.ts');
 const { validateCatalog } = require('../../lib/catalog/validation.ts');
+const { collectPublicCatalog } = require('../../lib/catalog/compatibility.ts');
+const { collectionSections, collectionDrinkTypes, filterCollectionProducts, productPage } = require('../../lib/catalog/collection.ts');
+const { collectionCopy } = require('../../lib/i18n/collection-copy.ts');
 
 const entity = id => ({ id, name: id, slug: id, lifecycle: 'active', revision: 1, createdAt: '2026-10-01T04:00:00Z', updatedAt: '2026-10-01T04:00:00Z' });
 const media = (id, role) => ({ ...entity(id), role, status: 'ready', url: `/catalog/media/${id}.webp`, storageKey: '', mime: role === 'model' ? 'model/gltf-binary' : 'image/webp', bytes: 1234, sha256: 'a'.repeat(64), width: role === 'model' ? null : 512, height: role === 'model' ? null : 512, imageBounds: null, error: '' });
@@ -34,6 +37,82 @@ function fixture() {
 const envelope = (catalog = fixture(), releaseId = 'release-one') => ({ data: { catalog, releaseId, publishedAt: '2026-10-01T06:00:00Z', schemaVersion: 1 } });
 const response = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
+test('collection title and ordering are independent of the hero buttons and older releases keep their rows', () => {
+  const data = fixture();
+  assert.deepEqual(collectionSections(data).map(section => section.group.id), ['group-b', 'group-a']);
+  Object.assign(data.productGroups[0], { collectionTitle: '  Tropical Juice  ', collectionPosition: 0, collectionVisible: true });
+  Object.assign(data.productGroups[1], { collectionVisible: false });
+  const sections = collectionSections(data);
+  assert.equal(sections.length, 1);
+  assert.equal(sections[0].title, 'Tropical Juice');
+  assert.equal(sections[0].products.length, 3);
+  assert.equal(catalogProducts(data).length, 4, 'Hiding a homepage row does not hide its Best seller products');
+  assert.equal(catalogProducts(data, 'catalog').length, 4, 'All products still includes a line visible in the hero');
+});
+
+test('a collection-only product line survives publication but does not become a Best seller button', () => {
+  const data = fixture();
+  Object.assign(data.productGroups[0], { visible: false, collectionVisible: true, collectionTitle: 'Summer selection', collectionPosition: 0 });
+  Object.assign(data.productGroups[1], { visible: false, collectionVisible: false });
+  const published = collectPublicCatalog(data);
+  assert.deepEqual(published.productGroups.map(group => group.id), ['group-a']);
+  assert.equal(catalogProducts(published).length, 0);
+  assert.equal(catalogProducts(published, 'catalog').length, 3);
+  assert.equal(collectionSections(published)[0].title, 'Summer selection');
+  assert.deepEqual(validateCatalog(data, { mode: 'publish' }), []);
+  assert.deepEqual(collectionDrinkTypes(published, catalogProducts(published, 'catalog')).map(type => type.id), ['juice']);
+});
+
+test('collection excludes empty, disabled and archived lines without losing other rows', () => {
+  const data = fixture();
+  data.productGroups[0].lifecycle = 'archived';
+  assert.deepEqual(collectionSections(data).map(section => section.group.id), ['group-b']);
+  data.productVariants.find(item => item.id === 'b330-orange').enabled = false;
+  assert.deepEqual(collectionSections(data), []);
+});
+
+test('responsive row pagination reaches every product exactly once and clamps after a filter change', () => {
+  const products = Array.from({ length: 15 }, (_, index) => `product-${index}`);
+  for (const size of [1, 2, 3, 4, 12]) {
+    const totalPages = productPage(products, 0, size).totalPages;
+    const seen = Array.from({ length: totalPages }, (_, page) => productPage(products, page, size).items).flat();
+    assert.deepEqual(seen, products);
+  }
+  assert.deepEqual(productPage([], 20, 4), { page: 0, totalPages: 1, items: [] });
+  assert.deepEqual(productPage(products.slice(0, 2), 8, 4), { page: 0, totalPages: 1, items: ['product-0', 'product-1'] });
+  assert.equal(productPage(products, -1, 4).page, 0);
+});
+
+test('all-products search accepts translated names and original catalog names with every query term required', () => {
+  const source = fixture();
+  const translated = structuredClone(source);
+  translated.flavors.find(item => item.id === 'mango').name = 'Mangue';
+  translated.flavors.find(item => item.id === 'mango').shortName = 'Mangue';
+  translated.productVariants.find(item => item.id === 'a330-mango').name = 'Jus de mangue';
+  const products = catalogProducts(translated, 'catalog');
+  assert.deepEqual(filterCollectionProducts(products, 'MANGUE 330', source).map(product => product.variant.id), ['a330-mango']);
+  assert.deepEqual(filterCollectionProducts(products, 'mango 330', source).map(product => product.variant.id), ['a330-mango']);
+  assert.equal(filterCollectionProducts(products, 'mango 500', source).length, 0);
+});
+
+test('collection settings reject malformed values while remaining optional for existing releases', () => {
+  assert.deepEqual(validateCatalog(fixture()), []);
+  for (const [field, value] of [['collectionVisible', 'yes'], ['collectionTitle', 'x'.repeat(101)], ['collectionPosition', -1], ['collectionPosition', 1.5]]) {
+    const data = fixture(); data.productGroups[0][field] = value;
+    assert.ok(validateCatalog(data).some(issue => issue.collection === 'productGroups' && issue.field === field));
+  }
+});
+
+test('collection controls include all eight locales with matching page placeholders', () => {
+  const keys = Object.keys(collectionCopy('en')).sort();
+  for (const locale of ['en', 'fr', 'zh', 'es', 'ar', 'ru', 'ko', 'de']) {
+    const copy = collectionCopy(locale);
+    assert.deepEqual(Object.keys(copy).sort(), keys);
+    assert.ok(Object.values(copy).every(value => typeof value === 'string' && value.length > 0));
+    assert.match(copy.page, /\{current\}/); assert.match(copy.page, /\{total\}/);
+  }
+});
+
 test('selection orders groups, packaging slots and flavors independently and honors the slot default', () => {
   const data = fixture();
   assert.deepEqual(validateCatalog(data, { mode: 'publish' }), []);
@@ -58,6 +137,22 @@ test('stale and foreign selection IDs never cross a group or packaging boundary'
   assert.equal(resolveStorefrontSelection(data, { groupId: 'group-a', slotId: 'a330-slot' }).variant.id, 'a330-orange');
 });
 
+test('random entry chooses an enabled flavor in the initial slot and preserves an explicit choice', () => {
+  const data = fixture();
+  data.productGroups.find(item => item.id === 'group-a').position = 0;
+  data.packagingSlots.find(item => item.id === 'a330-slot').position = -1;
+  assert.equal(randomStorefrontEntry(data, {}, 0).variantId, 'a330-orange');
+  const entry = randomStorefrontEntry(data, {}, 0.999);
+  assert.deepEqual(entry, { groupId: 'group-a', slotId: 'a330-slot', variantId: 'a330-mango' });
+  assert.deepEqual(randomStorefrontEntry(data, entry, 0), entry);
+  data.productVariants.find(item => item.id === 'a330-mango').enabled = false;
+  assert.equal(randomStorefrontEntry(data, {}, 0.999).variantId, 'a330-orange');
+  data.flavors.find(item => item.id === 'orange').lifecycle = 'archived';
+  assert.deepEqual(randomStorefrontEntry(data, {}, 0.999), {});
+  data.productGroups.forEach(item => { item.visible = false; });
+  assert.deepEqual(randomStorefrontEntry(data, {}, 0.5), {});
+});
+
 test('release refresh keeps valid choices and falls back after the selected flavor or package is disabled', () => {
   const data = fixture();
   const request = { groupId: 'group-a', slotId: 'a330-slot', variantId: 'a330-orange' };
@@ -68,6 +163,19 @@ test('release refresh keeps valid choices and falls back after the selected flav
   assert.equal(resolveStorefrontSelection(data, request).variant.id, 'a330-mango');
   data.packagingSlots.find(item => item.id === 'a330-slot').enabled = false;
   assert.equal(resolveStorefrontSelection(data, request).variant.id, 'a500-banana');
+});
+
+test('card actions omit intentionally disabled slots and groups and restore them after On', () => {
+  const { applyDisplayAction } = require('../../lib/catalog/display-management.ts');
+  const data = fixture();
+  const off = applyDisplayAction(data, { mode: '2d', id: 'display-b330-orange', action: 'set-enabled', enabled: false, expectedRevision: 1, expectedDraftHash: 'a'.repeat(64) });
+  assert.deepEqual(resolveStorefrontSelection(off).groups.map(item => item.id), ['group-a']);
+  assert.equal(catalogProducts(off).some(item => item.variant.id === 'b330-orange'), false);
+  assert.deepEqual(validateCatalog(off, { mode: 'publish' }), []);
+  const on = applyDisplayAction(off, { mode: '2d', id: 'display-b330-orange', action: 'set-enabled', enabled: true, expectedRevision: 2, expectedDraftHash: 'a'.repeat(64) });
+  assert.deepEqual(resolveStorefrontSelection(on).groups.map(item => item.id), ['group-b', 'group-a']);
+  assert.equal(resolveStorefrontSelection(on).variant.id, 'b330-orange');
+  assert.deepEqual(validateCatalog(on, { mode: 'publish' }), []);
 });
 
 test('archived or hidden dependencies cannot appear in selection or collection products', () => {
@@ -101,11 +209,11 @@ test('cards use only their own compatible display assets, including 2D-only mode
   assert.equal(catalogProducts(data)[0].category.viewerKind, 'pp');
 });
 
-test('unready or wrong-role thumbnails are never returned as card images', () => {
+test('unready or model thumbnails are never returned as card images', () => {
   const data = fixture();
   data.media.find(item => item.id === 'thumb-orange').status = 'processing';
   assert.equal(catalogProducts(data).find(item => item.variant.id === 'b330-orange').thumbnail, undefined);
-  data.media.find(item => item.id === 'thumb-mango').role = 'fruit';
+  data.media.find(item => item.id === 'thumb-mango').role = 'model';
   assert.equal(catalogProducts(data).find(item => item.variant.id === 'a330-mango').thumbnail, undefined);
 });
 
@@ -183,4 +291,15 @@ test('hung requests time out and release loading work without waiting for the re
   calls.length = 0;
   await assert.rejects(fetchPublishedCatalog({ apiBase: '', mode: 'api', timeoutMs: 10, allowStaticFallback: false, fetcher }), /phản hồi kịp thời/);
   assert.deepEqual(calls, ['/api/public/v1/catalog']);
+});
+
+
+test('flavor thumbnails accept every ready image category while rejecting non-image bytes', () => {
+  for (const role of ['thumbnail', 'label', 'fruit', 'leaf', 'splash', 'icon', 'poster', 'image-2d']) {
+    const data = fixture(), media = data.media.find(item => item.id === 'thumb-mango'); media.role = role;
+    assert.equal(catalogProducts(data).find(item => item.variant.id === 'a330-mango').thumbnail?.id, media.id);
+
+    media.mime = 'model/gltf-binary';
+    assert.equal(catalogProducts(data).find(item => item.variant.id === 'a330-mango').thumbnail, undefined);
+  }
 });

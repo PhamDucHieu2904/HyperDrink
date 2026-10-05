@@ -85,6 +85,7 @@ function backgroundFixture(context, options = {}) {
   const component = loadSource('components/FlavorBackground.tsx', (name) => {
     if (name === 'react') return { useRef: () => ({ current: ref++ ? track : root }), useMemo: (factory) => factory(), useEffect: (effect) => effects.push(effect) };
     if (name.endsWith('background-config')) return config;
+    if (name === './BackgroundPattern') return { default: () => null };
     if (name.endsWith('background-motion')) return motion;
     if (name.endsWith('background-render-state')) return rendering;
     return require(name);

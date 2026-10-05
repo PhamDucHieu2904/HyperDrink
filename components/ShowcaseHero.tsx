@@ -7,12 +7,14 @@ import { BackgroundRenderState } from '@/lib/background-render-state';
 import { backgroundConfig, normalizeBackgroundConfig } from '@/lib/background-config';
 import type { CatalogData } from '@/lib/catalog/contracts';
 import { catalogProducts, resolveStorefrontSelection, type StorefrontSelectionRequest } from '@/lib/catalog/storefront';
-import { resolveFlavorFruitImage } from '@/lib/catalog/resolve';
+import { mediaUrl, resolveFlavorFruitImage, resolveFlavorIcon } from '@/lib/catalog/resolve';
 import { useLanguage } from './LanguageProvider';
 import CatalogImage from './catalog-hero/CatalogImage';
 import FlavorCarousel from './catalog-hero/FlavorCarousel';
 import ProductVisual from './catalog-hero/ProductVisual';
 import { heroCopy } from './catalog-hero/copy';
+import { trackUsage } from '@/lib/operations/client';
+import ProductDetailPanel from './product-detail/ProductDetailPanel';
 
 const backgroundSettings = normalizeBackgroundConfig(backgroundConfig);
 const glassStyle = { backdropFilter: 'blur(28px) saturate(148%) brightness(1.04)', WebkitBackdropFilter: 'blur(28px) saturate(148%) brightness(1.04)' } as React.CSSProperties;
@@ -37,7 +39,8 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
   const drink = catalog.drinkTypes.find(item => item.id === group?.drinkTypeId);
   const themes = useMemo(() => resolved.variants.map(item => {
     const itemFlavor = catalog.flavors.find(flavor => flavor.id === item.flavorId)!;
-    return { id: item.id, color: itemFlavor.backgroundColor, icon: itemFlavor.icon };
+    const icon = resolveFlavorIcon(catalog, itemFlavor);
+    return { id: item.id, color: itemFlavor.backgroundColor, icon: itemFlavor.icon, ...(icon ? { iconUrl: mediaUrl(icon) } : {}) };
   }), [catalog, resolved.variants]);
   const flavorIndex = Math.max(0, variants.findIndex(item => item.id === variant?.id));
   const [backgroundState] = useState(() => {
@@ -49,6 +52,7 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
   const [likedVariant, setLikedVariant] = useState<string | null>(null);
   const [failedVisual, setFailedVisual] = useState('');
   const [detail, setDetail] = useState<'flavor' | 'collection' | null>(null);
+  const [productDetailOpen, setProductDetailOpen] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
   const productRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -59,7 +63,8 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
     const itemFlavor = catalog.flavors.find(flavor => flavor.id === item.flavorId)!;
     return { variantId: item.id, flavor: itemFlavor, fruitImage: resolveFlavorFruitImage(catalog, itemFlavor.id) };
   });
-  const explore = () => { if (onExplore) onExplore(); else setDetail('collection'); };
+  const openDetail = (value:'flavor'|'collection') => {trackUsage('detail_open',value==='flavor'?variant?.id:group?.id);setDetail(value);};
+  const explore = () => { trackUsage('collection_open'); if (onExplore) onExplore(); else openDetail('collection'); };
 
   useEffect(() => {
     let live = true;
@@ -90,7 +95,7 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
   }, [detail, hasProduct]);
 
   const productPicker = <div className="model-picker" role="group" aria-label={t('nav.products')}>
-    <span className="model-picker-label" dir="ltr">BEST SELLER</span>
+    <span className="model-picker-label">{copy.bestSeller}</span>
     <div className="model-options">{groups.map(item => <button type="button" key={item.id} aria-pressed={item.id === group?.id} onClick={() => onSelectGroup(item.id)}><bdi>{item.buttonLabel || item.name}</bdi></button>)}</div>
   </div>;
 
@@ -108,9 +113,9 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
   } as React.CSSProperties}>
     <FlavorBackground flavorIndex={flavorIndex} themes={themes} renderState={backgroundState} config={backgroundSettings} />
     <div className="quick-rail glass-surface" style={glassStyle} aria-label={t('hero.shortcuts')}>
-      <button type="button" aria-label={t('hero.discoverFlavor')} onClick={() => setDetail('flavor')} className="is-selected"><Leaf /></button>
+      <button type="button" aria-label={t('hero.discoverFlavor')} onClick={() => openDetail('flavor')} className="is-selected"><Leaf /></button>
       <button type="button" aria-label={t('hero.viewCollection')} onClick={explore}><Waves /></button>
-      <button type="button" aria-label={t('hero.likeFlavor')} aria-pressed={liked} onClick={() => setLikedVariant(liked ? null : variant.id)}><Heart fill={liked ? 'currentColor' : 'none'} /></button>
+      <button type="button" aria-label={t('hero.likeFlavor')} aria-pressed={liked} onClick={() => { if(!liked)trackUsage('favorite',variant.id); setLikedVariant(liked ? null : variant.id); }}><Heart fill={liked ? 'currentColor' : 'none'} /></button>
     </div>
     <div className="showcase-copy showcase-intro">
       <p className="eyebrow"><bdi>{drink?.name || group.name}</bdi></p>
@@ -118,7 +123,7 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
       {group.description && <p className="showcase-tagline">{group.description}</p>}
       <div className="showcase-actions">
         <button type="button" className="btn btn-primary" onClick={explore}>{t('hero.explore')} <ArrowRight size={20} /></button>
-        <button type="button" className="btn btn-ghost" onClick={() => setDetail('flavor')}><Play size={18} fill="currentColor" /> {t('nav.flavors')}</button>
+        <button type="button" className="btn btn-ghost" onClick={() => openDetail('flavor')}><Play size={18} fill="currentColor" /> {t('nav.flavors')}</button>
       </div>
     </div>
     <div ref={productRef} className="showcase-product"><ProductVisual catalog={catalog} releaseId={releaseId} seed={sessionSeed} slot={slot} variant={variant} display3d={product?.display3d} display2d={product?.display2d} image2d={product?.image2d} model={product?.model} backgroundState={backgroundState} backgroundConfig={backgroundSettings} onViewerUnavailable={() => setFailedVisual(renderKey)} /></div>
@@ -126,11 +131,11 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
     <FlavorCarousel items={carouselItems} selectedId={variant.id} onSelect={onSelectVariant} />
     <div className="showcase-details">
       <div className="notes-stack">
-        <button type="button" className="notes-card glass-surface" style={glassStyle} onClick={() => setDetail('flavor')}>
+        <button type="button" className="notes-card glass-surface" style={glassStyle} onClick={() => openDetail('flavor')}>
           <CatalogImage media={product?.thumbnail} size={88} priority />
           <span><strong>{t('hero.notes')}</strong><span>{flavor.description || flavor.name}</span></span><ChevronRight />
         </button>
-        <button type="button" className="notes-card glass-surface" style={glassStyle} onClick={() => setDetail('collection')}>
+        <button type="button" className="notes-card glass-surface" style={glassStyle} onClick={() => openDetail('collection')}>
           <span className="catalog-notes-symbol" aria-hidden="true"><Layers3 size={38} strokeWidth={1.2} /></span>
           <span><strong><bdi>{group.name}</bdi></strong><span>{group.description || drink?.description || drink?.name}</span></span><ChevronRight />
         </button>
@@ -141,13 +146,14 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
       </div>
     </div>
     <aside className="showcase-feature glass-surface" style={featureGlassStyle} aria-label={t('hero.featured')}>
-      <span className="showcase-badge" dir="ltr">Hot</span>
+      <span className="showcase-badge" dir={locale === 'ar' ? 'rtl' : 'ltr'}>{copy.hot}</span>
       <div className="flavor-portrait-ring"><CatalogImage className="flavor-portrait" media={product?.thumbnail} alt={flavor.name} size={360} priority /></div>
       <h2><bdi>{flavor.name}</bdi></h2><p className="feature-subtitle"><bdi>{drink?.name}</bdi></p>
       <div className="showcase-metrics"><span><strong dir="ltr">{packaging.volumeMl ?? '—'}<small>ml</small></strong><bdi>{category?.name || packaging.name}</bdi></span><span><strong dir="ltr">{String(variants.length).padStart(2, '0')}</strong>{t('nav.flavors')}</span><span><strong dir="ltr">{mode}</strong>{t('hero.experience')}</span></div>
       <p className="feature-description"><strong><bdi>{variant.name}</bdi></strong><span>{variant.description || flavor.description}</span></p>
-      <button type="button" className="btn btn-primary" onClick={() => setDetail('flavor')}>{t('hero.exploreFlavor', { flavor: flavor.shortName || flavor.name })} <ArrowRight size={20} /></button>
+      <button type="button" className="btn btn-primary" onClick={() => { trackUsage('detail_open', variant.id); setProductDetailOpen(true); }}>{t('hero.exploreFlavor', { flavor: flavor.shortName || flavor.name })} <ArrowRight size={20} /></button>
     </aside>
+    {productDetailOpen && product && <ProductDetailPanel catalog={catalog} product={product} onClose={() => setProductDetailOpen(false)} />}
     <dialog ref={dialogRef} className="hero-detail glass-surface catalog-hero-detail" style={glassStyle} aria-label={t('hero.details')} onCancel={() => setDetail(null)} onClick={event => { if (event.target === event.currentTarget) setDetail(null); }}>
       <h2><bdi>{detail === 'flavor' ? flavor.name : group.name}</bdi></h2>
       {(detail === 'flavor' ? flavor.description : group.description) && <p>{detail === 'flavor' ? flavor.description : group.description}</p>}

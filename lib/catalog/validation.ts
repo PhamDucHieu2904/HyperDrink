@@ -1,7 +1,10 @@
 import type { CatalogData, CatalogRecord, CollectionName, ValidationIssue } from './contracts';
+import { catalogWithDefaults } from './contracts';
 import { checkDisplay2DCompatibility, checkDisplay3DCompatibility, collectPublicCatalog } from './compatibility';
+import { isImageMedia } from './media-roles';
+import { resolveFlavorFruitImage } from './flavor-media';
 
-export const CATALOG_COLLECTIONS = ['drinkTypes', 'packagingCategories', 'packagingVariants', 'flavors', 'flavorAssets', 'productGroups', 'productVariants', 'packagingSlots', 'media', 'labels', 'models3d', 'assets2d', 'displays3d', 'displays2d'] as const satisfies readonly CollectionName[];
+export const CATALOG_COLLECTIONS = ['drinkTypes', 'packagingCategories', 'packagingVariants', 'flavors', 'flavorAssets', 'productGroups', 'productVariants', 'packagingSlots', 'media', 'labels', 'models3d', 'assets2d', 'displays3d', 'displays2d', 'productDetails'] as const satisfies readonly CollectionName[];
 export interface ValidationOptions { mode?: 'draft' | 'publish' }
 export const hasValidationErrors = (issues: ValidationIssue[]) => issues.some(issue => issue.severity === 'error');
 
@@ -12,9 +15,9 @@ const commonFields = ['id', 'name', 'slug', 'lifecycle', 'revision', 'createdAt'
 const fields: Record<CollectionName, readonly string[]> = {
   drinkTypes: ['description', 'position'], packagingCategories: ['viewerKind', 'position'],
   packagingVariants: ['categoryId', 'volumeMl', 'shape', 'position'],
-  flavors: ['shortName', 'description', 'accentColor', 'backgroundColor', 'textColor', 'icon', 'thumbnailId', 'position'],
+  flavors: ['shortName', 'description', 'accentColor', 'backgroundColor', 'textColor', 'icon', 'iconId', 'thumbnailId', 'position'],
   flavorAssets: ['flavorId', 'mediaId', 'role', 'position', 'enabled'],
-  productGroups: ['drinkTypeId', 'description', 'buttonLabel', 'position', 'visible'],
+  productGroups: ['drinkTypeId', 'description', 'buttonLabel', 'position', 'visible', 'collectionVisible', 'collectionTitle', 'collectionPosition'],
   productVariants: ['groupId', 'packagingVariantId', 'flavorId', 'code', 'description', 'enabled'],
   packagingSlots: ['groupId', 'packagingVariantId', 'regionKey', 'position', 'buttonLabel', 'mode', 'defaultVariantId', 'enabled'],
   media: ['role', 'status', 'url', 'storageKey', 'mime', 'bytes', 'sha256', 'width', 'height', 'imageBounds', 'error'],
@@ -23,6 +26,7 @@ const fields: Record<CollectionName, readonly string[]> = {
   assets2d: ['packagingVariantId', 'drinkTypeId', 'flavorId', 'mediaId', 'galleryIds', 'description'],
   displays3d: ['productVariantId', 'modelId', 'labelId', 'enabled'],
   displays2d: ['productVariantId', 'assetId', 'alt', 'enabled'],
+  productDetails: ['labelId', 'posterId', 'eyebrow', 'headline', 'subtitle', 'introduction', 'ingredients', 'allergens', 'servingSize', 'nutrition', 'companyName', 'companyAddress', 'countryOfOrigin', 'netContent', 'storage', 'shelfLife', 'sections', 'enabled'],
 };
 
 /** Shared structural validation. Empty business fields are saveable in a draft; malformed values are not. */
@@ -69,9 +73,14 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
     case 'packagingCategories': oneOf('viewerKind', ['can', 'glass', 'pp', 'pet', 'pouch', 'other']); position(); break;
     case 'packagingVariants': ref('categoryId', false, publishing); num('volumeMl', Number.MIN_VALUE, 100000, false, true); str('shape', 160); position(); break;
     case 'flavors':
-      str('shortName', 60, publishing); str('description', 5000); color('accentColor'); color('backgroundColor'); color('textColor'); str('icon', 128, publishing, tokenPattern); ref('thumbnailId', true); position(); break;
+      str('shortName', 60, publishing); str('description', 5000); color('accentColor'); color('backgroundColor'); color('textColor'); str('icon', 128, publishing, tokenPattern); if (record.iconId !== undefined) ref('iconId', true); ref('thumbnailId', true); position(); break;
     case 'flavorAssets': ref('flavorId', false, publishing); ref('mediaId', false, publishing); oneOf('role', ['fruit', 'leaf', 'splash']); position(); bool('enabled'); break;
-    case 'productGroups': ref('drinkTypeId', false, publishing); str('description', 5000); str('buttonLabel', 100, publishing); position(); bool('visible'); break;
+    case 'productGroups':
+      ref('drinkTypeId', false, publishing); str('description', 5000); str('buttonLabel', 100, publishing); position(); bool('visible');
+      if (record.collectionVisible !== undefined) bool('collectionVisible');
+      if (record.collectionTitle !== undefined) str('collectionTitle', 100);
+      if (record.collectionPosition !== undefined) num('collectionPosition', 0, 100000, true);
+      break;
     case 'productVariants': ref('groupId', false, publishing); ref('packagingVariantId', false, publishing); ref('flavorId', false, publishing); str('code', 128); str('description', 5000); bool('enabled'); break;
     case 'packagingSlots': ref('groupId', false, publishing); ref('packagingVariantId', false, publishing); oneOf('regionKey', ['packaging-picker']); position(); str('buttonLabel', 100, publishing); oneOf('mode', ['3d', '2d', 'auto']); ref('defaultVariantId', true, publishing); bool('enabled'); break;
     case 'media': {
@@ -121,6 +130,20 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
     case 'assets2d': ref('packagingVariantId', false, publishing); ref('drinkTypeId', false, publishing); ref('flavorId', true); ref('mediaId', true, publishing); refsArray('galleryIds'); str('description', 5000); break;
     case 'displays3d': ref('productVariantId', false, publishing); ref('modelId', true, publishing); ref('labelId', true, publishing); bool('enabled'); break;
     case 'displays2d': ref('productVariantId', false, publishing); ref('assetId', true, publishing); str('alt', 300, publishing); bool('enabled'); break;
+    case 'productDetails': {
+      ref('labelId', false, publishing); ref('posterId', true); bool('enabled');
+      for (const field of ['eyebrow', 'headline', 'subtitle', 'allergens', 'servingSize', 'companyName', 'companyAddress', 'countryOfOrigin', 'netContent', 'storage', 'shelfLife']) str(field, 1000);
+      for (const field of ['introduction', 'ingredients']) str(field, 10000);
+      if (!Array.isArray(record.nutrition) || record.nutrition.length > 40) add('nutrition', 'Tối đa 40 dòng dinh dưỡng.');
+      else for (const [index, row] of record.nutrition.entries()) {
+        if (!plain(row) || Object.keys(row).some(key => !['label', 'amount', 'dailyValue'].includes(key)) || ['label', 'amount', 'dailyValue'].some(key => typeof row[key] !== 'string' || (row[key] as string).length > 160 || /[\u0000-\u001f]/.test(row[key] as string))) add(`nutrition.${index}`, 'Mỗi dòng cần tên chỉ tiêu, hàm lượng và % giá trị hàng ngày dạng text.');
+      }
+      if (!Array.isArray(record.sections) || record.sections.length > 20) add('sections', 'Tối đa 20 mục thông tin bổ sung.');
+      else for (const [index, section] of record.sections.entries()) {
+        if (!plain(section) || Object.keys(section).some(key => !['title', 'body'].includes(key)) || typeof section.title !== 'string' || section.title.length > 160 || typeof section.body !== 'string' || section.body.length > 10000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(String(section.title) + String(section.body))) add(`sections.${index}`, 'Mỗi mục cần tiêu đề và nội dung dạng text.');
+      }
+      break;
+    }
   }
   return issues;
 }
@@ -135,6 +158,7 @@ interface Reference { collection: CollectionName; field: string; target: Collect
 export const CATALOG_REFERENCES: readonly Reference[] = [
   { collection: 'packagingVariants', field: 'categoryId', target: 'packagingCategories' },
   { collection: 'flavors', field: 'thumbnailId', target: 'media', nullable: true },
+  { collection: 'flavors', field: 'iconId', target: 'media', nullable: true },
   { collection: 'flavorAssets', field: 'flavorId', target: 'flavors' }, { collection: 'flavorAssets', field: 'mediaId', target: 'media' },
   { collection: 'productGroups', field: 'drinkTypeId', target: 'drinkTypes' },
   { collection: 'productVariants', field: 'groupId', target: 'productGroups' }, { collection: 'productVariants', field: 'packagingVariantId', target: 'packagingVariants' }, { collection: 'productVariants', field: 'flavorId', target: 'flavors' },
@@ -144,6 +168,7 @@ export const CATALOG_REFERENCES: readonly Reference[] = [
   { collection: 'assets2d', field: 'packagingVariantId', target: 'packagingVariants' }, { collection: 'assets2d', field: 'drinkTypeId', target: 'drinkTypes' }, { collection: 'assets2d', field: 'flavorId', target: 'flavors', nullable: true }, { collection: 'assets2d', field: 'mediaId', target: 'media', nullable: true },
   { collection: 'displays3d', field: 'productVariantId', target: 'productVariants' }, { collection: 'displays3d', field: 'modelId', target: 'models3d', nullable: true }, { collection: 'displays3d', field: 'labelId', target: 'labels', nullable: true },
   { collection: 'displays2d', field: 'productVariantId', target: 'productVariants' }, { collection: 'displays2d', field: 'assetId', target: 'assets2d', nullable: true },
+  { collection: 'productDetails', field: 'labelId', target: 'labels' }, { collection: 'productDetails', field: 'posterId', target: 'media', nullable: true },
 ];
 
 export function validateCatalog(input: unknown, options: ValidationOptions = {}): ValidationIssue[] {
@@ -153,12 +178,13 @@ export function validateCatalog(input: unknown, options: ValidationOptions = {})
   if (Object.keys(input).some(key => key !== 'schemaVersion' && !(CATALOG_COLLECTIONS as readonly string[]).includes(key))) add('productGroups', '', '', 'unknown_field', 'Catalog chứa collection không thuộc schema.');
   for (const collection of CATALOG_COLLECTIONS) {
     const records = input[collection];
+    if (collection === 'productDetails' && records === undefined) continue;
     if (!Array.isArray(records) || records.length > 10000) { add(collection, '', '', 'invalid_collection', 'Collection phải là danh sách tối đa 10.000 bản ghi.'); continue; }
     for (const record of records) issues.push(...validateRecord(collection, record));
   }
   // Graph operations only run after shape validation so untrusted JSON cannot throw during preflight.
   if (hasValidationErrors(issues)) return issues;
-  const data = input as unknown as CatalogData;
+  const data = catalogWithDefaults(input as unknown as CatalogData);
   for (const collection of CATALOG_COLLECTIONS) {
     const ids = new Set<string>(); const slugs = new Set<string>();
     for (const record of data[collection]) {
@@ -185,6 +211,7 @@ export function validateCatalog(input: unknown, options: ValidationOptions = {})
   unique('packagingSlots', data.packagingSlots, record => record.groupId ? JSON.stringify([record.groupId, record.regionKey, record.position]) : '', 'position', 'duplicate_position');
   unique('displays3d', data.displays3d, record => record.productVariantId, 'productVariantId', 'duplicate_display');
   unique('displays2d', data.displays2d, record => record.productVariantId, 'productVariantId', 'duplicate_display');
+  unique('productDetails', data.productDetails, record => record.labelId, 'labelId', 'duplicate_product_detail');
   for (const slot of data.packagingSlots) {
     const variant = data.productVariants.find(item => item.id === slot.defaultVariantId);
     if (variant && (variant.groupId !== slot.groupId || variant.packagingVariantId !== slot.packagingVariantId)) add('packagingSlots', slot.id, 'defaultVariantId', 'default_variant_mismatch', 'Hương mặc định phải thuộc cùng dòng sản phẩm và bao bì của slot.');
@@ -209,14 +236,22 @@ export function validateCatalog(input: unknown, options: ValidationOptions = {})
   }
   for (const display of publicData.displays3d) issues.push(...checkDisplay3DCompatibility(data, display));
   for (const display of publicData.displays2d) issues.push(...checkDisplay2DCompatibility(data, display));
+  for (const detail of publicData.productDetails) {
+    if (detail.posterId) {
+      const poster = data.media.find(item => item.id === detail.posterId);
+      if (poster && (!isImageMedia(poster) || poster.status !== 'ready')) add('productDetails', detail.id, 'posterId', 'poster_unavailable', 'Poster cần là ảnh đã xử lý xong.');
+    }
+  }
   for (const asset of publicData.flavorAssets) {
     const media = data.media.find(item => item.id === asset.mediaId);
     if (media && media.role !== asset.role) add('flavorAssets', asset.id, 'mediaId', 'media_role_mismatch', 'Vai trò ảnh phải khớp fruit, leaf hoặc splash của slot.');
   }
   for (const flavor of publicData.flavors) {
     const thumbnail = data.media.find(item => item.id === flavor.thumbnailId);
-    if (thumbnail && thumbnail.role !== 'thumbnail') add('flavors', flavor.id, 'thumbnailId', 'media_role_mismatch', 'Ảnh đại diện phải có vai trò thumbnail.');
-    if (!flavor.thumbnailId) add('flavors', flavor.id, 'thumbnailId', 'thumbnail_missing', 'Hương chưa có thumbnail; giao diện dùng icon thay thế.', 'warning');
+    if (thumbnail && !isImageMedia(thumbnail)) add('flavors', flavor.id, 'thumbnailId', 'media_role_mismatch', 'Ảnh đại diện phải là ảnh PNG, JPEG hoặc WebP; không chọn file model GLB.');
+    const icon = data.media.find(item => item.id === flavor.iconId);
+    if (icon && (icon.role !== 'icon' || !isImageMedia(icon))) add('flavors', flavor.id, 'iconId', 'media_role_mismatch', 'Chọn ảnh từ Icon Library cho biểu tượng nền.');
+    if (!flavor.thumbnailId && !resolveFlavorFruitImage(data, flavor.id)) add('flavors', flavor.id, 'thumbnailId', 'thumbnail_missing', 'Hương chưa có ảnh đại diện hoặc ảnh trái cây dùng được trong pool; giao diện dùng icon thay thế.', 'warning');
   }
   return issues;
 }

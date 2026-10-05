@@ -1,0 +1,29 @@
+.typeFilters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.typeFilters button { min-height: 44px; display: flex; align-items: center; gap: 9px; padding: 8px 14px; border: 1px solid #d5e3dc; border-radius: 8px; background: #fff; color: #315d4b; font: inherit; font-size: 13px; cursor: pointer; }
+.typeFilters button[aria-pressed=true] { background: #176846; border-color: #176846; color: white; }
+.typeFilters span { border-radius: 5px; padding: 2px 6px; background: #edf4ef; color: #315d4b; font-size: 11px; }
+.typeFilters button[aria-pressed=true] span { background: #ffffff26; color: white; }
+.uploadType { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #658274; }
+.list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 20px; }
+.resource { position: relative; padding: 18px; border: 1px solid #dce6e0; border-radius: 10px; background: #fff; min-width: 0; }
+.fileSummary { display: flex; gap: 12px; padding-right: 85px; align-items: center; min-width: 0; }
+.fileSummary > span { width: 64px; height: 64px; flex-shrink: 0; }
+.fileSummary > div { min-width: 0; }
+.fileSummary strong { font-size: 13px; overflow-wrap: anywhere; color: #163b2f; }
+.metadata { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0 5px; font-size: 11px; color: #658274; }
+.fileSummary small { color: #658274; font-size: 11px; }
+.fileActions { position: absolute; right: 12px; top: 15px; display: flex; }
+.fileActions button, .configuration > button { min-width: 44px; min-height: 44px; }
+.delete { color: #a34c42; }
+.configurations { border-top: 1px solid #e9efeb; margin-top: 15px; padding-top: 12px; }
+.configurations > p { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #658274; margin: 0 0 6px; }
+.configuration { display: flex; align-items: center; gap: 3px; }
+.editConfig { display: flex; align-items: center; gap: 8px; min-height: 44px; min-width: 0; flex: 1; padding: 7px 9px; border: none; border-radius: 6px; color: #176846; background: #f2f7f4; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.editConfig > svg { flex-shrink: 0; }
+.editConfig > span { overflow-wrap: anywhere; }
+.editConfig small { margin-left: auto; font-size: 10px; white-space: nowrap; color: #658274; }
+.addConfig { border: none; background: transparent; color: #176846; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 0 0; font: inherit; font-size: 12px; cursor: pointer; }
+.typeFilters button:focus-visible, .editConfig:focus-visible, .addConfig:focus-visible { outline: 3px solid #6ca886; outline-offset: 3px; }
+.resource button:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 1000px) { .list { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .list { padding: 12px; gap: 10px; } .resource { padding: 14px; } .fileSummary { padding-right: 0; padding-top: 35px; align-items: flex-start; } .fileActions { top: 6px; } .uploadType { flex-wrap: wrap; } .typeFilters { gap: 6px; } .typeFilters button { padding: 7px 10px; font-size: 12px; } }

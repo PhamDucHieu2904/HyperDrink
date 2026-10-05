@@ -25,6 +25,9 @@ const compatibility = loadSource('lib/catalog/compatibility.ts');
 const service = loadSource('lib/catalog/service.ts');
 const deletion = loadSource('lib/catalog/deletion.ts');
 const displayDrafts = loadSource('lib/catalog/display-drafts.ts');
+const displayManagement = loadSource('lib/catalog/display-management.ts');
+const displayList = loadSource('lib/catalog/display-list.ts');
+const flavorMedia = loadSource('lib/catalog/flavor-media.ts');
 const seed = loadSource('lib/catalog/seed.ts');
 const now = '2026-10-01T04:00:00.000Z';
 const entity = id => ({ id, name: id, slug: id, lifecycle: 'active', revision: 1, createdAt: now, updatedAt: now });
@@ -46,6 +49,7 @@ function fixture() {
     assets2d: [{ ...entity('lime-render'), packagingVariantId: 'can-330', drinkTypeId: 'juice', flavorId: 'lime', mediaId: 'image-lime', galleryIds: [], description: '' }],
     displays3d: [{ ...entity('display-lime-3d'), productVariantId: 'juice-lime-can', modelId: 'can-model', labelId: 'label-lime', enabled: true }],
     displays2d: [{ ...entity('display-lime-2d'), productVariantId: 'juice-lime-can', assetId: 'lime-render', alt: 'Juice 30% Lime can 330 ml', enabled: true }],
+    productDetails: [],
   };
 }
 const errors = issues => issues.filter(issue => issue.severity === 'error');
@@ -59,10 +63,95 @@ function deletionFixture() {
   return data;
 }
 
+const cardAction = (data, id, action, enabled, mode = '3d') => displayManagement.applyDisplayAction(data, { mode, id, action, enabled, expectedRevision: data[mode === '3d' ? 'displays3d' : 'displays2d'].find(item => item.id === id).revision, expectedDraftHash: 'a'.repeat(64) }, now);
+
+function managedFixture() {
+  const data = deletionFixture();
+  data.packagingSlots[0].mode = '3d';
+  data.labels.push({ ...data.labels[0], ...entity('label-orange'), flavorId: 'orange' });
+  data.displays3d.push({ ...data.displays3d[0], ...entity('display-orange-3d'), productVariantId: 'broken-orange', labelId: 'label-orange' });
+  return data;
+}
+
+test('card Off hides a 3D product and repairs its default; On restores it without changing shared assets', () => {
+  const data = managedFixture(), before = structuredClone(data);
+  const off = cardAction(data, 'display-lime-3d', 'set-enabled', false);
+  assert.equal(off.productVariants[0].enabled, false, '2D cannot keep a product visible in a 3D-only slot');
+  assert.equal(off.packagingSlots[0].defaultVariantId, 'broken-orange');
+  assert.equal(off.packagingSlots[0].revision, 2);
+  assert.deepEqual(errors(validation.preflightCatalog(off)), []);
+  assert.deepEqual(service.prepareCatalogRelease(off).productVariants.map(item => item.id), ['broken-orange']);
+  const on = cardAction(off, 'display-lime-3d', 'set-enabled', true);
+  assert.equal(on.productVariants[0].enabled, true);
+  assert.equal(on.packagingSlots[0].defaultVariantId, 'broken-orange', 'Turning On must not steal an existing default');
+  assert.equal(service.prepareCatalogRelease(on).productVariants.length, 2);
+  for (const name of ['media', 'labels', 'models3d', 'flavors', 'flavorAssets', 'assets2d']) assert.deepEqual(on[name], data[name]);
+  assert.deepEqual(data, before);
+});
+
+test('delete removes only the selected display, preserves 2D fallback in auto mode and supports recreating its tuple', () => {
+  const data = fixture();
+  const removed = cardAction(data, 'display-lime-3d', 'delete');
+  assert.equal(removed.displays3d.length, 0);
+  assert.deepEqual(removed.displays2d, data.displays2d);
+  assert.equal(removed.productVariants[0].enabled, true);
+  assert.deepEqual(errors(validation.preflightCatalog(removed)), []);
+  const noFallback = cardAction(removed, 'display-lime-2d', 'delete', undefined, '2d');
+  assert.equal(noFallback.productVariants[0].enabled, false);
+  assert.equal(noFallback.packagingSlots[0].defaultVariantId, null);
+  assert.equal(noFallback.productGroups[0].visible, true, 'Visibility preference is retained for recreation');
+  const variant = noFallback.productVariants[0];
+  const recreated = displayDrafts.saveDisplayDraft(noFallback, { mode: '3d', variant, expectedVariantRevision: variant.revision, display: data.displays3d[0], expectedDisplayRevision: null, slot: null, expectedSlotRevision: null }, now);
+  assert.equal(recreated.catalog.productVariants.length, 1);
+  assert.equal(recreated.catalog.productVariants[0].enabled, true);
+  assert.equal(recreated.catalog.packagingSlots[0].defaultVariantId, variant.id);
+  assert.deepEqual(errors(validation.preflightCatalog(recreated.catalog)), []);
+});
+
+test('switching the last product Off omits its region, and switching On restores the existing group and slot', () => {
+  const data = managedFixture();
+  let off = cardAction(data, 'display-lime-3d', 'set-enabled', false);
+  off = cardAction(off, 'display-orange-3d', 'set-enabled', false);
+  assert.equal(off.packagingSlots[0].defaultVariantId, null);
+  assert.equal(compatibility.collectPublicCatalog(off).productGroups.length, 0);
+  const failureCodes = codes(validation.preflightCatalog(off));
+  assert.equal(failureCodes.has('slot_without_variants'), false);
+  assert.equal(failureCodes.has('default_variant_unavailable'), false);
+  assert.equal(failureCodes.has('empty_public_catalog'), true, 'Existing requirement for at least one public group remains');
+  const on = cardAction(off, 'display-orange-3d', 'set-enabled', true);
+  assert.equal(on.packagingSlots[0].defaultVariantId, 'broken-orange');
+  assert.deepEqual(errors(validation.preflightCatalog(on)), []);
+  assert.equal(service.prepareCatalogRelease(on).productGroups[0].id, data.productGroups[0].id);
+});
+
+test('the editor checkbox uses the same visibility and default repair as the card', () => {
+  const data = managedFixture();
+  const off = displayDrafts.saveDisplayDraft(data, { mode: '3d', variant: data.productVariants[0], expectedVariantRevision: 1, display: { ...data.displays3d[0], enabled: false }, expectedDisplayRevision: 1, slot: null, expectedSlotRevision: null }, now);
+  assert.equal(off.catalog.productVariants[0].enabled, false);
+  assert.equal(off.catalog.packagingSlots[0].defaultVariantId, 'broken-orange');
+  assert.deepEqual(errors(validation.preflightCatalog(off.catalog)), []);
+  assert.throws(() => displayManagement.applyDisplayAction(off.catalog, { mode: '3d', id: 'display-lime-3d', action: 'delete', expectedRevision: 1 }), error => error.code === 'revision_conflict');
+});
+
+test('display filters group by Best Seller ID and combine group, status and accent-insensitive metadata search', () => {
+  const data = managedFixture();
+  data.productGroups[0].name = 'Nước trái cây'; data.productGroups[0].buttonLabel = 'Juice';
+  data.productGroups.push({ ...data.productGroups[0], ...entity('juice-other'), name: 'Nước trái cây khác', position: 1 });
+  data.productVariants.push({ ...data.productVariants[0], ...entity('other-lime'), groupId: 'juice-other', code: 'Other330' });
+  data.displays3d.push({ ...data.displays3d[0], ...entity('other-display'), productVariantId: 'other-lime', enabled: false });
+  const all = displayList.displayListGroups(data, '3d', { query: '', groupId: '', status: 'all' });
+  assert.deepEqual(all.map(group => [group.id, group.label, group.records.length]), [['juice-thirty', 'Juice', 2], ['juice-other', 'Juice', 1]]);
+  const selected = displayList.displayListGroups(data, '3d', { query: 'nuoc trai cay', groupId: 'juice-other', status: 'off' });
+  assert.deepEqual(selected[0].records.map(item => item.id), ['other-display']);
+  assert.equal(displayList.displayListGroups(data, '3d', { query: 'Other330', groupId: '', status: 'on' }).length, 0);
+  data.displays3d[2].lifecycle = 'archived';
+  assert.equal(displayList.displayListGroups(data, '3d', { query: '', groupId: 'juice-other', status: 'all' }).length, 0);
+});
+
 test('deleting a missing-display product physically removes its data and finding while retaining shared libraries', () => {
   const data = deletionFixture(), before = structuredClone(data);
   const impact = deletion.getDeletionImpact(data, 'productVariants', 'broken-orange');
-  assert.deepEqual(impact.blockingIssues, []); assert.deepEqual(impact.references, []);
+  assert.deepEqual(impact.publicationIssues, []); assert.deepEqual(impact.references, []);
   const result = deletion.deleteCatalogRecord(data, 'productVariants', 'broken-orange', 1, now);
   assert.equal(result.productVariants.some(item => item.id === 'broken-orange'), false);
   assert.deepEqual(validation.preflightCatalog(result), []);
@@ -92,15 +181,21 @@ test('deleting the default product chooses a render-ready sibling and revisions 
   assert.equal(validation.preflightCatalog(result).some(item => item.code === 'default_variant_unavailable'), false);
 });
 
-test('deletion refuses the final visible product and shared/nested references without partial mutation', () => {
+test('deletion permits incomplete drafts, clears shared and nested references, and never mutates the input', () => {
   for (const [collection, id] of [['productVariants', 'juice-lime-can'], ['media', 'label-lime'], ['packagingVariants', 'can-330'], ['models3d', 'can-model']]) {
     const data = fixture(), before = structuredClone(data);
-    assert.throws(() => deletion.deleteCatalogRecord(data, collection, id, 1), error => error.code === 'delete_in_use');
+    const result = deletion.deleteCatalogRecord(data, collection, id, 1, now);
+    assert.equal(result[collection].some(item => item.id === id), false);
+    assert.deepEqual(errors(validation.validateCatalog(result)), [], 'No dangling IDs or malformed data in the draft');
+    if (collection !== 'models3d') assert.ok(errors(validation.preflightCatalog(result)).length, 'Incomplete public selections block publication, not draft deletion');
     assert.deepEqual(data, before);
   }
   const gallery = fixture(); gallery.assets2d[0].galleryIds.push('fruit-lime'); gallery.flavorAssets = [];
   assert.equal(deletion.getDeletionImpact(gallery, 'media', 'fruit-lime').references[0].field, 'galleryIds.0');
-  assert.throws(() => deletion.deleteCatalogRecord(gallery, 'media', 'fruit-lime', 1), error => error.code === 'delete_in_use');
+  const removed = deletion.deleteCatalogRecord(gallery, 'media', 'fruit-lime', 1, now);
+  assert.deepEqual(removed.assets2d[0].galleryIds, []); assert.equal(removed.assets2d[0].revision, 2);
+  const model = deletion.deleteCatalogRecord(fixture(), 'models3d', 'can-model', 1, now);
+  assert.equal(model.displays3d[0].modelId, null); assert.equal(model.displays3d[0].revision, 2);
 });
 
 test('deletion rejects stale revisions and still detects references from archived library records', () => {
@@ -108,7 +203,84 @@ test('deletion rejects stale revisions and still detects references from archive
   assert.throws(() => deletion.deleteCatalogRecord(data, 'productVariants', 'broken-orange', 0), error => error.code === 'revision_conflict');
   assert.throws(() => deletion.getDeletionImpact(data, 'productVariants', 'missing'), error => error.code === 'record_not_found');
   data.labels[0].lifecycle = 'archived';
-  assert.throws(() => deletion.deleteCatalogRecord(data, 'media', 'label-lime', 1), error => error.code === 'delete_in_use');
+  assert.ok(deletion.getDeletionImpact(data, 'media', 'label-lime').references.some(item => item.collection === 'labels'));
+  const result = deletion.deleteCatalogRecord(data, 'media', 'label-lime', 1, now);
+  assert.equal(result.labels[0].mediaId, null); assert.equal(result.labels[0].revision, 2);
+  assert.equal(result.labels[0].lifecycle, 'archived');
+});
+
+test('every catalog collection supports draft deletion with structurally valid remaining records', () => {
+  for (const collection of validation.CATALOG_COLLECTIONS) {
+    const data = fixture();
+    if (collection === 'productDetails') data.productDetails.push(detailRecord());
+    const target = data[collection][0], before = structuredClone(data);
+    const result = deletion.deleteCatalogRecord(data, collection, target.id, target.revision, now);
+    assert.deepEqual(errors(validation.validateCatalog(result)), [], collection);
+    assert.equal(result[collection].some(item => item.id === target.id), false, collection);
+    assert.deepEqual(data, before);
+  }
+});
+
+function detailRecord(overrides = {}) {
+  return { ...entity('lime-detail'), labelId: 'label-lime', posterId: null, eyebrow: '', headline: 'Lime', subtitle: '', introduction: '', ingredients: '', allergens: '', servingSize: 'Per 100 ml', nutrition: [{ label: 'Total sugar', amount: '9.0 g', dailyValue: '' }], companyName: '', companyAddress: '', countryOfOrigin: '', netContent: '', storage: '', shelfLife: '', sections: [], enabled: true, ...overrides };
+}
+
+test('legacy catalogs normalize the optional detail collection, while malformed details and duplicate label links fail', () => {
+  const data = fixture(); delete data.productDetails;
+  assert.deepEqual(errors(validation.validateCatalog(data)), []);
+  assert.deepEqual(compatibility.collectPublicCatalog(data).productDetails, []);
+  data.productDetails = [detailRecord()];
+  assert.deepEqual(errors(validation.validateCatalog(data)), []);
+  data.productDetails.push(detailRecord({ ...entity('second-detail') }));
+  assert.ok(codes(validation.validateCatalog(data)).has('duplicate_product_detail'));
+  assert.ok(validation.validateRecord('productDetails', detailRecord({ nutrition: [{ label: 'Sugar', amount: 9, dailyValue: '' }] })).some(issue => issue.field.startsWith('nutrition')));
+  assert.ok(validation.validateRecord('productDetails', detailRecord({ sections: [{ title: 'Story', body: 'Text', html: '<script />' }] })).some(issue => issue.field.startsWith('sections')));
+});
+
+test('published product details follow their applied label and include ready image posters only', () => {
+  const data = fixture(); data.productDetails.push(detailRecord({ posterId: 'fruit-lime' }));
+  assert.deepEqual(errors(validation.preflightCatalog(data)), []);
+  assert.equal(service.prepareCatalogRelease(data).productDetails[0].posterId, 'fruit-lime');
+  data.productDetails[0].posterId = 'model-can';
+  assert.ok(codes(validation.preflightCatalog(data)).has('poster_unavailable'));
+  data.productDetails[0].enabled = false;
+  assert.deepEqual(compatibility.collectPublicCatalog(data).productDetails, []);
+  assert.deepEqual(errors(validation.preflightCatalog(data)), [], 'A disabled detail does not block products');
+  data.productDetails[0].enabled = true; data.productDetails[0].lifecycle = 'archived';
+  assert.deepEqual(compatibility.collectPublicCatalog(data).productDetails, []);
+});
+
+test('deleting a detail or its poster retains the product and deleting its label detaches the detail safely', () => {
+  const data = fixture(); data.productDetails.push(detailRecord({ posterId: 'fruit-lime' }));
+  const deleted = deletion.deleteCatalogRecord(data, 'productDetails', 'lime-detail', 1, now);
+  assert.equal(deleted.productDetails.length, 0); assert.deepEqual(deleted.displays3d, data.displays3d);
+  const poster = deletion.deleteCatalogRecord(data, 'media', 'fruit-lime', 1, now);
+  assert.equal(poster.productDetails[0].posterId, null); assert.equal(poster.productDetails[0].revision, 2);
+  const label = deletion.deleteCatalogRecord(data, 'labels', 'label-lime', 1, now);
+  assert.equal(label.productDetails[0].labelId, ''); assert.deepEqual(errors(validation.validateCatalog(label)), []);
+  assert.equal(data.productDetails[0].labelId, 'label-lime', 'Source data remains immutable');
+});
+
+test('deleting a group removes owned products, slots and displays but preserves all shared libraries', () => {
+  const data = fixture();
+  const impact = deletion.getDeletionImpact(data, 'productGroups', 'juice-thirty');
+  assert.equal(impact.records.length, 5);
+  const result = deletion.deleteCatalogRecord(data, 'productGroups', 'juice-thirty', 1, now);
+  for (const collection of ['productGroups', 'productVariants', 'packagingSlots', 'displays3d', 'displays2d']) assert.deepEqual(result[collection], []);
+  for (const collection of ['flavors', 'media', 'labels', 'models3d', 'assets2d', 'flavorAssets', 'packagingVariants', 'drinkTypes']) assert.deepEqual(result[collection], data[collection]);
+});
+
+test('deleting flavor or pool media removes its pool assignments and detaches only matching references', () => {
+  const data = fixture();
+  const result = deletion.deleteCatalogRecord(data, 'flavors', 'lime', 1, now);
+  assert.deepEqual(result.flavorAssets, []);
+  assert.equal(result.productVariants[0].flavorId, '');
+  assert.equal(result.labels[0].flavorId, null); assert.equal(result.assets2d[0].flavorId, null);
+  assert.deepEqual(result.media, data.media);
+  const withoutMedia = deletion.deleteCatalogRecord(data, 'media', 'fruit-lime', 1, now);
+  assert.deepEqual(withoutMedia.flavorAssets, []);
+  assert.deepEqual(withoutMedia.flavors, data.flavors);
+  assert.equal(withoutMedia.labels[0].mediaId, 'label-lime');
 });
 
 test('display creation survives a renamed legacy display retaining its old slug, and reuses the partial product', () => {
@@ -139,6 +311,71 @@ test('same display names on distinct products receive unique automatic slugs and
   const edited = displayDrafts.saveDisplayDraft(created.catalog, { mode: '3d', variant: { ...savedVariant, name: 'Renamed' }, expectedVariantRevision: savedVariant.revision, display: { ...created.display, name: 'Renamed' }, expectedDisplayRevision: created.display.revision, slot: null, expectedSlotRevision: null }, now);
   assert.equal(edited.display.id, created.display.id); assert.equal(edited.display.slug, created.display.slug);
   assert.equal(edited.catalog.displays3d.length, created.catalog.displays3d.length);
+});
+
+test('moving a display to a new flavor synchronizes both product tuples and repairs the slot default', () => {
+  for (const mode of ['3d', '2d']) {
+    const data = deletionFixture(), before = structuredClone(data);
+    data.packagingSlots[0].mode = mode;
+    const collection = mode === '3d' ? 'displays3d' : 'displays2d';
+    const variant = data.productVariants[1];
+    const display = { ...data[collection][0], productVariantId: variant.id };
+    if (mode === '3d') {
+      data.labels.push({ ...data.labels[0], ...entity('label-orange'), flavorId: 'orange' });
+      display.labelId = 'label-orange';
+    } else {
+      data.assets2d.push({ ...data.assets2d[0], ...entity('orange-render'), flavorId: 'orange' });
+      display.assetId = 'orange-render';
+    }
+    const immutableInput = structuredClone(data);
+    const result = displayDrafts.saveDisplayDraft(data, { mode, variant, expectedVariantRevision: 1, display, expectedDisplayRevision: 1, slot: null, expectedSlotRevision: null }, now).catalog;
+    assert.equal(result.productVariants[0].enabled, false, 'Opposite-mode display must not keep the old product in a single-mode slot');
+    assert.equal(result.productVariants[0].revision, 2);
+    assert.equal(result.productVariants[1].enabled, true);
+    assert.equal(result.packagingSlots[0].defaultVariantId, variant.id);
+    assert.equal(result.packagingSlots[0].revision, 2);
+    assert.equal(result[collection][0].id, before[collection][0].id);
+    assert.equal(result[collection][0].productVariantId, variant.id);
+    assert.equal(result.productVariants.length, 2, 'Previous product data is retained');
+    assert.deepEqual(errors(validation.preflightCatalog(result)), []);
+    for (const name of ['flavors', 'flavorAssets', 'media', 'labels', 'models3d', 'assets2d']) assert.deepEqual(result[name], data[name]);
+    assert.deepEqual(data, immutableInput);
+    assert.deepEqual(before.productVariants[0].enabled, true, 'Existing snapshots are unchanged');
+  }
+});
+
+test('moving 3D preserves a usable 2D fallback in auto mode, while unrelated missing displays still block publication', () => {
+  const data = deletionFixture();
+  data.labels.push({ ...data.labels[0], ...entity('label-orange'), flavorId: 'orange' });
+  const variant = data.productVariants[1];
+  const result = displayDrafts.saveDisplayDraft(data, { mode: '3d', variant, expectedVariantRevision: 1, display: { ...data.displays3d[0], productVariantId: variant.id, labelId: 'label-orange' }, expectedDisplayRevision: 1, slot: null, expectedSlotRevision: null }, now).catalog;
+  assert.equal(result.productVariants[0].enabled, true);
+  assert.equal(result.productVariants[0].revision, 1);
+  assert.equal(result.packagingSlots[0].defaultVariantId, data.productVariants[0].id);
+  assert.deepEqual(errors(validation.preflightCatalog(result)), []);
+  assert.ok(validation.preflightCatalog(deletionFixture()).some(issue => issue.entityId === 'broken-orange' && issue.code === 'display_unavailable'));
+});
+
+test('preflight recognizes the same usable fruit pool image as storefront flavor buttons', () => {
+  const data = fixture(); data.flavors[0].thumbnailId = null;
+  assert.equal(codes(validation.preflightCatalog(data)).has('thumbnail_missing'), false);
+  for (const invalidate of [
+    draft => { draft.flavorAssets[0].enabled = false; },
+    draft => { draft.flavorAssets[0].lifecycle = 'archived'; },
+    draft => { draft.flavorAssets[0].flavorId = 'another-flavor'; },
+    draft => { draft.flavorAssets[0].role = 'leaf'; draft.media.find(item => item.id === 'fruit-lime').role = 'leaf'; },
+    draft => { draft.media.find(item => item.id === 'fruit-lime').lifecycle = 'archived'; },
+    draft => { draft.media.find(item => item.id === 'fruit-lime').status = 'processing'; },
+    draft => { draft.media.find(item => item.id === 'fruit-lime').mime = 'application/octet-stream'; },
+    draft => { draft.media.find(item => item.id === 'fruit-lime').url = ''; },
+  ]) {
+    const invalid = structuredClone(data); invalidate(invalid);
+    assert.equal(flavorMedia.resolveFlavorFruitImage(invalid, 'lime'), undefined);
+    const issues = validation.preflightCatalog(invalid);
+    assert.ok(errors(issues).length || issues.some(issue => issue.entityId === 'lime' && issue.code === 'thumbnail_missing'), 'Unusable pool images must warn or fail integrity validation');
+  }
+  const invalidThumbnail = structuredClone(data); invalidThumbnail.flavors[0].thumbnailId = 'model-can';
+  assert.ok(errors(validation.preflightCatalog(invalidThumbnail)).some(issue => issue.entityId === 'lime' && issue.field === 'thumbnailId'), 'A fruit fallback must not excuse an invalid explicit thumbnail');
 });
 
 test('display drafts reject duplicate displays, mismatched slots and stale tuple creation without mutating data', () => {
@@ -371,4 +608,22 @@ test('button reorder is atomic, complete and checks each slot revision', () => {
   assert.deepEqual(errors(validation.validateCatalog(reordered)), []); assert.equal(data.packagingSlots[0].position, 0);
   assert.throws(() => service.reorderPackagingSlots(data, 'juice-thirty', ['slot-can'], { 'slot-can': 1 }), error => error.code === 'invalid_reorder');
   assert.throws(() => service.reorderPackagingSlots(data, 'juice-thirty', ['slot-can', 'slot-250'], { 'slot-can': 0, 'slot-250': 1 }), error => error.code === 'revision_conflict');
+});
+
+
+test('flavor thumbnails accept all image roles, reusable icon links are published, and old flavors remain valid', () => {
+  for (const role of ['thumbnail', 'fruit', 'label', 'leaf', 'splash', 'poster', 'image-2d', 'icon']) {
+    const data = fixture(); data.media.find(item => item.id === 'thumbnail-lime').role = role;
+    assert.deepEqual(errors(validation.preflightCatalog(data)), []);
+  }
+  const data = fixture(); data.media.push(image('custom-icon', 'icon'), image('unused-icon', 'icon'));
+  data.flavors[0].iconId = 'custom-icon';
+  assert.deepEqual(errors(validation.preflightCatalog(data)), []);
+  assert.equal(compatibility.collectPublicCatalog(data).media.some(item => item.id === 'custom-icon'), true);
+  assert.equal(compatibility.collectPublicCatalog(data).media.some(item => item.id === 'unused-icon'), false);
+  const removed = deletion.deleteCatalogRecord(data, 'media', 'custom-icon', 1, now);
+  assert.equal(removed.flavors[0].iconId, null); assert.equal(removed.flavors[0].icon, 'lime');
+  const bad = fixture(); bad.flavors[0].iconId = 'fruit-lime'; expectCode(bad, 'media_role_mismatch');
+  bad.flavors[0].iconId = 'missing-icon'; assert.ok(codes(validation.validateCatalog(bad)).has('reference_missing'));
+  assert.deepEqual(errors(validation.validateCatalog(fixture())), [], 'A release without the optional field still loads');
 });

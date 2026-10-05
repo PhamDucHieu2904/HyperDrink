@@ -14,14 +14,19 @@ const icons: Record<FruitIcon, string> = {
   coconut: '<circle cx="24" cy="25" r="18"/><path d="M9 17c8 5 22 5 30 0M11 34c7-5 19-5 26 0M17 9l-3 32M31 9l3 32"/><circle cx="21" cy="23" r="1"/><circle cx="27" cy="23" r="1"/><circle cx="24" cy="28" r="1"/>',
 };
 
-export function backgroundTileUrl(icon: string, config: BackgroundConfig) {
+export function backgroundIconUrl(icon: string, color = '#ffffff') {
+  const stroke = /^#[\da-f]{6}$/i.test(color) ? color : '#ffffff';
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${icons[normalizeBackgroundIcon(icon)]}</svg>`)}`;
+}
+
+export function backgroundTileUrl(icon: string, config: BackgroundConfig, includeIcon = true) {
   const size = config.cellSize * config.iconSpacing;
   const lines = Array.from({ length: config.iconSpacing }, (_, i) => {
     const p = i * config.cellSize;
     return `<path d="M${p} 0V${size}M0 ${p}H${size}"/>`;
   }).join('');
   const offset = (config.cellSize - config.iconSize) / 2;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><g fill="none" stroke="white" stroke-width="1" opacity="${config.lineOpacity}">${lines}</g><g transform="translate(${offset} ${offset}) scale(${config.iconSize / 48})" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="${config.iconOpacity}">${icons[normalizeBackgroundIcon(icon)]}</g></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><g fill="none" stroke="white" stroke-width="1" opacity="${config.lineOpacity}">${lines}</g><g transform="translate(${offset} ${offset}) scale(${config.iconSize / 48})" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="${config.iconOpacity}">${includeIcon ? icons[normalizeBackgroundIcon(icon)] : ''}</g></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
@@ -52,7 +57,7 @@ export class BackgroundRenderState {
     const next = normalizeBackgroundThemes(themes);
     if (next.length === this.currentThemes.length && next.every((theme, index) => {
       const previous = this.currentThemes[index];
-      return theme.id === previous.id && theme.color === previous.color && theme.icon === previous.icon;
+      return theme.id === previous.id && theme.color === previous.color && theme.icon === previous.icon && theme.iconUrl === previous.iconUrl;
     })) return;
     this.advance(now, reducedMotion);
     const selectedId = this.currentThemes[this.flavorIndex]?.id;

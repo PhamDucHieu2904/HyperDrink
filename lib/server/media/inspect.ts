@@ -15,7 +15,7 @@ export interface GLBInspection {
 
 export interface MediaInspection {
   mime: string;
-  extension: 'png' | 'jpg' | 'webp' | 'glb';
+  extension: 'png' | 'jpg' | 'webp' | 'svg' | 'glb';
   width: number | null;
   height: number | null;
   model?: GLBInspection;
@@ -37,6 +37,86 @@ function dimensions(width: number, height: number) {
     fail('Ảnh phải có kích thước hợp lệ, tối đa 8192 px mỗi chiều và 32 triệu pixel.');
   }
   return { width, height };
+}
+
+/** Accept passive, self-contained SVG artwork for rasterization only. Never serve source SVG. */
+function inspectSvg(buffer: Buffer): MediaInspection {
+  if (buffer.length > 1024 * 1024) fail('SVG biểu tượng phải nhỏ hơn 1 MB.');
+  const source = buffer.toString('utf8').replace(/^\uFEFF/, '').trim();
+  const invalid = () => fail('SVG cần là hình tĩnh, hợp lệ và tự chứa; không dùng script, nội dung nhúng hoặc liên kết bên ngoài.');
+  if (source.includes('\uFFFD') || /<!DOCTYPE|<!ENTITY|<!\[CDATA\[/i.test(source)) invalid();
+  const allowed = new Set('svg g defs style path rect circle ellipse line polyline polygon title desc text tspan use symbol lineargradient radialgradient stop clippath mask pattern filter feblend fecolormatrix fecomponenttransfer fecomposite feconvolvematrix fediffuselighting fedisplacementmap fedistantlight fedropshadow feflood fefunca fefuncb fefuncg fefuncr fegaussianblur feimage femerge femergenode femorphology feoffset fepointlight fespecularlighting fespotlight fetile feturbulence'.split(' '));
+  const decode = (value: string) => value.replace(/&([^;]*);/g, (_match, entity: string) => {
+    const basic: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+    if (Object.hasOwn(basic, entity)) return basic[entity];
+    const code = /^#x[\da-f]+$/i.test(entity) ? parseInt(entity.slice(2), 16) : /^#\d+$/.test(entity) ? Number(entity.slice(1)) : NaN;
+    if (!Number.isInteger(code) || code < 32 || code > 0x10ffff) return invalid();
+    return String.fromCodePoint(code);
+  });
+  const checkPaint = (value: string) => {
+    const plain = value.replace(/\/\*[\s\S]*?\*\//g, '');
+    if (/[\\\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value) || /@import|@font-face|expression\s*\(/i.test(plain)) invalid();
+    // Paint servers, clipping and filters may reference local IDs only.
+    if (/url\s*\(/i.test(plain) && /url\s*\(/i.test(plain.replace(/url\(\s*['"]?#[\w.-]+['"]?\s*\)/gi, ''))) invalid();
+  };
+  let offset = 0, count = 0, root: Record<string, string> | undefined;
+  const stack: string[] = [];
+  while (offset < source.length) {
+    if (source.startsWith('<!--', offset)) {
+      const end = source.indexOf('-->', offset + 4);
+      if (end < 0) invalid();
+      offset = end + 3; continue;
+    }
+    if (source.startsWith('<?xml ', offset) && offset === 0) {
+      const end = source.indexOf('?>', offset + 6);
+      if (end < 0) invalid();
+      offset = end + 2; continue;
+    }
+    if (source[offset] !== '<') {
+      const end = source.indexOf('<', offset), next = end < 0 ? source.length : end;
+      const content = source.slice(offset, next);
+      if (content.trim() && !['title', 'desc', 'text', 'tspan', 'style'].includes(stack.at(-1) || '')) invalid();
+      const text = decode(content);
+      if (stack.at(-1) === 'style') checkPaint(text);
+      offset = next; continue;
+    }
+    const tag = /^<(\/?)([a-zA-Z][\w-]*)(\s(?:[^>"']|"[^"]*"|'[^']*')*?)?(\/?)>/.exec(source.slice(offset));
+    if (!tag || ++count > 10000) return invalid();
+    const [, closing, name, attributes = '', selfClosing] = tag;
+    const normalized = name.toLowerCase();
+    if (!allowed.has(normalized)) invalid();
+    if (closing) {
+      if (attributes.trim() || selfClosing || stack.pop() !== name) invalid();
+    } else {
+      if (!stack.length && (root || normalized !== 'svg')) invalid();
+      const values: Record<string, string> = {};
+      let rest = attributes;
+      while (rest.trim()) {
+        const attr = /^\s+([a-zA-Z_][\w:.-]*)\s*=\s*(?:"([^"<]*)"|'([^'<]*)')/.exec(rest);
+        if (!attr) return invalid();
+        const key = attr[1].toLowerCase(), value = decode(attr[2] ?? attr[3]);
+        if (Object.hasOwn(values, key) || /^on/.test(key)) invalid();
+        if (key.endsWith('href') && !/^#[\w.-]+$/.test(value)) invalid();
+        if (key === 'xml:base') invalid();
+        checkPaint(value);
+        values[key] = value; rest = rest.slice(attr[0].length);
+      }
+      if (!root) {
+        root = values;
+        if (root.xmlns !== 'http://www.w3.org/2000/svg') invalid();
+      }
+      if (!selfClosing) stack.push(name);
+      if (stack.length > 64) invalid();
+    }
+    offset += tag[0].length;
+  }
+  if (!root || stack.length) return invalid();
+  const viewBox = root.viewbox?.trim().split(/[\s,]+/).map(Number);
+  const length = (value: string | undefined, fallback?: number) => value && /^\d*\.?\d+(?:px)?$/.test(value) ? Number(value.replace(/px$/, '')) : fallback;
+  const width = length(root.width, viewBox?.length === 4 ? viewBox[2] : undefined);
+  const height = length(root.height, viewBox?.length === 4 ? viewBox[3] : undefined);
+  if (!width || !height || !Number.isFinite(width) || !Number.isFinite(height)) return fail('SVG cần có width/height hoặc viewBox hợp lệ.');
+  return { mime: 'image/svg+xml', extension: 'svg', ...dimensions(Math.ceil(width), Math.ceil(height)) };
 }
 
 function inspectPng(buffer: Buffer): MediaInspection {
@@ -209,5 +289,6 @@ export function inspectMedia(buffer: Buffer, role: MediaRole): MediaInspection {
   if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return inspectPng(buffer);
   if (buffer.length >= 2 && buffer.readUInt16BE(0) === 0xffd8) return inspectJpeg(buffer);
   if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return inspectWebp(buffer);
+  if (role === 'icon' && /^\s*(?:\uFEFF)?\s*</.test(buffer.toString('utf8', 0, 256))) return inspectSvg(buffer);
   return fail('Chỉ hỗ trợ ảnh PNG, JPEG, WebP tĩnh. Model 3D phải dùng vai trò model và định dạng GLB.');
 }

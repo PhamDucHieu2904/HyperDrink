@@ -27,11 +27,11 @@ export function assertActiveReleaseRevision(actualId: string | null, expectedId:
 export function updateCatalogRecord(data: CatalogData, collection: CollectionName, record: CatalogRecord, expectedRevision: number | null, now = new Date().toISOString()): CatalogData {
   const recordIssues = validateRecord(collection, record);
   if (hasValidationErrors(recordIssues)) throw new CatalogDomainError('draft_invalid', 'Bản nháp có giá trị không hợp lệ.', recordIssues);
-  const current = data[collection].find(item => item.id === record.id);
+  const current = (data[collection] ?? []).find(item => item.id === record.id);
   assertRevision(current, expectedRevision);
   const updated = { ...structuredClone(record), revision: (current?.revision ?? 0) + 1, createdAt: current?.createdAt ?? now, updatedAt: now } as CatalogRecord;
   const result = structuredClone(data);
-  const records: CatalogRecord[] = result[collection];
+  const records: CatalogRecord[] = result[collection] ??= [];
   const index = records.findIndex(item => item.id === record.id);
   if (index < 0) records.push(updated); else records[index] = updated;
   const issues = validateCatalog(result);
@@ -43,7 +43,7 @@ export interface UsageReference { collection: CollectionName; entityId: string; 
 export function getUsageReferences(data: CatalogData, collection: CollectionName, id: string): UsageReference[] {
   const references: UsageReference[] = [];
   const add = (sourceCollection: CollectionName, record: CatalogRecord, field: string) => references.push({ collection: sourceCollection, entityId: record.id, name: record.name, field });
-  for (const reference of CATALOG_REFERENCES.filter(item => item.target === collection)) for (const record of data[reference.collection]) {
+  for (const reference of CATALOG_REFERENCES.filter(item => item.target === collection)) for (const record of data[reference.collection] ?? []) {
     if ((record as unknown as Record<string, unknown>)[reference.field] === id) add(reference.collection, record, reference.field);
   }
   if (collection === 'packagingVariants') for (const label of data.labels) for (const [index, compatibility] of label.compatibilities.entries()) if (compatibility.packagingVariantId === id) add('labels', label, `compatibilities.${index}.packagingVariantId`);

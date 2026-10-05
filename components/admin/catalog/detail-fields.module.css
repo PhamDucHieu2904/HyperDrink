@@ -1,0 +1,7 @@
+.list { display: grid; gap: 12px; }
+.nutritionRow { display: grid; grid-template-columns: 1.5fr 1fr .8fr 36px; align-items: end; gap: 10px; padding: 12px; background: #f6faf7; border: 1px solid #dce8e1; border-radius: 12px; }
+.list label { display: grid; gap: 6px; font-size: 12px; color: #547060; }
+.nutritionRow input { min-width: 0; }
+.sectionRow { display: grid; grid-template-columns: 1fr 36px; align-items: end; gap: 10px; padding: 12px; background: #f6faf7; border: 1px solid #dce8e1; border-radius: 12px; }
+.sectionBody { grid-column: 1 / -1; }
+@media (max-width: 520px) { .nutritionRow { grid-template-columns: 1fr 1fr 36px; } .nutritionRow label:first-child { grid-column: 1 / -1; } }

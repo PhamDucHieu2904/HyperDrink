@@ -8,6 +8,7 @@ import { createProductViewer, ProductViewerController, ViewerStatus } from '@/li
 import type { AccentFlavor, ProductAccentSceneInput } from '@/lib/viewer/accent-config';
 import type { ProductViewerBackdropInput } from '@/lib/viewer/backdrop-texture';
 import { useLanguage } from './LanguageProvider';
+import { trackUsage } from '@/lib/operations/client';
 
 export interface ProductViewerProps {
   asset: ProductAsset;
@@ -27,6 +28,8 @@ export interface ProductViewerProps {
 export default function ProductViewer({ asset, appearance, presentation, paused = false, resetKey, onStatus, accentScene, accentFlavor = 'citrus', backdrop, loadingFallback }: ProductViewerProps) {
   const { t } = useLanguage();
   const mountRef = useRef<HTMLDivElement>(null);
+  const lastInteraction = useRef(0);
+  const reportInteraction = () => {if(Date.now()-lastInteraction.current<3000)return;lastInteraction.current=Date.now();trackUsage('model_interact',asset.id);};
   const controller = useRef<ProductViewerController | null>(null);
   const latest = useRef({ asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop });
   const [status, setStatus] = useState<ViewerStatus>({ phase: 'loading', assetId: asset.id });
@@ -84,7 +87,7 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
   const showFallback = (loading || failed) && !status.hasProduct && status.assetId === asset.id;
   const customLoading = loading && !status.hasProduct && loadingFallback !== undefined;
   return (
-    <div className="scene-shell product-viewer" ref={mountRef} role="group" aria-roledescription={t('viewer.description')}
+    <div className="scene-shell product-viewer" ref={mountRef} role="group" aria-roledescription={t('viewer.description')} onPointerDownCapture={reportInteraction} onKeyDownCapture={event=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))reportInteraction();}}
       aria-label={t('viewer.controls', { name: asset.packaging === 'can' ? t('viewer.canName', { volume: asset.volumeMl ?? '' }) : asset.name })}
       aria-busy={loading} data-packaging={asset.packaging} data-asset-id={asset.id}
       data-viewer-status={status.phase} data-environment-ready={status.environmentReady ? 'true' : 'false'}>

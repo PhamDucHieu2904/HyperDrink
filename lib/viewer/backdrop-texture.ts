@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { BackgroundConfig } from '../background-config';
 import { backgroundTileUrl, type BackgroundRenderState } from '../background-render-state';
+import { loadBackgroundTile } from '../background-image-tile';
 
 export interface ProductBackdropTexture {
   /** Viewer-sized crop; bottom-left shader UVs correspond to the WebGL canvas. */
@@ -65,10 +66,16 @@ export function createBackdropTexture(
   const syncThemes = () => {
     if (themeRevision === state.themeRevision) return;
     tileImages.forEach(image => { image.onload = null; image.src = ''; });
-    tileImages = state.themes.map(theme => {
+    const revision = state.themeRevision;
+    tileImages = state.themes.map((theme, index) => {
       const image = new Image();
-      image.onload = () => { if (!disposed) dirty = true; };
+      image.onload = () => { if (!disposed) { tilePatterns[index] = null; dirty = true; } };
       image.src = backgroundTileUrl(theme.icon, config);
+      if (theme.iconUrl) void loadBackgroundTile(theme, config).then(url => {
+        if (disposed || state.themeRevision !== revision || tileImages[index] !== image) return;
+        tilePatterns[index] = null;
+        image.src = url;
+      });
       return image;
     });
     tilePatterns = tileImages.map(() => null);

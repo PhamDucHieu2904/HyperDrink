@@ -7,6 +7,12 @@
 /* Language selection shares the header's light glass, with readable dark copy. */
 .language-selector { display:flex; }
 .language-trigger-code { font-size:13px; font-weight:700; letter-spacing:.04em; line-height:1; }
+.language-trigger { position:relative; }
+.language-progress { position:absolute; right:5px; bottom:5px; animation:language-spin 1s linear infinite; }
+.language-translation-status { flex:none; border-top:1px solid #789b482c; margin-top:12px; padding-top:10px; font-size:12px; line-height:1.5; }
+.language-translation-status p { margin:0; }
+.language-translation-status button { width:100%; min-height:44px; margin-top:6px; border:1px solid #789b4855; border-radius:12px; background:#e5efd0; color:inherit; font:inherit; cursor:pointer; }
+@keyframes language-spin { to { transform:rotate(360deg); } }
 .language-trigger[aria-expanded='true'] { background:rgba(255,255,238,.32); border-color:#ffffe9; }
 .language-popover { position:absolute; top:calc(100% + 12px); right:0; z-index:20; width:min(340px,calc(100vw - 32px)); max-height:calc(100svh - 148px); display:flex; flex-direction:column; padding:16px; border:1px solid rgba(255,255,238,.95); border-radius:24px; color:#294120; background:linear-gradient(140deg,rgba(255,255,246,.98),rgba(244,249,229,.95)); box-shadow:0 16px 50px rgba(42,61,17,.22),inset 0 1px 0 #fff; backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); animation:language-reveal .18s ease-out; }
 .language-popover-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }

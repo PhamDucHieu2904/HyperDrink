@@ -3,11 +3,15 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createSeedCatalog } from '@/lib/catalog/seed';
-import type { AdminSession, CatalogData, CatalogRecord, CatalogRelease, CatalogRepository, CollectionName, DisplayDraftResult, DisplayDraftSave, MediaAsset } from '@/lib/catalog/contracts';
+import type { AdminSession, CatalogData, CatalogRecord, CatalogRelease, CatalogRepository, CollectionName, DisplayAction, DisplayDraftResult, DisplayDraftSave, MediaAsset } from '@/lib/catalog/contracts';
+import { MAX_CATALOG_RELEASES, catalogWithDefaults } from '@/lib/catalog/contracts';
 import { archiveCatalogRecord, updateCatalogRecord, prepareCatalogRelease, CatalogDomainError, assertRevision } from '@/lib/catalog/service';
 import { deleteCatalogRecord, getDeletionImpact } from '@/lib/catalog/deletion';
 import { saveDisplayDraft } from '@/lib/catalog/display-drafts';
-import { preflightCatalog, hasValidationErrors } from '@/lib/catalog/validation';
+import { applyDisplayAction } from '@/lib/catalog/display-management';
+import { addFlavorPoolAsset } from '@/lib/catalog/flavor-pool';
+import type { FlavorAsset, FlavorPoolAssetInput } from '@/lib/catalog/contracts';
+import { CATALOG_COLLECTIONS, preflightCatalog, hasValidationErrors } from '@/lib/catalog/validation';
 import type { ValidationIssue } from '@/lib/catalog/contracts';
 import { inspectMedia } from './media/inspect';
 import { getMediaPath } from './media/upload';
@@ -52,8 +56,8 @@ export class LocalCatalogRepository implements CatalogRepository {
     try { const value = operation(); this.database.exec('COMMIT'); return value; }
     catch (error) { this.database.exec('ROLLBACK'); throw error; }
   }
-  async readDraft(): Promise<CatalogData> { const row = this.database.prepare('SELECT data FROM draft_catalog WHERE id=1').get() as { data: string }; return JSON.parse(row.data); }
-  private draftSync(): CatalogData { return JSON.parse((this.database.prepare('SELECT data FROM draft_catalog WHERE id=1').get() as { data: string }).data); }
+  async readDraft(): Promise<CatalogData> { return this.draftSync(); }
+  private draftSync(): CatalogData { return catalogWithDefaults(JSON.parse((this.database.prepare('SELECT data FROM draft_catalog WHERE id=1').get() as { data: string }).data)); }
   private writeDraft(data: CatalogData) { this.database.prepare('UPDATE draft_catalog SET data=? WHERE id=1').run(JSON.stringify(data)); }
   private audit(actor: string, action: string, entityId: string) { this.database.prepare('INSERT INTO audit_events VALUES(?,?,?,?,?)').run(randomUUID(), actor, action, entityId, new Date().toISOString()); }
   async saveRecord(collection: CollectionName, record: CatalogRecord, expectedRevision: number | null, actor = 'admin'): Promise<CatalogRecord> {
@@ -67,13 +71,21 @@ export class LocalCatalogRepository implements CatalogRepository {
   async archiveRecord(collection: CollectionName, id: string, expectedRevision: number, actor = 'admin'): Promise<void> {
     this.atomic(() => { this.writeDraft(archiveCatalogRecord(this.draftSync(), collection, id, expectedRevision)); this.audit(actor, `archive:${collection}`, id); });
   }
+  async addFlavorPoolAsset(input: FlavorPoolAssetInput, actor: string): Promise<FlavorAsset> {
+    return this.atomic(() => {
+      const result = addFlavorPoolAsset(this.draftSync(), input);
+      if (result.created) { this.writeDraft(result.catalog); this.audit(actor, 'save:flavorAssets', result.asset.id); }
+      return result.asset;
+    });
+  }
   async saveDisplayDraft(input: DisplayDraftSave, actor: string): Promise<DisplayDraftResult> {
     return this.atomic(() => {
-      const result = saveDisplayDraft(this.draftSync(), input);
+      const draft = this.draftSync();
+      const result = saveDisplayDraft(draft, input);
       this.writeDraft(result.catalog);
-      this.audit(actor, 'save:productVariants', input.variant.id);
+      for (const variant of result.catalog.productVariants) if (variant.revision !== draft.productVariants.find(item => item.id === variant.id)?.revision) this.audit(actor, 'save:productVariants', variant.id);
       this.audit(actor, `save:${input.mode === '3d' ? 'displays3d' : 'displays2d'}`, result.display.id);
-      if (input.slot) this.audit(actor, 'save:packagingSlots', input.slot.id);
+      for (const slot of result.catalog.packagingSlots) if (slot.revision !== draft.packagingSlots.find(item => item.id === slot.id)?.revision) this.audit(actor, 'save:packagingSlots', slot.id);
       return result;
     });
   }
@@ -85,9 +97,25 @@ export class LocalCatalogRepository implements CatalogRepository {
       const catalog = deleteCatalogRecord(draft, collection, id, expectedRevision);
       this.writeDraft(catalog);
       for (const record of impact.records) this.audit(actor, `delete:${record.collection}`, record.id);
-      for (const slot of impact.defaults) this.audit(actor, 'save:packagingSlots', slot.id);
+      for (const changedCollection of CATALOG_COLLECTIONS) for (const record of catalog[changedCollection]) {
+        if (record.revision !== draft[changedCollection].find(item => item.id === record.id)?.revision) this.audit(actor, `save:${changedCollection}`, record.id);
+      }
       const issues = preflightCatalog(catalog);
       return { catalog, issues: hasValidationErrors(issues) ? issues : [...issues, ...this.fileIssues(prepareCatalogRelease(catalog))] };
+    });
+  }
+  async manageDisplay(input: DisplayAction, actor: string): Promise<CatalogData> {
+    return this.atomic(() => {
+      const draft = this.draftSync();
+      if (createHash('sha256').update(JSON.stringify(draft)).digest('hex') !== input.expectedDraftHash) throw new CatalogDomainError('revision_conflict', 'Bản nháp đã thay đổi. Danh sách đã được tải lại; kiểm tra rồi thử lại.');
+      const catalog = applyDisplayAction(draft, input);
+      this.writeDraft(catalog);
+      const collection = input.mode === '3d' ? 'displays3d' : 'displays2d';
+      this.audit(actor, `${input.action === 'delete' ? 'delete' : 'save'}:${collection}`, input.id);
+      for (const name of ['productVariants', 'packagingSlots'] as const) for (const record of catalog[name]) {
+        if (record.revision !== draft[name].find(item => item.id === record.id)?.revision) this.audit(actor, `save:${name}`, record.id);
+      }
+      return catalog;
     });
   }
   async reorder(collection: CollectionName, id: string, direction: 'up' | 'down', expectedRevisions:Record<string,number>, actor = 'admin'): Promise<CatalogData> {
@@ -162,6 +190,8 @@ export class LocalCatalogRepository implements CatalogRepository {
       if (this.activeId() !== expectedReleaseId) throw Object.assign(new Error('Bản đang chạy đã thay đổi. Hãy tải lại trước khi xuất bản.'), { code: 'REVISION_CONFLICT' });
       const draft=this.draftSync();
       if(options.expectedDraftHash&&createHash('sha256').update(JSON.stringify(draft)).digest('hex')!==options.expectedDraftHash)throw new CatalogDomainError('revision_conflict','Bản nháp đã được cập nhật sau khi xem trước. Tải lại và kiểm tra trước khi xuất bản.');
+      const releaseCount = Number(this.database.prepare('SELECT COUNT(*) AS count FROM releases').get()!.count);
+      if (releaseCount >= MAX_CATALOG_RELEASES) throw new CatalogDomainError('release_limit_reached', `Lịch sử đã có ${releaseCount}/${MAX_CATALOG_RELEASES} bản phát hành (gồm bản đang sử dụng). Xóa một bản cũ không cần thiết trong lịch sử trước khi phát hành tiếp.`);
       const data = prepareCatalogRelease(draft);
       const fileIssues=this.fileIssues(data);
       if(fileIssues.length) throw new CatalogDomainError('publish_assets_invalid','Không thể xuất bản do file tài nguyên thiếu hoặc đã thay đổi.',fileIssues);

@@ -59,7 +59,7 @@ test('actual shipped image assets are recognized by signature and dimensions', (
   }
 });
 test('unsafe, truncated, corrupt and wrong-role inputs cannot become ready media', () => {
-  assert.throws(() => inspect.inspectMedia(Buffer.from('<svg onload="alert(1)"></svg>'), 'icon'), /Chỉ hỗ trợ/);
+  assert.throws(() => inspect.inspectMedia(Buffer.from('<svg onload="alert(1)"></svg>'), 'icon'), /SVG cần/);
   const png = asset('public/assets/backgrounds/hero-atmosphere.png');
   assert.throws(() => inspect.inspectMedia(png.subarray(0, 40), 'fruit'), /thiếu|hoàn chỉnh/i);
   const corrupt = Buffer.from(png); corrupt[40] ^= 0xff; assert.throws(() => inspect.inspectMedia(corrupt, 'fruit'), /checksum/);
@@ -167,4 +167,32 @@ test('GLB uploads preserve their exact bytes, MIME, extension and checksum', asy
     assert.equal(record.bytes, input.length); assert.equal(record.sha256, createHash('sha256').update(input).digest('hex'));
     assert.equal(record.width, null); assert.equal(record.height, null); assert.equal(record.imageBounds, null);
   });
+});
+
+
+test('SVG icons rasterize proportionally with alpha and immutable WebP metadata', async () => withMediaFolder(async folder => {
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 80"><defs><linearGradient id="a"><stop stop-color="#fff"/><stop offset="1" stop-color="#6a5"/></linearGradient></defs><style>.leaf{fill:url(#a)}</style><path class="leaf" d="M10 4L18 40L10 76L2 40Z"/></svg>');
+  const source = inspect.inspectMedia(svg, 'icon'); assert.equal(source.mime, 'image/svg+xml');
+  const record = await upload.processUpload(imageFile(svg, 'leaf.svg', 'image/svg+xml'), 'icon', folder);
+  assert.equal(record.width, 64); assert.equal(record.height, 256); assert.equal(record.role, 'icon');
+  assert.equal(record.mime, 'image/webp'); assert.match(record.storageKey, /^[a-f0-9]{64}\.webp$/);
+  const pixels = await sharp(stored(record, folder)).ensureAlpha().raw().toBuffer();
+  assert.equal(pixels[3], 0); assert.ok(record.imageBounds);
+  assert.throws(() => inspect.inspectMedia(svg, 'fruit'), /Chỉ hỗ trợ/);
+  await assert.rejects(upload.processUpload(imageFile(svg, 'leaf.svg', 'image/png'), 'icon', folder), /không khớp/);
+}));
+
+test('SVG icon import rejects active content, remote resources and malformed XML before decoding', () => {
+  const wrap = value => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">${value}</svg>`);
+  for (const content of [
+    '<script>alert(1)</script>', '<foreignObject><div>HTML</div></foreignObject>',
+    '<path onload="alert(1)" d="M0 0h4"/>', '<use href="https://example.test/icon.svg#a"/>',
+    '<use href="&#104;ttps://example.test/a"/>', '<image href="file:///secret"/>',
+    '<path fill="url(https://example.test/a)"/>', '<path style="fill:url(//example.test/a)"/>', '<style>.a{fill:u/**/rl(https://example.test/a)}</style>',
+    '<path style="fill:u\\72l(//example.test/a)"/>', '<g><path></g>', '<path x="2" x="3"/>',
+    '<path href="#ok" xml:base="https://example.test/a"/>', '<style>@import "https://example.test/a";</style>',
+  ]) assert.throws(() => inspect.inspectMedia(wrap(content), 'icon'), /SVG cần/, content);
+  assert.throws(() => inspect.inspectMedia(Buffer.from('<!DOCTYPE svg [<!ENTITY a SYSTEM "file:///secret">]>' + wrap('').toString()), 'icon'), /SVG cần/);
+  assert.throws(() => inspect.inspectMedia(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="9000" height="9000"/>'), 'icon'), /kích thước/);
+  assert.throws(() => inspect.inspectMedia(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), 'icon'), /viewBox/);
 });

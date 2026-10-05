@@ -19,7 +19,7 @@ const decoderOptions = { failOn: 'warning' as const, limitInputPixels: 32_000_00
 
 /** Bounds describe visible content for scene framing; they never crop the stored image. */
 async function alphaBounds(buffer: Buffer, role: MediaRole, hasAlpha: boolean): Promise<MediaAsset['imageBounds']> {
-  if (!hasAlpha || !['fruit', 'leaf', 'splash'].includes(role)) return null;
+  if (!hasAlpha || !['fruit', 'leaf', 'splash', 'icon'].includes(role)) return null;
   const { data, info } = await sharp(buffer, decoderOptions).ensureAlpha().extractChannel('alpha').raw()
     .timeout({ seconds: 15 }).toBuffer({ resolveWithObject: true });
   let left = info.width, top = info.height, right = -1, bottom = -1;
@@ -36,13 +36,13 @@ async function alphaBounds(buffer: Buffer, role: MediaRole, hasAlpha: boolean): 
 
 /** Shared deterministic transform for uploads and import deduplication. Source bytes are never stored. */
 export async function optimizeImage(buffer: Buffer, role: Exclude<MediaRole, 'model'>) {
-  inspectMedia(buffer, role);
+  const source = inspectMedia(buffer, role);
   try {
     const limit = imageLimits[role];
     const { data, info } = await sharp(buffer, decoderOptions)
       .autoOrient()
-      // Fit inside both bounds without padding, cropping, distortion or enlargement.
-      .resize({ width: limit, height: limit, fit: 'inside', withoutEnlargement: true })
+      // Fit without padding, cropping or distortion. Vector input can rasterize at icon resolution.
+      .resize({ width: limit, height: limit, fit: 'inside', withoutEnlargement: source.extension !== 'svg' })
       .toColourspace('srgb')
       .webp({ quality: role === 'label' ? 90 : 82, alphaQuality: 100, effort: 4 })
       .timeout({ seconds: 15 })
