@@ -12,7 +12,6 @@ export default function BeverageCategoryRail() {
   useEffect(() => {
     const root = rootRef.current, track = trackRef.current;
     if (!root || !track) return;
-    const motion = matchMedia('(prefers-reduced-motion: reduce)');
     let x = 0, target = 0, speed = 0, elapsed = 0, last = 0, frame = 0, index = 0;
     let period = 0, steps: number[] = [], hovering = false, visible = true;
     let overflow = false;
@@ -45,20 +44,19 @@ export default function BeverageCategoryRail() {
     };
     const schedule = () => {
       cancelAnimationFrame(frame); last = 0;
-      if (!motion.matches && visible && !document.hidden) frame = requestAnimationFrame(tick);
-      else if (motion.matches) { measure(); }
+      if (visible && !document.hidden) frame = requestAnimationFrame(tick);
     };
     const enter = () => { hovering = true; }, leave = () => { hovering = false; };
     const resize = new ResizeObserver(measure); resize.observe(track); resize.observe(root);
     const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; schedule(); });
     intersection.observe(root);
     root.addEventListener('pointerenter', enter); root.addEventListener('pointerleave', leave);
-    document.addEventListener('visibilitychange', schedule); motion.addEventListener('change', schedule);
+    document.addEventListener('visibilitychange', schedule);
     measure(); schedule();
     return () => {
       cancelAnimationFrame(frame); resize.disconnect(); intersection.disconnect();
       root.removeEventListener('pointerenter', enter); root.removeEventListener('pointerleave', leave);
-      document.removeEventListener('visibilitychange', schedule); motion.removeEventListener('change', schedule);
+      document.removeEventListener('visibilitychange', schedule);
     };
   }, [locale]);
   const renderSet = (clone = false) => <div className="category-set" aria-hidden={clone || undefined}>

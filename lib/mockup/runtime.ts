@@ -88,7 +88,6 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     host.dataset.prefetchFiles = String(value.entries); host.dataset.prefetchBytes = String(value.bytes);
   } });
   prefetch.setEnabled(false);
-  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   let disposed = false;
   let contextLost = false;
   let visible = true;
@@ -394,7 +393,6 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     if (!isVisible()) { if (raf) cancelAnimationFrame(raf); raf = 0; prefetch.setEnabled(false); }
     else { lastTime = performance.now(); prefetch.setEnabled(readyRevision === revision); requestRender(); }
   };
-  const motionChange = () => { if (motionQuery.matches) pauseFromInteraction(false); };
   const lostContext = (event: Event) => {
     event.preventDefault(); contextLost = true; readyRevision = -1; request?.abort(); exportAbort?.abort();
     controls.enabled = false; syncVisibility(); emit('error', 'webgl', 'WebGL context lost');
@@ -408,7 +406,7 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     syncVisibility();
   };
   canvas.addEventListener('webglcontextlost', lostContext); canvas.addEventListener('webglcontextrestored', restoredContext);
-  document.addEventListener('visibilitychange', syncVisibility); motionQuery.addEventListener('change', motionChange);
+  document.addEventListener('visibilitychange', syncVisibility);
   const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(host);
   const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; syncVisibility(); }); intersection.observe(host);
   resize();
@@ -512,7 +510,7 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
       disposed = true; revision++; environmentRevision++; queuedSelection = null; request?.abort(); exportAbort?.abort();
       if (raf) cancelAnimationFrame(raf); raf = 0;
       resizeObserver.disconnect(); intersection.disconnect();
-      document.removeEventListener('visibilitychange', syncVisibility); motionQuery.removeEventListener('change', motionChange);
+      document.removeEventListener('visibilitychange', syncVisibility);
       canvas.removeEventListener('webglcontextlost', lostContext); canvas.removeEventListener('webglcontextrestored', restoredContext);
       controls.removeEventListener('start', onControlsStart); controls.removeEventListener('change', onControlsChange); controls.dispose();
       discard(active); active = null; discard(cached); cached = null; [...candidates].forEach(discard);

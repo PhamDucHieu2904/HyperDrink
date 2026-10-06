@@ -22,7 +22,6 @@
 .catalog-showcase .showcase-stats>.showcase-mockup-link:focus-visible { outline:3px solid var(--catalog-text); outline-offset:4px; }
 .catalog-showcase .showcase-stats .showcase-mockup-arrow { width:16px; height:16px; padding:0; border:0; background:none; margin-inline-start:auto; }
 @media(max-width:1150px) { .catalog-showcase .showcase-stats>.showcase-mockup-link { padding:12px 8px; gap:6px; } }
-@media(prefers-reduced-motion:reduce) { .catalog-showcase .showcase-stats>.showcase-mockup-link { transition:none; } .catalog-showcase .showcase-stats>.showcase-mockup-link:hover { transform:none; } }
 .catalog-showcase .showcase-stats span span { overflow-wrap:anywhere; }
 .catalog-showcase .showcase-stats svg { flex:none; }
 .catalog-showcase .showcase-feature h2 { text-transform:none; letter-spacing:.05em; overflow-wrap:anywhere; }
@@ -127,8 +126,4 @@
   .catalog-showcase .catalog-product-unavailable>svg { width:48px; height:48px; flex:none; }
   .catalog-showcase .catalog-product-unavailable p { font-size:12px; margin:0; }
   .catalog-showcase .catalog-hero-detail { padding:0; }
-}
-@media(prefers-reduced-motion:reduce) {
-  .catalog-showcase .catalog-viewer-loading-stroke { animation:none; }
-  .catalog-showcase .notes-card { transition:none; }
 }

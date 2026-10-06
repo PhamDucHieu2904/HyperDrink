@@ -106,7 +106,6 @@ a { color: inherit; text-decoration: none; }
 .scene-error { position: absolute; z-index: 3; left: 50%; bottom: 58px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 40px); padding: 7px 10px; border-radius: 8px; color: rgba(255,255,255,.72); background: rgba(7, 35, 67, .55); font-size: .62rem; text-align: center; }
 .scene-loading { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; color: rgba(255,255,255,.65); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; pointer-events: none; }
 .scene-fallback { position: absolute; inset: 0; z-index: 0; display: grid; place-items: center; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .scene-spin { display: none; } }
 .can-fallback { position: relative; width: 132px; height: 355px; border-radius: 48px 48px 41px 41px; transform: rotate(17deg); background: linear-gradient(90deg, #909ba4 0%, #eef4f8 10%, #9ca8b0 21%, #f8fbfc 43%, #abb6bc 63%, #e8eff3 88%, #7d8991 100%); box-shadow: -22px 30px 30px rgba(7,25,47,.32), inset -9px 0 16px rgba(10,32,50,.2); }
 .can-fallback::before { content: ''; position: absolute; left: -2px; right: -2px; top: -7px; height: 27px; border-radius: 50%; border: 3px solid #aab6bd; background: radial-gradient(ellipse, #e7eef2 0 30%, #687984 33% 39%, #c6d1d5 42% 100%); }
 .can-fallback::after { content: 'CITRUS\A BLISS'; white-space: pre; position: absolute; top: 100px; left: 11px; width: 110px; padding: 16px 0; text-align: center; color: #feffff; font: 700 1.07rem/1.1 'Space Grotesk', sans-serif; letter-spacing: .04em; text-shadow: 0 2px 4px rgba(20,52,71,.4); background: linear-gradient(180deg, rgba(245,118,69,.95), rgba(239,183,31,.9)); border-radius: 50%; transform: rotate(-3deg); }
@@ -217,9 +216,6 @@ a { color: inherit; text-decoration: none; }
   .hero-ctas .btn { width: 100%; }
   .product-grid { grid-template-columns: 1fr; }
   .product-card { min-height: 300px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
 
 

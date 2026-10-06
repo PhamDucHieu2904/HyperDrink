@@ -103,7 +103,7 @@ test('manual pause and keyboard focus freeze motion without replaying elapsed ti
   assert.equal(originalCenter, geometry().viewportWidth / 2);
 });
 
-function domFixture(context, count = 24) {
+function domFixture(context, count = 24, reducedMotion = false) {
   const globals = ['window', 'document', 'matchMedia', 'getComputedStyle', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame', 'setTimeout', 'clearTimeout', 'ResizeObserver', 'IntersectionObserver'];
   const prior = new Map(globals.map(key => [key, global[key]]));
   let time = 0, nextId = 0, observer, intersection, focus;
@@ -114,7 +114,7 @@ function domFixture(context, count = 24) {
       emit(type, value = {}) { const event = { target: this, detail: 1, cancelable: true, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.propagationStopped = true; }, stopImmediatePropagation() { this.stopped = true; this.propagationStopped = true; }, ...value }; for (const fn of events.get(type) || []) { fn(event); if (event.stopped) break; } return event; },
       listenerCount() { return [...events.values()].reduce((sum, listeners) => sum + listeners.size, 0); } };
   };
-  const windowTarget = target(), documentTarget = { ...target(), hidden: false }, reduced = { ...target(), matches: false };
+  const windowTarget = target(), documentTarget = { ...target(), hidden: false }, reduced = { ...target(), matches: reducedMotion };
   const viewport = { ...target(), dataset: {}, clientWidth: 420,
     contains(node) { return node === this || node?.owner === this; },
     hasPointerCapture: id => captures.has(id), setPointerCapture(id) { captures.add(id); const previous = implicitCaptures.get(id); if (previous) { implicitCaptures.delete(id); this.emit('lostpointercapture', { pointerId: id, target: previous }); } },
@@ -281,12 +281,22 @@ test('touch dragging remains usable when the optional coalesced event API throws
   f.setTime(300); f.pointer('pointerup', 100, 0, f.viewport, touch);
   assert.equal(f.controller.motion.position, before - 100); assert.equal(f.captures.size, 0); assert.equal(f.controller.motion.phase, 'rest'); assert.deepEqual(f.selected, []);
 });
-test('vertical pan is not captured or prevented, and a reduced-motion change stops the running loop', context => {
-  const f = domFixture(context); f.pointer('pointerdown', 0); f.setTime(20); const vertical = f.pointer('pointermove', 2, 35);
+test('OS reduced motion at startup or changing later does not stop automatic flavor movement or touch inertia', context => {
+  const f = domFixture(context, 24, true); f.pointer('pointerdown', 0); f.setTime(20); const vertical = f.pointer('pointermove', 2, 35);
   assert.equal(vertical.defaultPrevented, false); assert.equal(f.captures.size, 0); assert.equal(f.controller.motion.phase, 'rest');
   assert.equal(f.viewport.emit('click', { detail: 1 }).defaultPrevented, true, 'A vertical drag also cannot become an accidental flavor tap');
-  f.advance(1100); assert.equal(f.frames.size, 1); f.reduced.matches = true; f.reduced.emit('change');
-  const before = f.track.style.transform; assert.equal(f.frames.size, 0); f.advance(5000); assert.equal(f.track.style.transform, before);
+  f.advance(1100); assert.equal(f.frames.size, 1);
+  for (const matches of [false, true]) {
+    f.reduced.matches = matches; f.reduced.emit('change');
+    const before = f.track.style.transform; f.advance(500); assert.notEqual(f.track.style.transform, before);
+    assert.equal(f.frames.size, 1);
+  }
+  const start = f.getTime();
+  f.pointer('pointerdown', 200, 0, f.viewport, { pointerType: 'touch' });
+  f.setTime(start + 30); f.pointer('pointermove', 140, 0, f.viewport, { pointerType: 'touch' });
+  f.setTime(start + 80); f.pointer('pointermove', 20, 0, f.viewport, { pointerType: 'touch' });
+  f.pointer('pointerup', 20, 0, f.viewport, { pointerType: 'touch' });
+  assert.equal(f.controller.motion.phase, 'flick');
 });
 test('keyboard focus reveals the original 24th button, pauses transforms and arrow navigation stays on original buttons', context => {
   const f = domFixture(context); f.documentTarget.emit('keydown', { key: 'Tab', target: f.documentTarget }); f.buttons[23].focus();
@@ -330,11 +340,15 @@ const { LanguageProvider } = require('../../components/LanguageProvider.tsx');
 const items = count => Array.from({ length: count }, (_, index) => ({ variantId: `flavor-${index}`, flavor: { id: `flavor-${index}`, name: `Admin flavor ${index}`, shortName: `Flavor ${index}` } }));
 const render = count => renderToStaticMarkup(React.createElement(LanguageProvider, null, React.createElement(FlavorCarousel, { items: items(count), selectedId: `flavor-${count - 1}`, onSelect() {} })));
 
-test('production SSR keeps every original flavor keyboard reachable and cloned loops hidden with 24 dynamic items', () => {
+test('production SSR keeps original flavors keyboard reachable and visual loops free of focusable controls', () => {
   const html = render(24);
   assert.equal((html.match(/data-variant-id=/g) || []).length, 72);
-  assert.equal((html.match(/tabindex="-1"/g) || []).length, 48);
-  assert.equal((html.match(/data-carousel-item=/g) || []).length, 72, 'Every carousel button belongs to a flavor');
+  assert.equal((html.match(/<button\b/g) || []).length, 24, 'Each flavor has exactly one reachable control');
+  assert.equal((html.match(/role="presentation"/g) || []).length, 48, 'Copies are nonfocusable visuals, still pointer selectable');
+  const hiddenSets = [...html.matchAll(/<div class="flavor-set" aria-hidden="true">([\s\S]*?)<\/div>/g)];
+  assert.equal(hiddenSets.length, 2);
+  for (const [, content] of hiddenSets) assert.doesNotMatch(content, /<button\b|tabindex=|role="button"|aria-pressed=/, 'Hidden copies cannot retain focus');
+  assert.equal((html.match(/data-carousel-item=/g) || []).length, 72, 'Every visual copy remains associated with its flavor');
   assert.equal((html.match(/aria-hidden="true"/g) || []).filter(Boolean).length >= 2, true);
   assert.doesNotMatch(html, /All flavors|catalog-carousel-controls|catalog-carousel-motion|24 \/ 24|Previous flavor|Next flavor|Pause flavor carousel/);
   assert.match(html, /Admin|Flavor 23/); assert.doesNotMatch(html, /scrollIntoView|animation-duration/);
@@ -347,7 +361,7 @@ test('one flavor renders once with no cloned loops, motion controls or moving an
 test('the production stylesheet preserves original rings/gradient and delegates all motion to the controller with vertical touch pan', () => {
   const css = fs.readFileSync(path.resolve(__dirname, '../../app/flavor-carousel.css'), 'utf8');
   assert.match(css, /touch-action:pan-y/); assert.match(css, /--flavor-gap:27px/); assert.match(css, /--flavor-gap:16px/);
-  assert.match(css, /flavor-set button \{ touch-action:pan-y; -webkit-user-drag:none/); assert.match(css, /-webkit-touch-callout:none/);
+  assert.match(css, /flavor-set \.flavor-choice \{ touch-action:pan-y; -webkit-user-drag:none/); assert.match(css, /-webkit-touch-callout:none/);
   assert.match(css, /linear-gradient\(40deg,#ff7970,#ffdd93\)/); assert.match(css, /width:64px; height:64px/);
   assert.match(css, /width:58px; height:58px/); assert.match(css, /width:46px; height:46px; object-fit:contain/);
   assert.doesNotMatch(css, /animation-play-state:paused|animation:flavor-marquee|catalog-carousel-controls|catalog-carousel-motion/);

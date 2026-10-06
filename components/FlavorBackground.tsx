@@ -14,9 +14,9 @@ export default function FlavorBackground({ flavorIndex, themes = backgroundTheme
   const period = settings.cellSize * settings.iconSpacing;
 
   useEffect(() => {
-    const now = performance.now(), reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    renderState.setThemes(normalizedThemes, now, reducedMotion);
-    renderState.setFlavor(flavorIndex, now, reducedMotion);
+    const now = performance.now();
+    renderState.setThemes(normalizedThemes, now);
+    renderState.setFlavor(flavorIndex, now, false);
   }, [flavorIndex, normalizedThemes, renderState]);
 
   useEffect(() => {
@@ -26,7 +26,6 @@ export default function FlavorBackground({ flavorIndex, themes = backgroundTheme
     if (!root || !track || !hero) return;
     const colorLayers = root.querySelectorAll<HTMLElement>('.flavor-background-color');
     const patternLayers = root.querySelectorAll<HTMLElement>('.flavor-background-pattern');
-    const motion = matchMedia('(prefers-reduced-motion: reduce)');
     const fine = matchMedia('(pointer: fine)');
     const autodrift = new BackgroundAutodrift(settings);
     let targetAngle = 0, angle = 0, targetSpeed = 0, speed = 0;
@@ -73,7 +72,7 @@ export default function FlavorBackground({ flavorIndex, themes = backgroundTheme
       x = (x + Math.cos(angle) * speed * dt) % period;
       y = (y + Math.sin(angle) * speed * dt) % period;
       renderState.setPatternOffset(x, y);
-      renderState.advance(now, motion.matches);
+      renderState.advance(now, false);
       colorLayers.forEach((layer, i) => { layer.style.opacity = String(renderState.weights[i]); });
       patternLayers.forEach((layer, i) => { layer.style.opacity = String(renderState.weights[i]); });
       track.style.transform = `translate3d(${x}px,${y}px,0)`;
@@ -81,9 +80,9 @@ export default function FlavorBackground({ flavorIndex, themes = backgroundTheme
     };
     const schedule = () => {
       cancelAnimationFrame(frame);
-      if (visible && !document.hidden && !motion.matches) frame = requestAnimationFrame(tick);
+      if (visible && !document.hidden) frame = requestAnimationFrame(tick);
       else {
-        renderState.advance(performance.now(), motion.matches);
+        renderState.advance(performance.now(), false);
         colorLayers.forEach((layer, i) => { layer.style.opacity = String(renderState.weights[i]); });
         patternLayers.forEach((layer, i) => { layer.style.opacity = String(renderState.weights[i]); });
       }
@@ -103,7 +102,7 @@ export default function FlavorBackground({ flavorIndex, themes = backgroundTheme
     // Blur relinquishes mouse steering; tab visibility/intersection owns suspension.
     window.addEventListener('blur', releasePointer);
     document.addEventListener('visibilitychange', sync);
-    motion.addEventListener('change', sync); fine.addEventListener('change', sync);
+    fine.addEventListener('change', sync);
     sync();
     return () => {
       cancelAnimationFrame(frame); observer.disconnect();
@@ -112,7 +111,7 @@ export default function FlavorBackground({ flavorIndex, themes = backgroundTheme
       hero.removeEventListener('pointercancel', releasePointer);
       window.removeEventListener('blur', releasePointer);
       document.removeEventListener('visibilitychange', sync);
-      motion.removeEventListener('change', sync); fine.removeEventListener('change', sync);
+      fine.removeEventListener('change', sync);
     };
   }, [settings, period, renderState, normalizedThemes]);
 

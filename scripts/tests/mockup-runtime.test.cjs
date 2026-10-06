@@ -19,7 +19,7 @@ const deferred = () => {
 const flush = async () => { for (let turn = 0; turn < 24; turn++) await Promise.resolve(); };
 
 /** Real Three scene/camera objects; only the browser/GPU and asynchronous I/O are faked. */
-function runtimeHarness({ floatingPoint = true } = {}) {
+function runtimeHarness({ floatingPoint = true, reducedMotion = false } = {}) {
   const globals = ['window', 'document', 'fetch', 'requestAnimationFrame', 'cancelAnimationFrame', 'ResizeObserver', 'IntersectionObserver', 'ImageData'];
   const saved = new Map(globals.map(key => [key, Object.getOwnPropertyDescriptor(global, key)]));
   const statuses = []; const parses = new Map(); const models = new Map(); const pools = []; const rafs = new Map();
@@ -33,7 +33,7 @@ function runtimeHarness({ floatingPoint = true } = {}) {
   host.appendChild = canvas => { host.canvas = canvas; };
   const document = new EventTarget(); document.hidden = false;
   document.createElement = () => ({ width: 0, height: 0, getContext: () => ({ putImageData() {} }), toBlob: callback => callback(new Blob(['PNG'], { type: 'image/png' })) });
-  const motionQuery = new EventTarget(); motionQuery.matches = false;
+  const motionQuery = new EventTarget(); motionQuery.matches = reducedMotion;
   const window = { devicePixelRatio: 2, matchMedia: query => query.includes('reduced-motion') ? motionQuery : { matches: false } };
   class Renderer {
     constructor() {
@@ -130,7 +130,7 @@ function runtimeHarness({ floatingPoint = true } = {}) {
   new Function('require', 'module', 'exports', output)(request => replacements[request] ?? require(path.resolve(path.dirname(filename), request)), loaded, loaded.exports);
   const runtime = loaded.exports.createMockupRuntime(host, { onStatus: status => statuses.push(status), onInteraction: () => interactions++ });
   return {
-    runtime, host, statuses, pools, draws, rafs, outputMaterial, controls: Controls.instance, renderer: Renderer.instance,
+    runtime, host, statuses, pools, draws, rafs, motionQuery, outputMaterial, controls: Controls.instance, renderer: Renderer.instance,
     get interactions() { return interactions; },
     parse(url) {
       assert.ok(parses.has(url), `Expected parse request for ${url}`);
@@ -366,13 +366,17 @@ test('aborted capture restores the preview and context loss never publishes a fa
   } finally { h.close(); }
 });
 
-test('stationary scene schedules no background loop, orbit has one RAF chain and visibility pauses it', async () => {
-  const h = runtimeHarness();
+test('mockup animation runs with OS reduced motion while stationary scenes and hidden previews remain suspended', async () => {
+  const h = runtimeHarness({ reducedMotion: true });
   try {
     await makeReady(h); h.runFrame(); assert.equal(h.rafs.size, 0);
     h.runtime.setAnimation({ mode: 'camera-orbit', speed: 1, playing: true });
     assert.equal(h.rafs.size, 1);
     for (let frame = 1; frame < 10; frame++) { h.runFrame(performance.now() + frame * 100); assert.equal(h.rafs.size, 1); }
+    const before = h.draws.at(-1).camera.position.clone();
+    for (const matches of [false, true]) { h.motionQuery.matches = matches; h.motionQuery.dispatchEvent(new Event('change')); }
+    h.runFrame(performance.now() + 1500);
+    assert.equal(h.rafs.size, 1); assert.ok(h.draws.at(-1).camera.position.distanceTo(before) > 0.001);
     h.hide(true); assert.equal(h.rafs.size, 0); h.hide(false); assert.equal(h.rafs.size, 1);
     h.controls.dispatchEvent({ type: 'start' }); h.runFrame(performance.now() + 2000);
     assert.equal(h.rafs.size, 0); assert.equal(h.interactions, 1);

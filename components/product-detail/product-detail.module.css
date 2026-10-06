@@ -70,4 +70,3 @@
 @media (max-width: 370px) { .content { padding-inline: 18px; } .poster { height: 300px; } .posterHeadline { font-size: 23px; } }
 @media (max-width: 760px) { .posterHeadline { font-size: clamp(18px, 5.1vw, 23px); max-width: 44%; } }
 .tabs { padding-right: 48px; }
-@media (prefers-reduced-motion: reduce) { .panel { animation: none; } .close { transition: none; } }

@@ -113,7 +113,9 @@ test('FlavorBackground emits one layer per catalog item with unique keys even wh
   const originalMedia = global.matchMedia, originalPerformance = global.performance;
   try {
     global.matchMedia = () => ({ matches: true }); global.performance = { now: () => 200 };
-    effects[0](); assert.equal(state.flavorIndex, 23); assert.equal(state.weights[23], 1);
+    effects[0](); assert.equal(state.flavorIndex, 23); assert.equal(state.weights[23], 0);
+    state.advance(650, false); assert.ok(state.weights[23] > 0 && state.weights[23] < 1, 'OS reduced motion does not skip the theme crossfade');
+    state.advance(1100, false); assert.equal(state.weights[23], 1);
   } finally { global.matchMedia = originalMedia; global.performance = originalPerformance; }
 });
 

@@ -78,8 +78,6 @@ export function createProductViewer(
   const pointers = new Map<number, Point>();
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let reducedMotion = motionQuery.matches;
   let disposed = false;
   let paused = false;
   let visible = true;
@@ -392,7 +390,7 @@ export function createProductViewer(
     resize();
   };
   const beginCinematic = () => {
-    if (reducedMotion || dragging || paused || packageTransition) { dirty = true; return; }
+    if (dragging || paused || packageTransition) { dirty = true; return; }
     const velocity = cinematic?.velocity ?? presentation.motion.idleSpeed;
     cinematic = { origin: pose.clone(), angle: 0, velocity, initialVelocity: velocity, elapsed: 0, swapped: false };
     returnFrom = null;
@@ -411,7 +409,7 @@ export function createProductViewer(
     mount.dataset.transitionPhase = `package-${phase}`;
   };
   const beginPackageMotion = () => {
-    if (!active || paused || reducedMotion || dragging) return;
+    if (!active || paused || dragging) return;
     // Rapid choices during exit keep the visible trajectory and load only the latest asset.
     if (packageTransition && packageTransition.phase !== 'in' && packageTransition.phase !== 'bounce') return;
     const cap = packageCapPose(presentation.motion.packageTilt);
@@ -618,7 +616,7 @@ export function createProductViewer(
       rememberLoaded(asset, desiredAppearance);
       pendingProduct = loaded;
       reportGeometry();
-      if (!active || reducedMotion || dragging || paused) {
+      if (!active || dragging || paused) {
         clearPackageMotion();
         activatePendingProduct();
         if (!active) return;
@@ -727,7 +725,7 @@ export function createProductViewer(
     const dt = THREE.MathUtils.clamp((now - lastTime) / 1000, 0, 0.035);
     lastTime = now;
     animationTime += dt;
-    if (packageTransition && !paused && !reducedMotion) {
+    if (packageTransition && !paused) {
       const move = packageTransition;
       const motion = presentation.motion;
       move.elapsed += dt;
@@ -776,7 +774,7 @@ export function createProductViewer(
         }
       }
       dirty = true;
-    } else if (cinematic && !dragging && !reducedMotion) {
+    } else if (cinematic && !dragging) {
       const move = cinematic;
       move.elapsed += dt;
       const duration = presentation.motion.transitionSeconds;
@@ -811,12 +809,12 @@ export function createProductViewer(
       }
       dirty = true;
     } else if (dragging) {
-      pose.slerp(target, reducedMotion ? 1 : 1 - Math.exp(-dt * 14));
+      pose.slerp(target, 1 - Math.exp(-dt * 14));
       dirty = true;
-    } else if (returnFrom && !reducedMotion) {
+    } else if (returnFrom) {
       // Explicit reset/admin pose edits still work while automatic spin is paused.
       advanceReturn(dt);
-    } else if (!paused && !reducedMotion) {
+    } else if (!paused) {
       if (Number.isFinite(lastInputAt) && animationTime - lastInputAt >= presentation.motion.returnDelay) {
         if (!returnFrom) { returnFrom = pose.clone(); returnElapsed = 0; }
         advanceReturn(dt);
@@ -824,9 +822,6 @@ export function createProductViewer(
         pose.multiply(spin.setFromAxisAngle(yawAxis, dt * presentation.motion.idleSpeed));
       } else pose.slerp(target, 1 - Math.exp(-dt * 10));
       dirty = true;
-    } else if (reducedMotion && dirty) {
-      pose.slerp(target, 1);
-      activatePendingProduct();
     }
     if (!cinematic && !packageTransition && product.position.y !== 0) {
       product.position.y *= Math.exp(-dt * 9);
@@ -835,7 +830,7 @@ export function createProductViewer(
     }
     product.quaternion.copy(pose);
     const previousDistance = currentDistance;
-    currentDistance = reducedMotion ? fitDistance : THREE.MathUtils.damp(currentDistance, fitDistance, 8, dt);
+    currentDistance = THREE.MathUtils.damp(currentDistance, fitDistance, 8, dt);
     if (Math.abs(currentDistance - previousDistance) > 0.000001) dirty = true;
     camera.position.z = currentDistance;
     const model = active ?? pendingProduct;
@@ -845,7 +840,7 @@ export function createProductViewer(
       backdrop.update();
       if (backdrop.texture.version !== version) dirty = true;
     }
-    const accentFrame = accents.update({ deltaSeconds: dt, reducedMotion, paused,
+    const accentFrame = accents.update({ deltaSeconds: dt, reducedMotion: false, paused,
       ready: Boolean(active && active.definitionKey === assetDefinitionKey && appearanceReady),
       viewerIdle: !cinematic && !packageTransition,
       height: active ? active.bounds.max.y - active.bounds.min.y : 0.1,
@@ -855,7 +850,7 @@ export function createProductViewer(
       camera, resolution: [drawingBufferSize.x, drawingBufferSize.y] });
     mount.dataset.accentPhase = accentFrame.phase;
     mount.dataset.accentCount = String(accentFrame.count);
-    if (accentFrame.count > 0 && !paused && !reducedMotion) dirty = true;
+    if (accentFrame.count > 0 && !paused) dirty = true;
     const frameInterval = 1000 / presentation.quality.maxFps;
     const sinceDraw = now - lastDrawTime;
     if (dirty && sinceDraw >= frameInterval) {
@@ -884,11 +879,6 @@ export function createProductViewer(
     dirty = true;
     updatePrefetch(); warmNeighbors();
   };
-  const motionChange = (event: MediaQueryListEvent) => {
-    reducedMotion = event.matches;
-    if (reducedMotion) { cinematic = null; clearPackageMotion(); activatePendingProduct(); currentDistance = fitDistance; target.copy(rest); }
-    dirty = true;
-  };
   const contextLost = (event: Event) => {
     event.preventDefault(); renderer.setAnimationLoop(null);
     cancelPointers();
@@ -902,7 +892,6 @@ export function createProductViewer(
   renderer.domElement.addEventListener('keydown', keyDown);
   renderer.domElement.addEventListener('webglcontextlost', contextLost);
   document.addEventListener('visibilitychange', syncVisibility);
-  motionQuery.addEventListener('change', motionChange);
   const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(mount);
   const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; syncVisibility(); });
   intersection.observe(mount);
@@ -940,7 +929,6 @@ export function createProductViewer(
       renderer.setAnimationLoop(null);
       resizeObserver.disconnect(); intersection.disconnect();
       document.removeEventListener('visibilitychange', syncVisibility);
-      motionQuery.removeEventListener('change', motionChange);
       cancelPointers();
       mount.removeEventListener('pointerdown', pointerDown);
       mount.removeEventListener('pointermove', pointerMove);

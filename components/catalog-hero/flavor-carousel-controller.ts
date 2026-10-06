@@ -14,7 +14,6 @@ export function bindFlavorCarousel({ viewport, track, firstSet, canMove, selecte
   canMove: boolean; selectedId: string; onSelect: (id: string) => void; onCopies: (count: number) => void;
 }): FlavorCarouselController {
   const motion = new FlavorCarouselMotion(selectedId);
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let disposed = false, frame = 0, timer: ReturnType<typeof setTimeout> | null = null;
   let pointerId: number | null = null, pointerClock = 0, suppressUntil = 0, keyboardInput = false, focused = false;
   let focusedButton: HTMLButtonElement | null = null;
@@ -197,7 +196,6 @@ export function bindFlavorCarousel({ viewport, track, firstSet, canMove, selecte
     const next = event.key === 'ArrowLeft' ? (index - 1 + centers.length) % centers.length : event.key === 'ArrowRight' ? (index + 1) % centers.length : event.key === 'Home' ? 0 : event.key === 'End' ? centers.length - 1 : -1;
     if (next >= 0) { event.preventDefault(); centers[next].button.focus({ preventScroll: true }); }
   };
-  const onReduced = () => { motion.setReducedMotion(reduced.matches, now()); wake(); };
   const onVisibility = () => {
     visible = !document.hidden;
     if (!visible) { cancelGesture(); stopSchedule(); }
@@ -228,8 +226,6 @@ export function bindFlavorCarousel({ viewport, track, firstSet, canMove, selecte
   window.addEventListener('pointermove', onWindowPointerMove, { passive: false });
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
-  reduced.addEventListener('change', onReduced);
-  motion.setReducedMotion(reduced.matches, now());
   measure();
 
   return {
@@ -260,7 +256,6 @@ export function bindFlavorCarousel({ viewport, track, firstSet, canMove, selecte
       window.removeEventListener('pointermove', onWindowPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
-      reduced.removeEventListener('change', onReduced);
     },
   };
 }

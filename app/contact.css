@@ -29,4 +29,3 @@
 [dir=rtl] .contact-label { margin:0 0 16px 48px; }
 @media(max-width:900px) { .site-shell>.contact-section { grid-template-columns:1fr; padding-block:64px; gap:32px; }.contact-intro { max-width:640px; }.contact-signature { margin-top:24px; }.contact-details { grid-template-columns:1fr 1fr; align-items:stretch; }.contact-email { font-size:25px; } }
 @media(max-width:600px) { .contact-details { grid-template-columns:1fr; }.contact-email-card,.contact-company-card { padding:26px; border-radius:22px; }.contact-intro h2 { font-size:38px; }.contact-email { font-size:30px; }.contact-description { font-size:14px; } }
-@media(prefers-reduced-motion:reduce) { .contact-write:hover svg { transform:none; } }

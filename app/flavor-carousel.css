@@ -2,30 +2,26 @@
 /* Keep the complete rail above the visible fold even when hero content grows taller. */
 .catalog-showcase .catalog-flavor-dock { position:absolute; left:50%; bottom:max(64px,calc(100% - 100svh + 48px + env(safe-area-inset-bottom,0px))); z-index:5; isolation:isolate; pointer-events:auto; width:min(48vw,520px); padding:12px 0 4px; transform:translateX(-50%); overflow:visible; mask-image:none; -webkit-mask-image:none; }
 .catalog-showcase .catalog-carousel-viewport { position:relative; overflow:hidden; padding:5px 0; touch-action:pan-y; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; cursor:grab; mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent); -webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent); }
-.catalog-showcase .catalog-flavor-dock .flavor-track,.catalog-showcase .catalog-flavor-dock .flavor-set,.catalog-showcase .catalog-flavor-dock .flavor-set button { touch-action:pan-y; -webkit-user-drag:none; }
+.catalog-showcase .catalog-flavor-dock .flavor-track,.catalog-showcase .catalog-flavor-dock .flavor-set,.catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice { touch-action:pan-y; -webkit-user-drag:none; }
 .catalog-showcase .catalog-carousel-viewport[data-dragging='true'] { cursor:grabbing; }
 .catalog-showcase .catalog-carousel-viewport:focus-within { mask-image:none; -webkit-mask-image:none; }
 .catalog-showcase .catalog-flavor-dock .flavor-track { --flavor-gap:27px; display:flex; width:max-content; gap:var(--flavor-gap); animation:none; will-change:transform; direction:ltr; }
 .catalog-showcase .catalog-flavor-dock .flavor-set { display:flex; flex:none; width:max-content; gap:var(--flavor-gap); justify-content:flex-start; }
 .catalog-showcase .catalog-flavor-dock .flavor-set[aria-hidden='true'] { display:flex; }
-.catalog-showcase .catalog-flavor-dock .flavor-set button { display:grid; flex:none; justify-items:center; align-content:start; gap:10px; min-width:64px; min-height:94px; max-width:130px; padding:5px 2px; border:0; color:var(--catalog-text,#fff); font-size:12px; background:transparent; cursor:pointer; }
-.catalog-showcase .catalog-flavor-dock .flavor-set button>bdi { max-width:126px; white-space:normal; overflow-wrap:anywhere; line-height:1.35; text-align:center; pointer-events:none; }
-.catalog-showcase .catalog-flavor-dock .flavor-set button>span { width:64px; height:64px; display:grid; place-items:center; border:1px solid #fffc; border-radius:50%; background:#d4e5ed45; box-shadow:inset 0 1px 4px #fff7; transition:transform .25s,box-shadow .25s; pointer-events:none; }
-.catalog-showcase .catalog-flavor-dock .flavor-set button[aria-pressed='true']>span { background:linear-gradient(40deg,#ff7970,#ffdd93); box-shadow:0 0 25px #ffbd69; transform:translateY(-3px); }
+.catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice { display:grid; flex:none; justify-items:center; align-content:start; gap:10px; min-width:64px; min-height:94px; max-width:130px; padding:5px 2px; border:0; color:var(--catalog-text,#fff); font-size:12px; background:transparent; cursor:pointer; }
+.catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice>bdi { max-width:126px; white-space:normal; overflow-wrap:anywhere; line-height:1.35; text-align:center; pointer-events:none; }
+.catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice>span { width:64px; height:64px; display:grid; place-items:center; border:1px solid #fffc; border-radius:50%; background:#d4e5ed45; box-shadow:inset 0 1px 4px #fff7; transition:transform .25s,box-shadow .25s; pointer-events:none; }
+.catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice[data-selected='true']>span { background:linear-gradient(40deg,#ff7970,#ffdd93); box-shadow:0 0 25px #ffbd69; transform:translateY(-3px); }
 .catalog-showcase .catalog-flavor-dock img { width:46px; height:46px; object-fit:contain; object-position:center; border-radius:0; pointer-events:none; -webkit-user-drag:none; }
 .catalog-showcase .catalog-flavor-dock .catalog-image-placeholder { width:38px; height:38px; display:grid; place-items:center; background:transparent; color:inherit; border:0; border-radius:50%; }
-.catalog-showcase .catalog-flavor-dock .flavor-set button:focus-visible { outline:2px solid var(--catalog-text,#fff); outline-offset:-2px; border-radius:12px; }
+.catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice:focus-visible { outline:2px solid var(--catalog-text,#fff); outline-offset:-2px; border-radius:12px; }
 .catalog-showcase .catalog-carousel-static .catalog-carousel-viewport { mask-image:none; -webkit-mask-image:none; cursor:default; }
 .catalog-showcase .catalog-carousel-static .flavor-track { margin-inline:auto; will-change:auto; }
 @media(max-width:760px) {
   .catalog-showcase .catalog-flavor-dock { position:relative; left:auto; bottom:auto; order:3; flex:none; width:calc(100% + 12vw); min-height:102px; padding:0; transform:none; }
   .catalog-showcase .catalog-carousel-viewport { padding:3px 0; mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent); -webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent); }
   .catalog-showcase .catalog-flavor-dock .flavor-track { --flavor-gap:16px; }
-  .catalog-showcase .catalog-flavor-dock .flavor-set button { width:76px; min-width:76px; max-width:76px; min-height:96px; padding:3px 2px; font-size:11px; gap:4px; }
-  .catalog-showcase .catalog-flavor-dock .flavor-set button>bdi { width:calc(100% + 12px); max-width:none; line-height:14px; }
-  .catalog-showcase .catalog-flavor-dock .flavor-set button>span { width:58px; height:58px; }
-}
-@media(prefers-reduced-motion:reduce) {
-  .catalog-showcase .catalog-flavor-dock .flavor-track { animation:none; }
-  .catalog-showcase .catalog-flavor-dock .flavor-set button>span { transition:none; }
+  .catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice { width:76px; min-width:76px; max-width:76px; min-height:96px; padding:3px 2px; font-size:11px; gap:4px; }
+  .catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice>bdi { width:calc(100% + 12px); max-width:none; line-height:14px; }
+  .catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice>span { width:58px; height:58px; }
 }

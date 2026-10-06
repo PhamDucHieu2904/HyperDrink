@@ -37,9 +37,15 @@ export default function FlavorCarousel({ items, selectedId, onSelect }: { items:
   const renderSet = (index: number) => {
     const cloned = index !== (canMove ? 1 : 0);
     return <div key={index} ref={!cloned ? firstSetRef : undefined} className="flavor-set" aria-hidden={cloned || undefined}>
-      {items.map(item => <button key={item.variantId} type="button" data-carousel-item="true" data-variant-id={item.variantId} tabIndex={cloned ? -1 : undefined} aria-pressed={item.variantId === selectedId} onClick={() => { controllerRef.current?.setSelectedId(item.variantId); onSelect(item.variantId); }}>
-        <span><CatalogImage media={item.fruitImage} size={64} /></span><bdi>{item.flavor.shortName || item.flavor.name}</bdi>
-      </button>)}
+      {items.map(item => {
+        const select = () => { controllerRef.current?.setSelectedId(item.variantId); onSelect(item.variantId); };
+        const content = <><span><CatalogImage media={item.fruitImage} size={64} /></span><bdi>{item.flavor.shortName || item.flavor.name}</bdi></>;
+        // Visual loops remain pointer-selectable, but contain no focusable
+        // controls under aria-hidden. The canonical set provides keyboard/AT UI.
+        return cloned
+          ? <span key={item.variantId} className="flavor-choice" role="presentation" aria-hidden="true" data-carousel-item="true" data-variant-id={item.variantId} data-selected={item.variantId === selectedId} onClick={select}>{content}</span>
+          : <button key={item.variantId} className="flavor-choice" type="button" data-carousel-item="true" data-variant-id={item.variantId} data-selected={item.variantId === selectedId} aria-pressed={item.variantId === selectedId} onClick={select}>{content}</button>;
+      })}
     </div>;
   };
 

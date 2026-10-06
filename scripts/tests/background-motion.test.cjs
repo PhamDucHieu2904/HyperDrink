@@ -70,7 +70,7 @@ function backgroundFixture(context, options = {}) {
   let ref = 0, time = 0, frameId = 0, intersection;
   const frames = new Map();
   const fine = { ...target(), matches: options.fine ?? false };
-  const reduced = { ...target(), matches: false };
+  const reduced = { ...target(), matches: options.reducedMotion ?? false };
   const windowTarget = target();
   const documentTarget = { ...target(), hidden: false };
   const previous = new Map(['window', 'document', 'matchMedia', 'innerHeight', 'performance', 'IntersectionObserver', 'requestAnimationFrame', 'cancelAnimationFrame']
@@ -112,8 +112,8 @@ function backgroundFixture(context, options = {}) {
     setVisible: (value) => intersection([{ isIntersecting: value }]) };
 }
 
-test('coarse-pointer mobile backgrounds drift without input and suspend cleanly for lifecycle and reduced motion', (context) => {
-  const f = backgroundFixture(context);
+test('coarse-pointer mobile backgrounds drift with OS reduced motion enabled and suspend only for visibility', (context) => {
+  const f = backgroundFixture(context, { reducedMotion: true });
   f.advance(1);
   assert.ok(Math.hypot(...f.position()) > 5, 'Touch hero must travel automatically before any interaction');
   f.hero.emit('pointermove', { pointerType: 'touch', clientX: 300, clientY: 300 });
@@ -122,13 +122,22 @@ test('coarse-pointer mobile backgrounds drift without input and suspend cleanly 
   for (const [pause, resume] of [
     [() => { f.documentTarget.hidden = true; f.documentTarget.emit('visibilitychange'); }, () => { f.documentTarget.hidden = false; f.documentTarget.emit('visibilitychange'); }],
     [() => f.setVisible(false), () => f.setVisible(true)],
-    [() => { f.reduced.matches = true; f.reduced.emit('change'); }, () => { f.reduced.matches = false; f.reduced.emit('change'); }],
   ]) {
     pause(); const paused = f.track.style.transform;
     assert.equal(f.frames.size, 0); f.advance(10); assert.equal(f.track.style.transform, paused);
     resume(); f.advance(1); assert.notEqual(f.track.style.transform, paused);
     assert.equal(f.frames.size, 1, 'Resume must create one RAF loop');
   }
+  for (const matches of [false, true]) {
+    const before = f.track.style.transform;
+    f.reduced.matches = matches; f.reduced.emit('change'); f.advance(1);
+    assert.notEqual(f.track.style.transform, before, 'OS preference changes do not stop the product background');
+    assert.equal(f.frames.size, 1);
+  }
+  f.renderState.setFlavor(1, performance.now(), false);
+  assert.equal(f.renderState.weights[1], 0, 'Flavor colors still crossfade rather than snap');
+  f.advance(0.5); assert.ok(f.renderState.weights[1] > 0 && f.renderState.weights[1] < 1);
+  f.advance(0.5); assert.equal(f.renderState.weights[1], 1);
   f.dispose();
   assert.equal(f.frames.size, 0);
   for (const surface of [f.hero, f.windowTarget, f.documentTarget, f.reduced, f.fine]) assert.equal(surface.listenerCount(), 0);
@@ -152,6 +161,51 @@ test('visible backgrounds start at configured speed without focus, clicks or poi
   const after = f.position();
   assert.ok(Math.abs(Math.hypot(after[0] - center[0], after[1] - center[1]) - config.backgroundConfig.maxSpeed / 60) < 0.001,
     'A cursor at the exact hero center relinquishes steering without stopping travel');
+});
+
+test('category navigation advances with OS reduced motion and still pauses outside the viewport or hidden tab', context => {
+  const globals = ['document', 'matchMedia', 'getComputedStyle', 'ResizeObserver', 'IntersectionObserver', 'requestAnimationFrame', 'cancelAnimationFrame'];
+  const prior = new Map(globals.map(key => [key, global[key]]));
+  const root = new EventTarget(); root.clientWidth = 200; root.dataset = {};
+  const set = { offsetWidth: 600, children: Array.from({ length: 6 }, (_, i) => ({ offsetLeft: i * 100 })) };
+  const track = { style: {}, querySelector: () => set };
+  const document = new EventTarget(); document.hidden = false;
+  const reduced = new EventTarget(); reduced.matches = true;
+  const frames = new Map(); let ref = 0, next = 0, time = 0, intersection, cleanup;
+  Object.assign(global, {
+    document, matchMedia: () => reduced, getComputedStyle: () => ({ gap: '0px' }),
+    requestAnimationFrame: work => { frames.set(++next, work); return next; }, cancelAnimationFrame: id => frames.delete(id),
+    ResizeObserver: class { observe() {} disconnect() {} },
+    IntersectionObserver: class { constructor(work) { intersection = work; } observe() {} disconnect() {} },
+  });
+  context.after(() => {
+    cleanup?.();
+    for (const [key, value] of prior) { if (value === undefined) delete global[key]; else global[key] = value; }
+  });
+  const component = loadSource('components/BeverageCategoryRail.tsx', name => {
+    if (name === 'react') return { useRef: () => ({ current: ref++ ? track : root }), useEffect: effect => { cleanup = effect(); } };
+    if (name.endsWith('beverage-lines')) return { beverageLines: [] };
+    if (name === './LanguageProvider') return { useLanguage: () => ({ t: key => key, locale: 'en' }) };
+    return require(name);
+  }).default;
+  component();
+  const advance = seconds => {
+    for (let i = 0; i < seconds * 60; i++) {
+      time += 1000 / 60; const active = [...frames.values()]; frames.clear(); active.forEach(work => work(time));
+    }
+  };
+  const initial = track.style.transform; advance(4); assert.notEqual(track.style.transform, initial);
+  for (const matches of [false, true]) {
+    reduced.matches = matches; reduced.dispatchEvent(new Event('change'));
+    const before = track.style.transform; advance(4); assert.notEqual(track.style.transform, before); assert.equal(frames.size, 1);
+  }
+  for (const [pause, resume] of [
+    [() => { document.hidden = true; document.dispatchEvent(new Event('visibilitychange')); }, () => { document.hidden = false; document.dispatchEvent(new Event('visibilitychange')); }],
+    [() => intersection([{ isIntersecting: false }]), () => intersection([{ isIntersecting: true }])],
+  ]) {
+    pause(); const before = track.style.transform; advance(10); assert.equal(frames.size, 0); assert.equal(track.style.transform, before);
+    resume(); advance(4); assert.notEqual(track.style.transform, before); assert.equal(frames.size, 1);
+  }
 });
 
 test('mouse-to-autonomous handoff preserves speed and master disable keeps both input modes static', (context) => {

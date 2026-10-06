@@ -407,7 +407,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
   global.performance = { now: () => frameTime };
   global.window = {
     devicePixelRatio: pixelRatio, innerWidth: 1440,
-    matchMedia() { return { matches: false, addEventListener(_type, listener) { motionListeners.add(listener); },
+    matchMedia(query) { return { matches: query.includes('prefers-reduced-motion') && Boolean(options.reducedMotion), addEventListener(_type, listener) { motionListeners.add(listener); },
       removeEventListener(_type, listener) { motionListeners.delete(listener); } }; },
   };
   if (options.controlledIdle) {
@@ -541,6 +541,30 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
     model, asset, flush, advance, setReducedMotion: (matches) => motionListeners.forEach((listener) => listener({ matches })),
     disposedCount: () => productsDisposed };
 }
+
+test('OS reduced motion does not disable idle spin, flavor turns, packaging transitions or accents', async context => {
+  const f = runtimeFixture(context, true, 1, { reducedMotion: true });
+  f.viewer.select(f.asset('can'), { id: 'orange' });
+  f.geometryRequests[0].resolve(f.model()); await f.flush(); f.advance(0.05);
+  const product = f.renderer.scene.children.find(node => node instanceof THREE.Group);
+  const before = product.quaternion.clone(); f.advance(2);
+  assert.ok(product.quaternion.angleTo(before) > 0.3, 'Idle spin starts without user input even with reduced motion enabled');
+  f.setReducedMotion(false); f.setReducedMotion(true);
+  const changed = product.quaternion.clone(); f.advance(1);
+  assert.ok(product.quaternion.angleTo(changed) > 0.1, 'Changing the OS preference cannot freeze the product');
+  f.viewer.select(f.asset('can'), { id: 'lime' }); await f.flush();
+  assert.equal(f.mount.dataset.transitionPhase, 'flavor');
+  f.advance(3); assert.equal(f.mount.dataset.appearanceId, 'lime');
+  f.viewer.select(f.asset('tall'), { id: 'mango' });
+  f.geometryRequests[1].resolve(f.model(0.18)); await f.flush();
+  f.setReducedMotion(true); f.advance(0.2);
+  assert.match(f.mount.dataset.transitionPhase, /^package-/);
+  f.advance(3); assert.equal(f.mount.dataset.productId, 'tall');
+  assert.equal(f.mount.dataset.transitionPhase, 'idle');
+  assert.ok(f.accentFrames.every(frame => frame.reducedMotion === false), 'Decorative motion uses the same website policy');
+  f.viewer.pause(true); f.advance(2); const paused = product.quaternion.toArray(); f.advance(1);
+  assert.deepEqual(product.quaternion.toArray(), paused, 'Explicit viewer pause remains effective after an in-flight return settles');
+});
 
 test('60 Hz animation frames with ordinary timestamp jitter retain nearly every draw instead of falling to half the frame rate', async context => {
   const f = runtimeFixture(context, true);
@@ -1126,16 +1150,15 @@ test('a failed required pending package is discarded and choosing another flavor
   assert.equal(f.mount.dataset.productId, 'tall'); assert.equal(f.statuses.at(-1).phase, 'ready'); assert.equal(f.accentFrames.at(-1).ready, true);
 });
 
-for (const mode of ['paused', 'reduced-motion']) for (const change of ['source', 'sampler']) test(`${mode} asset ${change} replacement with the same ID waits for new geometry and appearance`, async (context) => {
-  const { viewer, renderer, geometryRequests, appearanceRequests, accentFrames, model, asset, flush, advance, setReducedMotion } = runtimeFixture(context);
+for (const change of ['source', 'sampler']) test(`paused asset ${change} replacement with the same ID waits for new geometry and appearance`, async (context) => {
+  const { viewer, renderer, geometryRequests, appearanceRequests, accentFrames, model, asset, flush, advance } = runtimeFixture(context);
   const original = asset('can');
   viewer.select(original, { id: 'citrus' });
   geometryRequests[0].resolve(model(0.08)); await flush(); appearanceRequests[0].resolve(); await flush(); advance(0.05);
   assert.equal(accentFrames.at(-1).ready, true);
   const product = renderer.scene.children.find(child => child instanceof THREE.Group);
   const outgoing = product.children[0];
-  if (mode === 'paused') viewer.pause(true);
-  else setReducedMotion(true);
+  viewer.pause(true);
   viewer.select(original, { id: 'lime', slots: { label: { baseColorMap: '/slow/old-lime.png' } } });
   const replacement = change === 'source' ? { ...original, src: '/replacement-can.glb' }
     : { ...original, textureSamplers: { label: { wrapS: 'repeat', wrapT: 'clamp' } } };
@@ -1314,22 +1337,22 @@ test('packaging holds for a slow latest selection and restores the old package o
   assert.equal(statuses.at(-1).phase, 'error');
 });
 
-test('reduced motion interrupts rebound safely and zero amplitude skips the rebound duration', async (context) => {
-  const { viewer, mount, renderer, geometryRequests, model, asset, flush, advance, setReducedMotion } = runtimeFixture(context, true);
+test('explicit pause interrupts rebound safely and zero amplitude skips the rebound duration', async (context) => {
+  const { viewer, mount, renderer, geometryRequests, model, asset, flush, advance } = runtimeFixture(context, true);
   viewer.select(asset('a')); geometryRequests[0].resolve(model()); await flush(); advance(0.05);
   const product = renderer.scene.children.find((node) => node instanceof THREE.Group);
   const rest = new THREE.Quaternion().setFromEuler(new THREE.Euler(...config.DEFAULT_VIEWER_PRESENTATION.pose, 'YXZ'));
   viewer.select(asset('b')); geometryRequests[1].resolve(model(0.18)); await flush(); advance(1.65);
   assert.equal(mount.dataset.transitionPhase, 'package-bounce');
   assert.ok(product.scale.x > 1.1);
-  setReducedMotion(true); advance(1 / 120);
+  viewer.pause(true); advance(1 / 120);
   assert.equal(mount.dataset.transitionPhase, 'idle');
-  assert.equal(product.scale.x, 1, 'Reduced motion clears overshoot immediately');
+  assert.equal(product.scale.x, 1, 'Explicit pause clears overshoot immediately');
   assert.ok(product.quaternion.angleTo(rest) < 1e-7);
   viewer.select(asset('c')); geometryRequests[2].resolve(model(0.08)); await flush();
-  assert.equal(mount.dataset.productId, 'c', 'Reduced motion activates decoded geometry without a timed animation');
+  assert.equal(mount.dataset.productId, 'c', 'Explicit pause activates decoded geometry without a timed animation');
   assert.equal(mount.dataset.transitionPhase, 'idle');
-  setReducedMotion(false);
+  viewer.pause(false);
   viewer.configure({ ...config.DEFAULT_VIEWER_PRESENTATION,
     motion: { ...config.DEFAULT_VIEWER_PRESENTATION.motion, packageBounceAmount: 0 } });
   viewer.select(asset('d')); geometryRequests[3].resolve(model()); await flush();
