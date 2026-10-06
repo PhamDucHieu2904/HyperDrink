@@ -100,7 +100,7 @@ test('every image role resizes inside its limit, preserves the whole composition
   await withMediaFolder(async folder => {
     const width = 2400, height = 1200;
     const input = await sharp(splitPixels(width, height), { raw: { width, height, channels: 3 } }).png().toBuffer();
-    for (const [role, limit] of [['label', 2048], ['thumbnail', 512], ['icon', 256], ['fruit', 1600], ['leaf', 1600], ['splash', 1600], ['poster', 1600], ['image-2d', 1600]]) {
+    for (const [role, limit] of [['label', 2048], ['thumbnail', 512], ['icon', 256], ['fruit', 1600], ['leaf', 1600], ['splash', 1600], ['ice', 1600], ['poster', 1600], ['image-2d', 1600]]) {
       const record = await upload.processUpload(imageFile(input), role, folder), output = stored(record, folder);
       const metadata = await sharp(output).metadata();
       assert.equal(record.mime, 'image/webp'); assert.equal(metadata.format, 'webp');
@@ -123,7 +123,7 @@ test('small images are not enlarged and transparent alpha stays intact without c
     }
     pixels[(2 * width + 3) * 4 + 3] = 255;
     const input = await sharp(pixels, { raw: { width, height, channels: 4 } }).png().toBuffer();
-    for (const role of ['fruit', 'leaf', 'splash', 'label']) {
+    for (const role of ['fruit', 'leaf', 'splash', 'ice', 'label']) {
       const record = await upload.processUpload(imageFile(input), role, folder), output = stored(record, folder);
       assert.equal(record.width, width); assert.equal(record.height, height);
       const metadata = await sharp(output).metadata(); assert.equal(metadata.hasAlpha, true);

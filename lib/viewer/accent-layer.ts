@@ -11,9 +11,16 @@ import { createBlendedAccentHost } from './blended-accent';
 
 type BlendedHost = NonNullable<ReturnType<typeof createBlendedAccentHost>>;
 type AccentObject = { node: ProductAccentNode; group: THREE.Group; materials: THREE.Material[]; resources: Array<{ dispose(): void }>; imageSize: [number, number]; ready: boolean; blended?: ReturnType<BlendedHost['add']> };
+type SourceTextureEntry = { promise: Promise<THREE.Texture>; texture?: THREE.Texture };
 type AccentFrame = { deltaSeconds: number; ready: boolean; viewerIdle: boolean; reducedMotion: boolean; paused: boolean; height: number; width: number; productRadius: number; maximumProductScale: number; camera: THREE.PerspectiveCamera; resolution?: [number, number] };
 const ATLAS = '/assets/scene/fruit-leaf-atlas.webp';
 const GLASS_ATLAS = '/assets/scene/ice-droplet-atlas.webp';
+const SOURCE_TEXTURE_LIMIT = 16;
+const sourceForNode = (node: ProductAccentNode) => {
+  if (node.assetUrl && /\.glb(?:\?|$)/i.test(node.assetUrl)) return undefined;
+  if (!node.assetUrl && (node.kind === 'droplet' || node.kind === 'splash')) return undefined;
+  return node.assetUrl ?? (node.kind === 'ice' ? GLASS_ATLAS : ATLAS);
+};
 // Analytic water and legacy atlas cells retain their authored footprints.
 // Standalone images use their decoded canvas ratio within this maximum size.
 const planeSize = (node: ProductAccentNode) => node.kind === 'droplet' && !node.assetUrl ? 1.7 : 1;
@@ -39,17 +46,66 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
   let disposed = false, revision = 0;
   let blendedHost: ReturnType<typeof createBlendedAccentHost>;
   let backdrop: THREE.Texture | null = null;
-  const textures = new Set<THREE.Texture>();
-  const textureRequests = new Map<string, Promise<THREE.Texture>>();
+  const textureRequests = new Map<string, SourceTextureEntry>();
+  let pendingTextureLoads = 0;
   const colorMaps = new THREE.TextureLoader();
+  const pinnedSources = () => new Set([
+    ...(config?.enabled ? resolveAccentNodes(config, desiredFlavor).filter(node => node.enabled).map(sourceForNode) : []),
+    // A flavor variant can fade out after the next flavor is selected. Keep its
+    // source alive until clear() releases the last texture transform clone.
+    ...objects.map(item => sourceForNode(item.node)),
+  ].filter((src): src is string => Boolean(src)));
+  const reportTextureCache = () => {
+    if (!mount?.dataset) return;
+    const pinned = pinnedSources();
+    mount.dataset.accentSourceCount = String(textureRequests.size);
+    mount.dataset.accentSourceReady = String([...textureRequests.values()].filter(entry => entry.texture).length);
+    mount.dataset.accentSourcePinned = String(pinned.size);
+    mount.dataset.accentSourceLimit = String(Math.max(SOURCE_TEXTURE_LIMIT, pinned.size));
+    mount.dataset.accentSourcePending = String(pendingTextureLoads);
+  };
+  const disposeSource = (texture: THREE.Texture) => {
+    const image = texture.source.data;
+    if (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap) image.close();
+    texture.dispose();
+  };
+  const pruneTextureCache = () => {
+    const pinned = pinnedSources();
+    const limit = Math.max(SOURCE_TEXTURE_LIMIT, pinned.size);
+    for (const [src, entry] of textureRequests) {
+      if (textureRequests.size <= limit) break;
+      if (pinned.has(src)) continue;
+      textureRequests.delete(src);
+      if (entry.texture) disposeSource(entry.texture);
+    }
+    reportTextureCache();
+  };
   const getTexture = (src: string) => {
-    if (!textureRequests.has(src)) textureRequests.set(src, colorMaps.loadAsync(publicUrl(src)).then(texture => {
-      if (disposed) { texture.dispose(); throw new Error('Accent layer disposed'); }
+    const cached = textureRequests.get(src);
+    if (cached) {
+      textureRequests.delete(src); textureRequests.set(src, cached);
+      return cached.promise;
+    }
+    pendingTextureLoads += 1;
+    const promise = colorMaps.loadAsync(publicUrl(src)).then(texture => {
+      // TextureLoader cannot cancel a started image request. An evicted result
+      // is released immediately, even if this URL has since been requested anew.
+      if (disposed || textureRequests.get(src) !== entry) {
+        disposeSource(texture); throw new Error('Accent source no longer cached');
+      }
       texture.colorSpace = THREE.SRGBColorSpace;
-      textures.add(texture);
+      entry.texture = texture;
+      reportTextureCache();
       return texture;
-    }).catch(error => { textureRequests.delete(src); throw error; }));
-    return textureRequests.get(src)!;
+    }).catch(error => {
+      if (textureRequests.get(src) === entry) textureRequests.delete(src);
+      reportTextureCache();
+      throw error;
+    }).finally(() => { pendingTextureLoads -= 1; reportTextureCache(); });
+    const entry: SourceTextureEntry = { promise };
+    textureRequests.set(src, entry);
+    pruneTextureCache();
+    return promise;
   };
   const clear = () => {
     revision += 1;
@@ -58,6 +114,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       item.resources.forEach(resource => resource.dispose());
     });
     objects = [];
+    pruneTextureCache();
   };
   const trackMaterial = (item: AccentObject, material: THREE.Material, baseOpacity = 1) => {
     material.userData.accentOpacity = baseOpacity * (item.node.opacity ?? 1);
@@ -194,6 +251,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       }
       return item;
     });
+    pruneTextureCache();
   };
   return {
     setBackdrop(texture: THREE.Texture | null) {
@@ -206,6 +264,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       const changed = JSON.stringify(next) !== JSON.stringify(config);
       config = next; desiredFlavor = flavor; desiredKey = selectionKey;
       if (changed) { renderedSignature = ''; state = createAccentMotion(selectionKey); clear(); }
+      pruneTextureCache();
       root.visible = Boolean(config?.enabled); invalidate();
     },
     update(frame: AccentFrame) {
@@ -268,7 +327,9 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     },
     dispose() {
       if (disposed) return;
-      disposed = true; clear(); blendedHost?.dispose(); textures.forEach(texture => texture.dispose()); textures.clear(); textureRequests.clear(); root.removeFromParent();
+      disposed = true; config = undefined; clear(); blendedHost?.dispose();
+      textureRequests.forEach(entry => { if (entry.texture) disposeSource(entry.texture); });
+      textureRequests.clear(); reportTextureCache(); root.removeFromParent();
     },
   };
 }

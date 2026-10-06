@@ -30,18 +30,23 @@ const configName = { labels: 'nhãn', models3d: 'model 3D', assets2d: 'model 2D'
 export default function ResourceWorkspace({ catalog, filter, onFilter, disabled, busy, onEdit, onCreate, onDelete, onArchive, onRestore, onUpload, onRefresh }: Props) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('active');
+  const [flavorFilter, setFlavorFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [uploadRole, setUploadRole] = useState<MediaRole>('thumbnail');
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState<{ message: string; error: boolean } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const rows = catalogResources(catalog);
-  const available = filterResources(rows, 'all', status, query);
-  const filtered = filterResources(rows, filter, status, query);
+  const available = filterResources(rows, 'all', status, query, flavorFilter);
+  const filtered = filterResources(rows, filter, status, query, flavorFilter);
   const pages = Math.max(1, Math.ceil(filtered.length / 20));
   const currentPage = Math.min(page, pages);
   const selectedType = RESOURCE_TYPES.find(item => item.role === filter);
   const role = filter === 'all' ? uploadRole : filter;
+  function flavorMembership(ids: string[]) {
+    const names = catalog.flavors.filter(flavor => ids.includes(flavor.id)).map(flavor => flavor.name);
+    return <small className={styles.flavorMembership} title={names.join(', ')}>Hương vị: {names.slice(0, 2).join(', ')}{names.length > 2 ? ` · +${names.length - 2} hương vị` : ''}</small>;
+  }
   async function upload(file: File) {
     if (!onUpload) return;
     setUploading(true); setNotice(null);
@@ -63,6 +68,7 @@ export default function ResourceWorkspace({ catalog, filter, onFilter, disabled,
     <section className={shared.dataPanel}>
       <div className={shared.tableToolbar}><label className={shared.search}><Search size={18} /><input aria-label="Tìm tài nguyên" placeholder="Tìm tên file hoặc cấu hình…" value={query} onChange={event => { setQuery(event.target.value); setPage(1); }} /></label><div className={shared.filterControls}>
         <select aria-label="Lọc trạng thái tài nguyên" value={status} onChange={event => { setStatus(event.target.value); setPage(1); }}><option value="active">Đang sử dụng</option><option value="archived">Đã lưu trữ</option><option value="all">Tất cả trạng thái</option></select>
+        <select aria-label="Lọc tài nguyên theo hương vị" value={flavorFilter} onChange={event => { setFlavorFilter(event.target.value); setPage(1); }}><option value="all">Tất cả hương vị</option><option value="unassigned">Chưa gắn hương vị</option>{catalog.flavors.slice().sort((a, b) => a.name.localeCompare(b.name, 'vi')).map(flavor => <option key={flavor.id} value={flavor.id}>{flavor.name}</option>)}</select>
         {filter === 'all' && <label className={styles.uploadType}>Loại file tải lên<select aria-label="Loại file tải lên" disabled={uploading} value={uploadRole} onChange={event => setUploadRole(event.target.value as MediaRole)}>{RESOURCE_TYPES.map(type => <option key={type.role} value={type.role}>{type.label}</option>)}</select></label>}
         <span className={shared.resultCount}>{filtered.length} tài nguyên</span>
       </div></div>
@@ -73,6 +79,7 @@ export default function ResourceWorkspace({ catalog, filter, onFilter, disabled,
           <div className={styles.fileSummary}><MediaThumbnail media={row.role === 'model' ? catalog.media.find(item => item.id === (row.configurations[0]?.record as { posterId?: string })?.posterId) : row.media} /><div>
             <strong>{row.name}</strong><div className={styles.metadata}><span className={shared.softBadge}>{RESOURCE_TYPES.find(type => type.role === row.role)?.label}</span><span>{row.media ? mediaSummary(row.media) : 'Cấu hình chưa có file'}</span></div>
             {row.media && <small>{row.media.status === 'ready' ? 'File sẵn sàng' : row.media.status === 'failed' ? row.media.error || 'File bị lỗi' : 'Đang xử lý'} · {row.media.lifecycle === 'active' ? 'Đang sử dụng' : 'Đã lưu trữ'}</small>}
+            {row.flavorIds.length > 0 && flavorMembership(row.flavorIds)}
           </div></div>
           {row.media && <div className={styles.fileActions}>
             {row.media.lifecycle === 'archived' ? <button className={shared.iconButton} aria-label={`Khôi phục file ${row.name}`} disabled={disabled || busy === row.media.id} onClick={() => void onRestore('media', row.media!)}><RotateCcw size={17} /></button> : onArchive && <button className={shared.iconButton} aria-label={`Lưu trữ file ${row.name}`} disabled={disabled || busy === row.media.id} onClick={() => void onArchive('media', row.media!)}><Archive size={17} /></button>}

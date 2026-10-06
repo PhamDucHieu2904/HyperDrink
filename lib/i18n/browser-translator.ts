@@ -1,6 +1,6 @@
 import type { CatalogData } from '@/lib/catalog/contracts';
 import type { Locale } from './catalog';
-import { catalogTexts } from './dynamic-catalog';
+import { catalogTexts, type CatalogTranslationOptions } from './dynamic-catalog';
 
 export type TranslationStatus = 'idle' | 'translating' | 'downloading' | 'needs-activation' | 'unsupported' | 'error' | 'ready';
 export interface TranslationProgress { status: TranslationStatus; completed: number; total: number; download?: number }
@@ -140,16 +140,16 @@ export class BrowserCatalogTranslator {
     if (/\p{Script=Han}/u.test(text)) return 'zh';
     return 'en';
   }
-  cached(data: CatalogData, target: Locale): Map<string, string> {
+  cached(data: CatalogData, target: Locale, options: CatalogTranslationOptions = {}): Map<string, string> {
     this.readCache();
     const result = new Map<string, string>();
-    for (const text of catalogTexts(data)) { const cached = this.cache.get(`${target}:${text}`); if (cached) result.set(text, cached); }
+    for (const text of catalogTexts(data, options)) { const cached = this.cache.get(`${target}:${text}`); if (cached) result.set(text, cached); }
     return result;
   }
-  async translate(data: CatalogData, target: Locale, signal: AbortSignal, onUpdate: (translations: Map<string, string>) => void) {
+  async translate(data: CatalogData, target: Locale, signal: AbortSignal, onUpdate: (translations: Map<string, string>) => void, options: CatalogTranslationOptions = {}) {
     this.currentLocale = target;
-    const texts = catalogTexts(data);
-    const translations = this.cached(data, target);
+    const texts = catalogTexts(data, options);
+    const translations = this.cached(data, target, options);
     onUpdate(new Map(translations));
     if (translations.size === texts.length) { this.report({ status: 'ready', completed: translations.size, total: texts.length }, target); return; }
     if (!this.environment().Translator) { this.report({ status: 'unsupported', completed: translations.size, total: texts.length }, target); return; }

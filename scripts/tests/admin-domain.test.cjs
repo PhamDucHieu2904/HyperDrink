@@ -53,6 +53,20 @@ function fixture() {
   };
 }
 const errors = issues => issues.filter(issue => issue.severity === 'error');
+
+test('product marketing messages remain optional for legacy drafts and survive release creation', () => {
+  const data = fixture(), group = data.productGroups[0];
+  assert.deepEqual(validation.validateRecord('productGroups', group, { mode: 'publish' }), []);
+  Object.assign(group, { heroVolumeCaption: 'Net content', heroFlavorText: 'Many flavor choices', heroOriginText: 'Real fruit from Vietnam' });
+  assert.deepEqual(validation.validateRecord('productGroups', group, { mode: 'publish' }), []);
+  const published = service.prepareCatalogRelease(data).productGroups[0];
+  for (const field of ['heroVolumeCaption', 'heroFlavorText', 'heroOriginText']) {
+    assert.equal(published[field], group[field]);
+    assert.ok(validation.validateRecord('productGroups', { ...group, [field]: 'x'.repeat(101) }).some(issue => issue.field === field));
+    assert.ok(validation.validateRecord('productGroups', { ...group, [field]: 123 }).some(issue => issue.field === field));
+    assert.ok(validation.validateRecord('productGroups', { ...group, [field]: '\u0000' }).some(issue => issue.field === field));
+  }
+});
 const codes = issues => new Set(issues.map(issue => issue.code));
 function expectCode(data, code) { assert.ok(codes(validation.preflightCatalog(data)).has(code), `Expected ${code}`); }
 
@@ -612,7 +626,7 @@ test('button reorder is atomic, complete and checks each slot revision', () => {
 
 
 test('flavor thumbnails accept all image roles, reusable icon links are published, and old flavors remain valid', () => {
-  for (const role of ['thumbnail', 'fruit', 'label', 'leaf', 'splash', 'poster', 'image-2d', 'icon']) {
+  for (const role of ['thumbnail', 'fruit', 'label', 'leaf', 'splash', 'ice', 'poster', 'image-2d', 'icon']) {
     const data = fixture(); data.media.find(item => item.id === 'thumbnail-lime').role = role;
     assert.deepEqual(errors(validation.preflightCatalog(data)), []);
   }

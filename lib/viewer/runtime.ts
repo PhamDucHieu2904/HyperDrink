@@ -8,6 +8,8 @@ import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { ProductAppearance, ProductAsset, ViewerPresentation, assetUrl } from '../viewer-config';
 import { AppearanceHandle, createAppearanceHandle, disposeProduct } from './appearance';
+import { createPooledAppearanceHandle, type PooledAppearanceHandle } from './pooled-appearance';
+import { createResourcePrefetcher, type ViewerResourceWindow } from './resource-prefetch';
 import { createProductFramingFrames, createRadialProductEnvelope, fitProductCamera, interpolatePackageAim } from './framing';
 import { packageCapPose, packageEntryScale, packageExitProgress, packageMaximumScale, packageSpinProgress, smoothstep } from './package-motion';
 import { createDaylightEnvironment, environmentCacheKey } from './environment';
@@ -26,6 +28,7 @@ export interface ViewerStatus {
 }
 export interface ProductViewerController {
   select(asset: ProductAsset, appearance?: ProductAppearance): void;
+  resources(window?: ViewerResourceWindow): void;
   configure(presentation: ViewerPresentation): void;
   accents(scene: ProductAccentSceneInput | undefined, key: string, flavor: AccentFlavor): void;
   backdrop(source?: ProductViewerBackdropInput): void;
@@ -34,6 +37,7 @@ export interface ProductViewerController {
   dispose(): void;
 }
 type LoadedProduct = { root: THREE.Group; content: THREE.Group; appearance: AppearanceHandle; asset: ProductAsset; definitionKey: string; bounds: THREE.Box3; radius: number; framingPoints?: THREE.Vector3[] };
+const definitionOf = (asset: ProductAsset) => JSON.stringify({ id: asset.id, src: asset.src, slots: asset.materialSlots, samplers: asset.textureSamplers, orientation: asset.orientation });
 type Point = { x: number; y: number };
 type Transition = { origin: THREE.Quaternion; angle: number; velocity: number; initialVelocity: number; elapsed: number; swapped: boolean };
 type PackageTransition = {
@@ -100,6 +104,68 @@ export function createProductViewer(
   let currentAppearanceKey = '';
   let failedAppearanceKey: string | null = null;
   let appearanceReady = true;
+  let resourceWindow: ViewerResourceWindow | undefined;
+  const geometryCache = new Map<string, LoadedProduct>();
+  let warmRevision = 0;
+  let modelLoads = 0;
+  const warmedTextures = new WeakSet<THREE.Texture>();
+  const prefetch = createResourcePrefetcher({ onDiagnostics: value => {
+    mount.dataset.prefetchFiles = String(value.entries);
+    mount.dataset.prefetchBytes = String(value.bytes);
+    mount.dataset.prefetchPending = String(value.queued + value.inFlight);
+  } });
+  prefetch.setEnabled(false);
+  const idle = () => new Promise<void>(resolve => {
+    // A timer gap also works on mobile Safari, which lacks requestIdleCallback.
+    setTimeout(() => {
+      if ('requestIdleCallback' in window) window.requestIdleCallback(() => resolve(), { timeout: 800 });
+      else resolve();
+    }, 40);
+  });
+  const poolOf = (loaded: LoadedProduct | null) => loaded?.appearance && 'setWindow' in loaded.appearance ? loaded.appearance as PooledAppearanceHandle : null;
+  const updatePrefetch = () => prefetch.setEnabled(Boolean(resourceWindow && active && appearanceReady && !document.hidden && visible && !paused));
+  const createHandle = (content: THREE.Group, asset: ProductAsset): AppearanceHandle => resourceWindow ? createPooledAppearanceHandle(content, asset, {
+    acquireUrl: prefetch.acquireUrl,
+    onChange: (ready, pending) => {
+      if (definitionOf(asset) !== assetDefinitionKey) return;
+      mount.dataset.labelPoolReady = String(ready);
+      mount.dataset.labelPoolPending = String(pending);
+    },
+    async warmup(root, isCurrent) {
+      const textures = new Set<THREE.Texture>();
+      root.traverse(node => {
+        if (!(node instanceof THREE.Mesh)) return;
+        for (const material of Array.isArray(node.material) ? node.material : [node.material]) {
+          Object.values(material).forEach(value => { if (value instanceof THREE.Texture) textures.add(value); });
+        }
+      });
+      for (const texture of textures) {
+        if (warmedTextures.has(texture)) continue;
+        await idle();
+        if (disposed || !isCurrent()) return;
+        renderer.initTexture(texture);
+        warmedTextures.add(texture);
+      }
+      if (disposed || !isCurrent()) return;
+      await renderer.compileAsync(root, camera, scene);
+    },
+  }) : createAppearanceHandle(content, asset);
+  const warmNeighbors = () => {
+    const thisRevision = ++warmRevision;
+    const loaded = active;
+    const pool = poolOf(loaded);
+    if (!loaded || !pool) return;
+    const neighbors = resourceWindow?.ready.filter(candidate => definitionOf(candidate.asset) === loaded.definitionKey).slice(0, 5) ?? [];
+    pool.setWindow(neighbors.map(candidate => candidate.appearance));
+    if (!appearanceReady || loaded.definitionKey !== assetDefinitionKey || document.hidden || !visible || paused || !prefetch.allowsBackground()) return;
+    void (async () => {
+      for (const candidate of neighbors) {
+        await idle();
+        if (disposed || thisRevision !== warmRevision || active !== loaded || !appearanceReady || document.hidden || !visible || paused || !prefetch.allowsBackground()) return;
+        try { await pool.prepare(candidate.appearance); } catch { /* A neighbor may be missing; selected-product validation still reports it. */ }
+      }
+    })();
+  };
   let lights: THREE.Light[] = [];
   let fitDistance = 0.4;
   let currentDistance = 0.4;
@@ -154,6 +220,23 @@ export function createProductViewer(
     loaded.root.removeFromParent();
     loaded.appearance.dispose();
     disposeProduct(loaded.root);
+  };
+  const reportGeometry = () => { mount.dataset.modelPoolSize = String(geometryCache.size + Number(Boolean(active)) + Number(Boolean(pendingProduct))); };
+  const recycle = (loaded: LoadedProduct | null) => {
+    if (!loaded) return;
+    if (!resourceWindow || disposed) { discard(loaded); return; }
+    loaded.root.removeFromParent();
+    // Inactive geometry retains only imported PBR, never another five-label pool.
+    loaded.appearance.dispose();
+    const previous = geometryCache.get(loaded.definitionKey);
+    if (previous && previous !== loaded) discard(previous);
+    geometryCache.delete(loaded.definitionKey);
+    geometryCache.set(loaded.definitionKey, loaded);
+    while (geometryCache.size > 1) {
+      const key = geometryCache.keys().next().value!;
+      const oldest = geometryCache.get(key)!;
+      geometryCache.delete(key); discard(oldest);
+    }
   };
   const fitCamera = () => {
     // Keep the outgoing camera unchanged until the package is hidden for its swap.
@@ -298,7 +381,7 @@ export function createProductViewer(
   };
   const activatePendingProduct = () => {
     if (!pendingProduct) return;
-    discard(active);
+    recycle(active);
     active = pendingProduct;
     pendingProduct = null;
     product.add(active.root);
@@ -306,6 +389,7 @@ export function createProductViewer(
     mount.dataset.productId = active.asset.id;
     fitCamera();
     emitStatus('ready');
+    reportGeometry(); updatePrefetch(); warmNeighbors();
   };
   const applyAppearance = async (loaded: LoadedProduct, appearance: ProductAppearance | undefined) => {
     const appearanceKey = JSON.stringify(appearance ?? null);
@@ -313,6 +397,9 @@ export function createProductViewer(
     appearanceRevisions.set(loaded, thisRevision);
     appearanceReadiness.set(loaded, false);
     if (loaded === active) appearanceReady = false;
+    const startedAt = performance.now();
+    mount.dataset.labelCacheHit = poolOf(loaded)?.has(appearance) ? 'true' : 'false';
+    updatePrefetch();
     try {
       await loaded.appearance.apply(appearance);
       if (disposed || thisRevision !== appearanceRevisions.get(loaded)) return;
@@ -323,6 +410,10 @@ export function createProductViewer(
         if (loaded.definitionKey === assetDefinitionKey && appearanceKey === currentAppearanceKey && statusPhase !== 'ready') emitStatus('ready');
       }
       dirty = true;
+      if (loaded === active) {
+        mount.dataset.labelSwitchMs = String(Math.round(performance.now() - startedAt));
+        updatePrefetch(); warmNeighbors();
+      }
     } catch {
       if (!disposed && thisRevision === appearanceRevisions.get(loaded)) {
         if (appearance?.requiredSlots?.length) {
@@ -351,7 +442,7 @@ export function createProductViewer(
   };
   const select = (asset: ProductAsset, appearance?: ProductAppearance) => {
     if (disposed) return;
-    const nextAssetDefinitionKey = JSON.stringify({ id: asset.id, src: asset.src, slots: asset.materialSlots, samplers: asset.textureSamplers, orientation: asset.orientation });
+    const nextAssetDefinitionKey = definitionOf(asset);
     const sameAssetDefinition = nextAssetDefinitionKey === assetDefinitionKey;
     assetDefinitionKey = nextAssetDefinitionKey;
     desiredAsset = asset;
@@ -381,36 +472,68 @@ export function createProductViewer(
     currentAppearanceKey = appearanceKey;
     failedAppearanceKey = null;
     const thisRevision = ++assetRevision;
+    warmRevision++; prefetch.setEnabled(false);
     let requiredAppearanceFailure = false;
     discard(pendingProduct); pendingProduct = null;
+    poolOf(active)?.setWindow([]);
     beginPackageMotion();
     emitStatus('loading');
+    if (active?.definitionKey === nextAssetDefinitionKey) {
+      recoverPackageMotion();
+      active.asset = asset;
+      void applyAppearance(active, appearance);
+      return;
+    }
     const src = assetUrl(asset.src);
     if (!src) { recoverPackageMotion(); emitStatus('error', 'Đường dẫn model không hợp lệ.'); return; }
-    loader.loadAsync(publicUrl(src)).then(async (gltf) => {
-      if (disposed || thisRevision !== assetRevision) { disposeProduct(gltf.scene); return; }
-      // Lights/cameras from authoring files are not allowed to override presentation.
-      const unwanted: THREE.Object3D[] = [];
-      gltf.scene.traverse((node) => {
-        if (node instanceof THREE.Light || node instanceof THREE.Camera) unwanted.push(node);
-      });
-      unwanted.forEach((node) => node.removeFromParent());
-      const content = new THREE.Group();
-      content.add(gltf.scene);
-      if (asset.orientation) content.rotation.set(...asset.orientation);
-      content.updateMatrixWorld(true);
-      const originalBounds = new THREE.Box3().setFromObject(content);
-      const dimensions = originalBounds.getSize(new THREE.Vector3());
-      if (!Number.isFinite(dimensions.length()) || dimensions.length() <= 0) {
-        disposeProduct(content); throw new Error('Model has empty bounds');
+    const cached = geometryCache.get(nextAssetDefinitionKey);
+    if (cached) geometryCache.delete(nextAssetDefinitionKey);
+    // A new geometry replaces the unused cached one, keeping at most two models
+    // including the outgoing/current product, rather than caching every flavor.
+    if (!cached) {
+      geometryCache.forEach(discard); geometryCache.clear();
+      mount.dataset.modelLoads = String(++modelLoads);
+    }
+    const lease = !cached && resourceWindow ? prefetch.acquireUrl(src) : undefined;
+    loader.setResourcePath(THREE.LoaderUtils.extractUrlBase(publicUrl(src)));
+    const modelRequest = cached ? Promise.resolve(null) : loader.loadAsync(lease?.url ?? publicUrl(src));
+    loader.setResourcePath('');
+    modelRequest.finally(() => lease?.release()).then(async (gltf) => {
+      if (disposed || thisRevision !== assetRevision) {
+        if (cached) discard(cached); else if (gltf) disposeProduct(gltf.scene);
+        return;
       }
-      const center = originalBounds.getCenter(new THREE.Vector3());
-      content.position.sub(center);
-      content.updateMatrixWorld(true);
-      const bounds = new THREE.Box3().setFromObject(content);
-      const root = new THREE.Group(); root.add(content);
-      const framingPoints = asset.packaging === 'can' ? createRadialProductEnvelope(content, bounds) : undefined;
-      const loaded: LoadedProduct = { root, content, bounds, framingPoints, radius: bounds.getBoundingSphere(new THREE.Sphere()).radius, appearance: createAppearanceHandle(content, asset), asset, definitionKey: nextAssetDefinitionKey };
+      let loaded: LoadedProduct;
+      if (cached) {
+        loaded = cached;
+        loaded.asset = asset; loaded.root.visible = true;
+        loaded.appearance = createHandle(loaded.content, asset);
+      } else {
+        if (!gltf) return;
+        // Lights/cameras from authoring files are not allowed to override presentation.
+        const unwanted: THREE.Object3D[] = [];
+        gltf.scene.traverse((node) => {
+          if (node instanceof THREE.Light || node instanceof THREE.Camera) unwanted.push(node);
+        });
+        unwanted.forEach((node) => node.removeFromParent());
+        const content = new THREE.Group();
+        content.add(gltf.scene);
+        if (asset.orientation) content.rotation.set(...asset.orientation);
+        content.updateMatrixWorld(true);
+        const originalBounds = new THREE.Box3().setFromObject(content);
+        const dimensions = originalBounds.getSize(new THREE.Vector3());
+        if (!Number.isFinite(dimensions.length()) || dimensions.length() <= 0) {
+          disposeProduct(content); throw new Error('Model has empty bounds');
+        }
+        const center = originalBounds.getCenter(new THREE.Vector3());
+        content.position.sub(center);
+        content.updateMatrixWorld(true);
+        const bounds = new THREE.Box3().setFromObject(content);
+        const root = new THREE.Group(); root.add(content);
+        const framingPoints = asset.packaging === 'can' ? createRadialProductEnvelope(content, bounds) : undefined;
+        loaded = { root, content, bounds, framingPoints, radius: bounds.getBoundingSphere(new THREE.Sphere()).radius, appearance: createHandle(content, asset), asset, definitionKey: nextAssetDefinitionKey };
+      }
+      poolOf(loaded)?.setWindow((resourceWindow?.ready ?? []).filter(candidate => definitionOf(candidate.asset) === nextAssetDefinitionKey).map(candidate => candidate.appearance));
       // A selection can change while an external label texture is downloading.
       // Keep applying the newest desired appearance until a stable revision is
       // ready; do not activate a result from an older flavor/admin edit.
@@ -439,6 +562,7 @@ export function createProductViewer(
       } while (appliedAppearanceKey !== JSON.stringify(desiredAppearance ?? null));
       appearanceReadiness.set(loaded, true);
       pendingProduct = loaded;
+      reportGeometry();
       if (!active || reducedMotion || dragging || paused) {
         clearPackageMotion();
         activatePendingProduct();
@@ -690,6 +814,7 @@ export function createProductViewer(
     renderer.setAnimationLoop(!document.hidden && visible ? render : null);
     lastTime = performance.now();
     dirty = true;
+    updatePrefetch(); warmNeighbors();
   };
   const motionChange = (event: MediaQueryListEvent) => {
     reducedMotion = event.matches;
@@ -719,6 +844,12 @@ export function createProductViewer(
 
   return {
     select,
+    resources(value) {
+      resourceWindow = value;
+      prefetch.configure(value?.files ?? []);
+      updatePrefetch(); warmNeighbors();
+      if (!value) { geometryCache.forEach(discard); geometryCache.clear(); }
+    },
     configure,
     backdrop: setBackdrop,
     accents: (value, key, flavor) => accents.configure(value, key, flavor),
@@ -731,11 +862,13 @@ export function createProductViewer(
         target.copy(pose);
       }
       dirty = true;
+      updatePrefetch(); warmNeighbors();
     },
     reset,
     dispose() {
       if (disposed) return;
       disposed = true; assetRevision += 1; environmentRevision += 1;
+      warmRevision++; prefetch.dispose();
       renderer.setAnimationLoop(null);
       resizeObserver.disconnect(); intersection.disconnect();
       document.removeEventListener('visibilitychange', syncVisibility);
@@ -749,6 +882,7 @@ export function createProductViewer(
       renderer.domElement.removeEventListener('keydown', keyDown);
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
       discard(active); discard(pendingProduct);
+      geometryCache.forEach(discard); geometryCache.clear();
       accents.dispose();
       backdrop?.dispose(); backdrop = undefined;
       waterBackdrop?.dispose(); waterBackdrop = undefined;

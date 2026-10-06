@@ -1,5 +1,5 @@
 .collection-section { color:#163d43; padding-block:80px 96px; }
-.collection-section .section-kicker,.collection-kicker { color:#ad4b27; font-size:11px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; }
+.collection-section .section-kicker,.collection-kicker { color:#ad4b27; font-size:11px; font-weight:700; letter-spacing:normal; text-transform:uppercase; }
 .collection-section .section-description { color:#527279; }
 .collection-heading-end { display:grid; justify-items:end; gap:5px; }
 .collection-see-all { display:inline-flex; align-items:center; gap:12px; min-height:44px; color:#1d5b58; font-weight:600; font-size:13px; border-bottom:1px solid transparent; }
@@ -15,7 +15,14 @@
 .collection-pager button:hover:not(:disabled) { background:#d8eee5; border-color:#43816e; }
 .collection-pager button:disabled { opacity:.35; cursor:default; }
 .collection-pager span { min-width:70px; text-align:center; }
-.collection-row-cards { display:grid; grid-template-columns:repeat(var(--row-count),minmax(0,1fr)); gap:24px; }
+.collection-row-cards { display:grid; grid-template-columns:repeat(var(--row-count),minmax(0,1fr)); gap:20px; }
+.collection-row-cards .collection-card { border-radius:25px; }
+.collection-row-cards .collection-card-link { padding:14px; }
+.collection-row-cards .collection-card-image { border-radius:17px; }
+.collection-row-cards .collection-card-copy { padding:16px 2px 0; }
+.collection-row-cards .collection-card-copy h3 { font-size:clamp(19px,1.4vw,23px); line-height:1.15; }
+.collection-row-cards .collection-card-copy p { font-size:11px; }
+.collection-row-cards .collection-card-action { font-size:12px; padding-top:8px; }
 .collection-card { min-width:0; border:1px solid #ffffff; background:#fff; border-radius:32px; box-shadow:0 7px 14px #153e3210,0 20px 28px #153e3209; transition:box-shadow .2s,border-color .2s; overflow:hidden; }
 .collection-card:hover { border-color:#a2c6b8; box-shadow:0 12px 24px #153e321a; }
 .collection-card-link { height:100%; display:flex; flex-direction:column; color:#143c3e; padding:18px; }
@@ -26,6 +33,7 @@
 .collection-card-copy { padding:21px 3px 0; }
 .collection-card-copy h3 { margin:0 0 8px; text-transform:uppercase; font:800 clamp(20px,2.15vw,30px)/1.06 'Be Vietnam Pro',sans-serif; letter-spacing:-.04em; overflow-wrap:anywhere; }
 .collection-card-copy p { margin:0; font-size:12px; line-height:1.7; color:#5b726d; }
+.collection-card-volume { white-space:nowrap; }
 .collection-card-action { min-height:44px; display:flex; justify-content:center; align-items:center; gap:10px; padding-top:14px; margin-top:auto; color:#275648; font-size:14px; font-style:italic; }
 .collection-card-action svg { width:16px; height:16px; }
 .collection-empty { padding:38px 24px; border:1px dashed #aacbc1; border-radius:22px; color:#55746c; text-align:center; }

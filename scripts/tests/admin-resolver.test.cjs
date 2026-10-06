@@ -22,6 +22,26 @@ function fixture() {
 }
 const decoration = scene => scene.nodes.filter(node => ['fruit', 'leaf', 'splash'].includes(node.kind));
 
+test('ice pools replace both preset cubes without moving slots and respect deletion, disabling and flavor isolation', () => {
+  const data = fixture(), target = data.flavors.find(item => item.id === flavor.id);
+  const template = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.filter(node => node.kind === 'ice');
+  assert.deepEqual(resolveFlavorScene(data, target, 'legacy').nodes.filter(node => node.kind === 'ice'), template.map(node => ({ ...node, variants: undefined })));
+  target.icePoolConfigured = true;
+  assert.equal(resolveFlavorScene(data, target, 'empty').nodes.filter(node => node.kind === 'ice').length, 0);
+  for (let i = 0; i < 2; i++) {
+    data.media.push(media(`custom-ice-${i}`, 'ice'));
+    data.flavorAssets.push({ ...entity(`ice-assignment-${i}`), flavorId: target.id, mediaId: `custom-ice-${i}`, role: 'ice', enabled: true, position: i });
+  }
+  const cubes = resolveFlavorScene(data, target, 'pool').nodes.filter(node => node.kind === 'ice');
+  assert.equal(cubes.length, 2); assert.equal(new Set(cubes.map(node => node.assetUrl)).size, 2);
+  cubes.forEach((cube, i) => { assert.deepEqual(cube.position, template[i].position); assert.equal(cube.scale, template[i].scale); assert.deepEqual(cube.rotation, template[i].rotation); });
+  for (const asset of data.flavorAssets.filter(item => item.role === 'ice')) asset.enabled = false;
+  assert.equal(resolveFlavorScene(data, target, 'off').nodes.filter(node => node.kind === 'ice').length, 0);
+  data.flavorAssets = data.flavorAssets.filter(item => item.role !== 'ice');
+  assert.equal(resolveFlavorScene(data, target, 'deleted').nodes.filter(node => node.kind === 'ice').length, 0);
+  assert.equal(resolveFlavorScene(data, { ...target, id: 'foreign' }, 'foreign').nodes.filter(node => node.kind === 'ice').length, 0);
+});
+
 test('the preview change button always finds a different arrangement when two images are available', () => {
   const data = fixture();
   data.flavorAssets = data.flavorAssets.filter(item => item.role === 'fruit').slice(0, 2);

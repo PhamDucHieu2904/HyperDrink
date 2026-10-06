@@ -2,7 +2,7 @@
 .heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; }
 .heading h2 { margin:0 0 7px; font-size:24px; line-height:1.25; letter-spacing:-.7px; }
 .heading p,.help { margin:0; font-size:14px; line-height:1.6; color:var(--muted); }
-.eyebrow { color:var(--accent); font-size:11px; letter-spacing:1.6px; font-weight:800; margin:0 0 8px; }
+.eyebrow { color:var(--accent); font-size:11px; letter-spacing: normal; font-weight:800; margin:0 0 8px; }
 .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:20px; }
 .toolbar input { flex:1; min-width:200px; }
 .displayFilters { display:grid; grid-template-columns:minmax(240px,1fr) minmax(180px,240px) minmax(160px,200px); gap:14px; }

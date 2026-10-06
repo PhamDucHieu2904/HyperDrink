@@ -27,12 +27,12 @@ function CollectionRow({ catalog, section }: { catalog: CatalogData; section: Co
   const { locale, t } = useLanguage();
   const copy = collectionCopy(locale);
   const row = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState(4);
+  const [size, setSize] = useState(6);
   const [requestedPage, setPage] = useState(0);
   const result = productPage(section.products, requestedPage, size);
   useEffect(() => {
     if (!row.current) return;
-    const observer = new ResizeObserver(entries => setSize(Math.max(1, Math.min(4, Math.floor((entries[0].contentRect.width + 24) / 284)))));
+    const observer = new ResizeObserver(entries => setSize(Math.max(1, Math.min(6, Math.floor((entries[0].contentRect.width + 20) / 220)))));
     observer.observe(row.current);
     return () => observer.disconnect();
   }, []);

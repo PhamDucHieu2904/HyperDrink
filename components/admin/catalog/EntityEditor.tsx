@@ -6,11 +6,13 @@ import type { CatalogData, CatalogRecord, CollectionName, Flavor, Label, MediaAs
 import { NutritionFields, ExtraDetailFields } from './DetailFields';
 import ProductDetailPanel from '@/components/product-detail/ProductDetailPanel';
 import { catalogProducts } from '@/lib/catalog/storefront';
+import { heroProductMessages } from '@/lib/catalog/hero-marketing';
 import MediaPicker from '@/components/admin/ui/MediaPicker';
 import FlavorIconField from './FlavorIconField';
 import ModelPreview from './ModelPreview';
 import { definitions, slugify, type CatalogField } from './definitions';
 import { validateRecord } from '@/lib/catalog/validation';
+import { collectSalesCatalogRoots } from '@/lib/catalog/compatibility';
 import { completeLabelLayouts, defaultLayoutProfile, packagingLayoutChoices } from '@/lib/catalog/layout-profiles';
 import styles from '@/app/admin/admin.module.css';
 
@@ -29,7 +31,7 @@ export interface EntityEditorProps {
 export default function EntityEditor({ collection, record, isNew, data, disabled, onClose, onSave, onUpload, initialIssue }: EntityEditorProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
-  const [draft, setDraft] = useState<Record<string, unknown>>(() => ({ ...record, ...(collection === 'productGroups' && 'visible' in record ? { collectionVisible: record.collectionVisible ?? record.visible, collectionTitle: record.collectionTitle ?? '', collectionPosition: record.collectionPosition ?? record.position } : {}) }));
+  const [draft, setDraft] = useState<Record<string, unknown>>(() => ({ ...record, ...(collection === 'productGroups' && 'visible' in record ? { ...heroProductMessages(record), collectionVisible: record.collectionVisible ?? record.visible, collectionTitle: record.collectionTitle ?? '', collectionPosition: record.collectionPosition ?? record.position } : {}) }));
   const [materialJson, setMaterialJson] = useState(() => JSON.stringify('materialSlots' in record ? record.materialSlots : {}, null, 2));
   const [errors, setErrors] = useState<Record<string, string>>(() => initialIssue?.field ? { [initialIssue.field]: initialIssue.message } : {});
   const [saving, setSaving] = useState(false);
@@ -135,7 +137,11 @@ export default function EntityEditor({ collection, record, isNew, data, disabled
     const value = draft[field.key];
     const id = `field-${field.key}`;
     const common = { id, disabled: disabled || saving, 'aria-invalid': Boolean(errors[field.key]), 'aria-describedby': errors[field.key] ? `error-${field.key}` : field.help ? `help-${field.key}` : undefined };
-    if (field.kind === 'checkbox') return <div className={styles.checkboxField} key={field.key}><label htmlFor={id}><input {...common} type="checkbox" checked={Boolean(value)} onChange={event => change(field.key, event.target.checked)} /><span>{field.label}</span></label>{errorText(field.key)}</div>;
+    if (field.kind === 'checkbox') {
+      const mockup = field.key === 'mockupVisible';
+      const inherited = mockup && value === undefined && collectSalesCatalogRoots(data).displays3d.some(display => collection === 'models3d' ? display.modelId === draft.id : display.labelId === draft.id);
+      return <div className={styles.checkboxField} key={field.key}><label htmlFor={id}><input {...common} type="checkbox" checked={value === undefined ? inherited : Boolean(value)} onChange={event => change(field.key, event.target.checked)} /><span>{field.label}</span></label>{field.help && <p className={styles.help} id={`help-${field.key}`}>{field.help}</p>}{mockup && <p className={styles.help}>{value === undefined ? 'Đang dùng quy tắc mặc định: chỉ tài nguyên của Display bán hàng được phát hành mới xuất hiện.' : <button type="button" className={styles.textButton} disabled={disabled || saving} onClick={() => change(field.key, undefined)}>Dùng quy tắc mặc định của Display bán hàng</button>}</p>}{errorText(field.key)}</div>;
+    }
     let control: React.ReactNode;
     if (field.kind === 'flavor-icon') control = <FlavorIconField data={data} flavor={draft as unknown as Flavor} disabled={disabled || saving} onChange={change} onUpload={onUpload} />;
     else if (field.kind === 'nutrition') control = <NutritionFields rows={(value ?? []) as NutritionRow[]} disabled={disabled || saving} onChange={rows => change(field.key, rows)} />;
@@ -158,7 +164,7 @@ export default function EntityEditor({ collection, record, isNew, data, disabled
         if (row.layoutProfile && !choices.some(choice => choice.value === row.layoutProfile)) choices.push({ value: row.layoutProfile, label: 'Kiểu nhãn đã lưu' });
         return <div className={styles.compatibilityRow} key={index}><select aria-label={`Bao bì tương thích ${index + 1}`} disabled={disabled || saving} value={row.packagingVariantId} onChange={event => change(field.key, rows.map((item, at) => at === index ? { packagingVariantId: event.target.value, layoutProfile: defaultLayoutProfile(data, event.target.value) } : item))}><option value="">Chọn bao bì</option>{data.packagingVariants.filter(item => item.lifecycle === 'active').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{choices.length > 1 ? <select aria-label={`Kiểu nhãn theo model ${index + 1}`} disabled={disabled || saving} value={row.layoutProfile} onChange={event => change(field.key, rows.map((item, at) => at === index ? { ...item, layoutProfile: event.target.value } : item))}><option value="">Chọn model dùng nhãn</option>{choices.map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select> : <span className={styles.help}>{row.packagingVariantId ? 'Tự khớp kiểu nhãn của bao bì' : 'Chọn bao bì để tự khớp'}</span>}<button type="button" className={styles.iconButton} disabled={disabled || saving} aria-label={`Bỏ tương thích ${index + 1}`} onClick={() => change(field.key, rows.filter((_, at) => at !== index))}><Trash2 size={17} /></button></div>;
       })}<button type="button" className={styles.textButton} disabled={disabled || saving} onClick={() => change(field.key, [...rows, { packagingVariantId: '', layoutProfile: '' }])}><Plus size={16} /> Thêm bao bì tương thích</button></div>;
-    } else control = <input {...common} type={field.kind === 'number' ? 'number' : 'text'} value={value === null ? '' : String(value ?? '')} min={field.key === 'volumeMl' ? 1 : field.kind === 'number' ? 0 : undefined} step={field.key === 'position' ? 1 : 'any'} onChange={event => change(field.key, field.kind === 'number' ? event.target.value === '' && field.nullable ? null : Number(event.target.value) : event.target.value)} />;
+    } else control = <input {...common} type={field.kind === 'number' ? 'number' : 'text'} value={value === null ? '' : String(value ?? '')} min={field.key === 'mockupFrontYaw' ? -Math.PI * 8 : field.key === 'volumeMl' ? 1 : field.kind === 'number' ? 0 : undefined} step={['position', 'mockupPosition'].includes(field.key) ? 1 : 'any'} onChange={event => change(field.key, field.kind === 'number' ? event.target.value === '' && field.key.startsWith('mockup') ? undefined : event.target.value === '' && field.nullable ? null : Number(event.target.value) : event.target.value)} />;
     const groupedField = ['media', 'compatibilities', 'orientation', 'flavor-icon', 'nutrition', 'detail-sections'].includes(field.kind);
     return <div id={groupedField ? id : undefined} tabIndex={groupedField ? -1 : undefined} role={groupedField ? 'group' : undefined} aria-label={groupedField ? field.label : undefined} aria-describedby={groupedField && errors[field.key] ? `error-${field.key}` : undefined} className={`${styles.field} ${['textarea', 'media', 'compatibilities', 'json', 'flavor-icon', 'nutrition', 'detail-sections'].includes(field.kind) ? styles.fieldWide : ''}`} key={field.key}><label htmlFor={groupedField ? undefined : id}>{field.label}{field.required && <span aria-hidden="true"> *</span>}</label>{control}{field.help && <p className={styles.help} id={`help-${field.key}`}>{field.help}</p>}{errorText(field.key)}</div>;
   }

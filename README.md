@@ -29,8 +29,13 @@ npm run lint
 npm run test:viewer
 npm run test:background
 npm run test:framing
+npm run test:mockup
 npm run build
 ```
+
+## 3D Mockup Studio
+
+Open the **360° / Explore freely** tile on the homepage or visit `/mockup/`. Select a published model and compatible label, adjust camera/background/motion, then download a PNG at 1024 or 2048 px. The Studio uses the existing VINUT style and published catalog; it keeps draft data private. Models and labels have independent Mockup visibility controls in admin. See [Studio usage and implementation](docs/MOCKUP_STUDIO.md).
 
 ## Project map
 

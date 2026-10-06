@@ -5,7 +5,7 @@
 .heading, .overviewHeading, .sectionTitle { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
 .heading h1 { font-size: 28px; letter-spacing: -.6px; margin: 3px 0 8px !important; }
 .heading p:last-child, .panel > p, .sectionTitle p { color: #576e63; font-size: 13px; line-height: 1.6; margin-top: 7px !important; }
-.eyebrow { color: #52735e; font-size: 10px; letter-spacing: 1.3px; font-weight: 700; }
+.eyebrow { color: #52735e; font-size: 10px; letter-spacing: normal; font-weight: 700; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
 .sync { display: flex; gap: 12px; justify-content: space-between; align-items: center; color: #576e63; font-size: 12px; }
 .sync label { display: flex; align-items: center; gap: 8px; min-height: 44px; }

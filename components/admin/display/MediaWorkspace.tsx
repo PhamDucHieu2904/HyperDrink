@@ -9,7 +9,7 @@ import { message, type WorkspaceCallbacks } from './types';
 import { imageUploadHelp, mediaSummary, uploadPendingText } from '@/components/admin/ui/upload-info';
 import styles from './workspace.module.css';
 
-const roles: { value: MediaRole; label: string }[] = [{ value: 'fruit', label: 'Trái cây' }, { value: 'leaf', label: 'Lá cây' }, { value: 'splash', label: 'Splash' }, { value: 'thumbnail', label: 'Ảnh đại diện' }, { value: 'icon', label: 'Icon' }, { value: 'label', label: 'Artwork nhãn' }, { value: 'model', label: 'Model GLB' }, { value: 'poster', label: 'Poster model' }, { value: 'image-2d', label: 'Ảnh / render 2D' }];
+const roles: { value: MediaRole; label: string }[] = [{ value: 'fruit', label: 'Trái cây' }, { value: 'leaf', label: 'Lá cây' }, { value: 'splash', label: 'Splash' }, { value: 'ice', label: 'Đá viên' }, { value: 'thumbnail', label: 'Ảnh đại diện' }, { value: 'icon', label: 'Icon' }, { value: 'label', label: 'Artwork nhãn' }, { value: 'model', label: 'Model GLB' }, { value: 'poster', label: 'Poster model' }, { value: 'image-2d', label: 'Ảnh / render 2D' }];
 export default function MediaWorkspace({ catalog, onUpload, onRefresh }: WorkspaceCallbacks) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [role, setRole] = useState<MediaRole>('thumbnail');

@@ -295,7 +295,7 @@ test('hung requests time out and release loading work without waiting for the re
 
 
 test('flavor thumbnails accept every ready image category while rejecting non-image bytes', () => {
-  for (const role of ['thumbnail', 'label', 'fruit', 'leaf', 'splash', 'icon', 'poster', 'image-2d']) {
+  for (const role of ['thumbnail', 'label', 'fruit', 'leaf', 'splash', 'ice', 'icon', 'poster', 'image-2d']) {
     const data = fixture(), media = data.media.find(item => item.id === 'thumb-mango'); media.role = role;
     assert.equal(catalogProducts(data).find(item => item.variant.id === 'a330-mango').thumbnail?.id, media.id);
 

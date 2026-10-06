@@ -51,6 +51,42 @@ test('catalog translation deduplicates text, excludes internal assets and preser
   assert.equal(catalogTextParts('VINUT · 330 ml · 30% · Juice').join(''), 'VINUT · 330 ml · 30% · Juice');
 });
 
+test('Mockup name translation is explicit, covers its library, and preserves IDs and the source release', async () => {
+  const data = fixture();
+  data.models3d = [{ id: 'model', name: 'Slim can', mediaId: 'model-media', packagingVariantId: 'slim' }];
+  data.displays3d = [{ id: 'display', name: 'Orange preset', modelId: 'model', labelId: 'label' }];
+  const source = JSON.stringify(data);
+  assert.ok(!catalogTexts(data).includes('Slim can'));
+  assert.ok(!catalogTexts(data).includes('Orange preset'));
+  const options = { mockupNames: true }, texts = catalogTexts(data, options);
+  for (const text of ['Slim can', 'Orange preset', 'Internal layout']) assert.ok(texts.includes(text));
+  let translations = new Map();
+  const native = nativeEnvironment();
+  await new BrowserCatalogTranslator(() => native.environment).translate(data, 'fr', new AbortController().signal, value => { translations = value; }, options);
+  const localized = localizeCatalog(data, translations, options);
+  assert.equal(localized.models3d[0].name, 'fr:Slim can');
+  assert.equal(localized.labels[0].name, 'fr:Internal layout');
+  assert.equal(localized.displays3d[0].name, 'fr:Orange preset');
+  assert.equal(localized.models3d[0].id, 'model');
+  assert.equal(localized.labels[0].mediaId, 'photo');
+  assert.equal(localized.displays3d[0].modelId, 'model');
+  assert.equal(JSON.stringify(data), source);
+  assert.strictEqual(localizeCatalog(data, translations).labels, data.labels);
+});
+
+test('admin hero messages join catalog translation without changing packaging or source data', () => {
+  const data = fixture();
+  Object.assign(data.productGroups[0], { heroVolumeCaption: 'Net content', heroFlavorText: 'Many flavor choices', heroOriginText: 'Real fruit from Vietnam' });
+  const source = JSON.stringify(data), texts = catalogTexts(data);
+  for (const value of ['Net content', 'Many flavor choices', 'Real fruit from Vietnam']) assert.ok(texts.includes(value));
+  const translated = localizeCatalog(data, new Map([['Net content', '净含量'], ['Many flavor choices', '丰富的口味选择'], ['Real fruit from Vietnam', '越南水果']]));
+  assert.equal(translated.productGroups[0].heroVolumeCaption, '净含量');
+  assert.equal(translated.productGroups[0].heroFlavorText, '丰富的口味选择');
+  assert.equal(translated.productGroups[0].heroOriginText, '越南水果');
+  assert.equal(translated.productGroups[0].id, 'juice');
+  assert.equal(JSON.stringify(data), source);
+});
+
 test('admin collection headings join the automatic translation without changing visibility or ordering', () => {
   const data = fixture();
   Object.assign(data.productGroups[0], { collectionTitle: 'Summer fruits', collectionVisible: true, collectionPosition: 3 });

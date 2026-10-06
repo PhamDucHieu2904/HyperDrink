@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { catalogResources, filterResources, resourceLocation, resourceConfigurationContext } = require('../../lib/catalog/resources.ts');
 const { createSeedCatalog } = require('../../lib/catalog/seed.ts');
+const { flavorPoolLibrary, mergeFlavorPoolAsset } = require('../../lib/catalog/flavor-pool-library.ts');
 function fixture() {
   const data = createSeedCatalog();
   const base = { lifecycle: 'active', revision: 1, slug: 'resource' };
@@ -50,13 +51,41 @@ test('type, lifecycle and accent-insensitive configuration searches combine corr
   assert.equal(filterResources(rows, 'label', 'active', 'nhan cam').length, 0);
   assert.equal(filterResources(rows, 'label', 'archived', 'nhan cam').length, 1);
 });
-test('legacy library links point to the corresponding filter in the unified resource workspace', () => {
-  assert.deepEqual(resourceLocation('labels'), { module: 'media', filter: 'label' });
-  assert.deepEqual(resourceLocation('models3d'), { module: 'media', filter: 'model' });
+test('model and label links open their catalog modules while generic files retain resource filters', () => {
+  assert.deepEqual(resourceLocation('labels'), { module: 'labels', filter: 'label' });
+  assert.deepEqual(resourceLocation('models3d'), { module: 'models3d', filter: 'model' });
   assert.deepEqual(resourceLocation('icons'), { module: 'media', filter: 'icon' });
   assert.deepEqual(resourceLocation('media', 'fruit'), { module: 'media', filter: 'fruit' });
   assert.deepEqual(resourceLocation('media', 'invalid'), { module: 'media', filter: 'all' });
   assert.deepEqual(resourceLocation('displays3d'), { module: 'displays3d', filter: 'all' });
+});
+test('shared leaves and ice belong to every linked flavor and remain single files in filtered libraries', () => {
+  const data = fixture();
+  data.flavorAssets = [];
+  for (const role of ['leaf', 'ice']) {
+    const media = { ...data.media[0], id: `${role}-shared`, name: role === 'leaf' ? 'Lá xanh' : 'Đá viên', role, status: 'ready', mime: 'image/webp', url: `/assets/${role}.webp` };
+    data.media.push(media);
+    for (const flavorId of ['citrus', 'peach']) data.flavorAssets.push({ id: `${role}-${flavorId}`, flavorId, mediaId: media.id, role, lifecycle: 'active', enabled: true });
+    for (const flavorId of ['citrus', 'peach']) {
+      const library = flavorPoolLibrary(data, role, flavorId);
+      assert.equal(library.length, 1);
+      assert.deepEqual(new Set(library[0].flavorIds), new Set(['citrus', 'peach']));
+      assert.equal(filterResources(catalogResources(data), role, 'active', '', flavorId).length, 1);
+    }
+    assert.equal(flavorPoolLibrary(data, role, 'lime').length, 0);
+    assert.equal(flavorPoolLibrary(data, role, 'unassigned').length, 0);
+    assert.equal(flavorPoolLibrary(data, role, 'all', role === 'leaf' ? 'la xanh' : 'da vien').length, 1);
+    media.status = 'failed'; assert.equal(flavorPoolLibrary(data, role).length, 0);
+  }
+});
+test('an ice pool response updates flavor adoption once and keeps client revisions stable on retries', () => {
+  const data = fixture(), before = data.flavors.find(flavor => flavor.id === 'citrus');
+  const asset = { id: 'new-ice', flavorId: before.id, mediaId: 'shared-ice', role: 'ice', updatedAt: '2026-10-06T00:00:00Z' };
+  const saved = mergeFlavorPoolAsset(data, asset), retried = mergeFlavorPoolAsset(saved, asset);
+  assert.deepEqual(retried, saved);
+  assert.equal(saved.flavors.find(flavor => flavor.id === before.id).revision, before.revision + 1);
+  assert.equal(saved.flavors.find(flavor => flavor.id === before.id).icePoolConfigured, true);
+  assert.equal(data.flavorAssets.some(item => item.id === asset.id), false);
 });
 test('adding another configuration for an already used file generates a free slug, including archived drafts', () => {
   const data = fixture(), media = data.media[0];

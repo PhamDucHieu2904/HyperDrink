@@ -3,7 +3,7 @@ import type { CatalogData, CollectionName } from '@/lib/catalog/contracts';
 /** Translate public editorial copy only. IDs, references, artwork and admin metadata stay intact. */
 const fields: Partial<Record<CollectionName, string[]>> = {
   drinkTypes: ['name', 'description'], packagingCategories: ['name'], packagingVariants: ['name'],
-  flavors: ['name', 'shortName', 'description'], productGroups: ['name', 'buttonLabel', 'description', 'collectionTitle'],
+  flavors: ['name', 'shortName', 'description'], productGroups: ['name', 'buttonLabel', 'description', 'collectionTitle', 'heroVolumeCaption', 'heroFlavorText', 'heroOriginText'],
   productVariants: ['name', 'description'], packagingSlots: ['name', 'buttonLabel'],
   assets2d: ['description'], displays2d: ['alt'],
   productDetails: ['eyebrow', 'headline', 'subtitle', 'introduction', 'ingredients', 'allergens', 'servingSize', 'companyName', 'companyAddress', 'countryOfOrigin', 'netContent', 'storage', 'shelfLife'],
@@ -16,10 +16,14 @@ export function catalogTextParts(text: string): string[] {
 export function needsTranslation(text: string): boolean {
   return /\p{L}/u.test(text) && !/^(?:VINUT|\d+(?:[.,]\d+)?\s*(?:ml|l|%|°))$/iu.test(text.trim());
 }
-export function catalogTexts(data: CatalogData): string[] {
+export interface CatalogTranslationOptions { mockupNames?: boolean }
+const mockupFields: Partial<Record<CollectionName, string[]>> = { models3d: ['name'], labels: ['name'], displays3d: ['name'] };
+const translationFields = (options: CatalogTranslationOptions) => options.mockupNames ? { ...fields, ...mockupFields } : fields;
+
+export function catalogTexts(data: CatalogData, options: CatalogTranslationOptions = {}): string[] {
   const unique = new Set<string>();
   const add = (value: string) => { for (const part of catalogTextParts(value)) if (needsTranslation(part)) unique.add(part.trim()); };
-  for (const [collection, keys] of Object.entries(fields)) {
+  for (const [collection, keys] of Object.entries(translationFields(options))) {
     for (const record of data[collection as CollectionName] ?? []) {
       for (const key of keys) {
         const value = (record as unknown as Record<string, unknown>)[key];
@@ -30,14 +34,14 @@ export function catalogTexts(data: CatalogData): string[] {
   for (const detail of data.productDetails ?? []) { for (const row of detail.nutrition) add(row.label); for (const section of detail.sections) { add(section.title); add(section.body); } }
   return [...unique];
 }
-export function localizeCatalog(data: CatalogData, translations: ReadonlyMap<string, string>): CatalogData {
+export function localizeCatalog(data: CatalogData, translations: ReadonlyMap<string, string>, options: CatalogTranslationOptions = {}): CatalogData {
   if (!translations.size) return data;
   const result = { ...data };
   const translate = (value: string) => catalogTextParts(value).map(part => {
     const translated = translations.get(part.trim());
     return translated ? `${part.match(/^\s*/)?.[0] ?? ''}${translated}${part.match(/\s*$/)?.[0] ?? ''}` : part;
   }).join('');
-  for (const [collection, keys] of Object.entries(fields)) {
+  for (const [collection, keys] of Object.entries(translationFields(options))) {
     if (!data[collection as CollectionName]) continue;
     (result[collection as CollectionName] as unknown[]) = data[collection as CollectionName].map(record => {
       const copy = { ...record } as unknown as Record<string, unknown>;

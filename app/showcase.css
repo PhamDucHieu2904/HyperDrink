@@ -177,7 +177,7 @@
 .flavor-background-light { background:radial-gradient(ellipse at 58% 35%,#ffffff0d,transparent 64%); }
 .product-backlight { position:absolute; top:var(--backlight-y,50%); left:var(--backlight-x,55%); transform:translate(-50%,-50%); width:var(--backlight-w,65%); height:var(--backlight-h,85%); pointer-events:none; mix-blend-mode:overlay; opacity:var(--product-glow-opacity); background:radial-gradient(ellipse,white 0%,rgba(255,255,255,.88) 29%,rgba(255,255,255,.36) 55%,transparent 75%); }
 .model-picker { margin-top:20px; width:92%; }
-.model-picker-label { display:block; font-size:10px; letter-spacing:.15em; text-transform:uppercase; margin-bottom:9px; opacity:.85; }
+.model-picker-label { display:block; font-size:10px; letter-spacing:normal; text-transform:uppercase; margin-bottom:9px; opacity:.85; }
 .model-options { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
 .model-options button { min-height:34px; padding:5px 8px; border:1px solid #ffffff6e; border-radius:11px; color:#fff; background:rgba(0,0,0,.1); font-size:11px; cursor:pointer; }
 .model-options button[aria-pressed=true] { background:#fff; color:#3a3a35; border-color:#fff; }

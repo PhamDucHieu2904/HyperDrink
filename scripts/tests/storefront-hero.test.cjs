@@ -122,6 +122,72 @@ function render(catalog, selection = { groupId: 'juice-line', slotId: 'can-slot'
 }
 const productFigure = html => html.match(/<figure class="catalog-product-image"[^>]*>[\s\S]*?<\/figure>/)?.[0] || '';
 
+test('360 tile opens Studio with the selected public display and a keyboard accessible link', () => {
+  const data = fixture();
+  const html = render(data).html;
+  assert.match(html, /<a[^>]*class="[^"]*showcase-mockup-link[^"]*"[^>]*href="\/mockup\/\?display=display-3d-4"[^>]*aria-label="Open Mockup Studio"/);
+  const imageOnly = render(data, { groupId: 'juice-line', slotId: 'glass-slot' }).html;
+  assert.match(imageOnly, /<a[^>]*class="[^"]*showcase-mockup-link[^"]*"[^>]*href="\/mockup\/"/);
+  assert.doesNotMatch(imageOnly, /\/mockup\/\?display=/);
+});
+
+test('each product line controls its own hero messages while volume follows the selected packaging', () => {
+  const data = fixture(), group = data.productGroups.find(item => item.id === 'juice-line');
+  Object.assign(group, { heroVolumeCaption: 'A chilled can', heroFlavorText: 'Choose <your> flavor', heroOriginText: 'Fruit & freshness' });
+  const messages = render(data).html.match(/<div class="showcase-metrics[\s\S]*?<\/div>/)?.[0];
+  assert.match(messages, /330<small>ml/); assert.match(messages, /A chilled can/);
+  assert.match(messages, /Choose &lt;your&gt; flavor/); assert.match(messages, /Fruit &amp; freshness/);
+  assert.doesNotMatch(messages, /Many flavor choices|Real fruit from Vietnam|<your>/);
+  const glass = render(data, { groupId: 'juice-line', slotId: 'glass-slot' }).html.match(/<div class="showcase-metrics[\s\S]*?<\/div>/)?.[0];
+  assert.match(glass, /250<small>ml/); assert.match(glass, /A chilled can/);
+  const other = render(data, { groupId: 'other-line' }).text;
+  assert.match(other, /Many flavor choices/); assert.doesNotMatch(other, /Fruit &amp; freshness|A chilled can/);
+});
+
+test('hero defaults work for legacy releases, blank fields and all supported website languages', () => {
+  const { localizedHeroMessages } = require('../../lib/i18n/storefront-marketing.ts');
+  const { languages } = require('../../lib/i18n/catalog.ts');
+  const { HERO_PRODUCT_DEFAULTS } = require('../../lib/catalog/hero-marketing.ts');
+  const group = fixture().productGroups[0];
+  for (const language of languages) {
+    const legacy = localizedHeroMessages(group, language.code);
+    assert.deepEqual(localizedHeroMessages({ ...group, ...HERO_PRODUCT_DEFAULTS }, language.code), legacy);
+    assert.deepEqual(localizedHeroMessages({ ...group, heroVolumeCaption: ' ', heroFlavorText: '', heroOriginText: '\n' }, language.code), legacy);
+    assert.ok(Object.values(legacy).every(value => value.length > 0));
+    if (language.code !== 'en') assert.notEqual(legacy.flavors, HERO_PRODUCT_DEFAULTS.heroFlavorText);
+  }
+});
+
+test('homepage collection renders six cards per page and keeps the remaining products in pagination', () => {
+  const CollectionRows = require('../../components/collection/CollectionRows.tsx').default;
+  const { collectionSections, productPage } = require('../../lib/catalog/collection.ts');
+  const data = fixture(), sections = collectionSections(data);
+  const section = sections.find(item => item.group.id === 'juice-line');
+  const html = renderToStaticMarkup(React.createElement(LanguageProvider, null, React.createElement(CollectionRows, { catalog: data, sections: [section] })));
+  assert.equal((html.match(/class="collection-card"/g) || []).length, 6);
+  assert.match(html, /Page 1 of 2/);
+  const second = productPage(section.products, 1, 6);
+  assert.equal(second.items.length, section.products.length - 6);
+  assert.deepEqual([...productPage(section.products, 0, 6).items, ...second.items], section.products);
+});
+
+test('Contact uses published company data, omits inactive records, and keeps a useful fallback', () => {
+  const ContactSection = require('../../components/ContactSection.tsx').default;
+  const data = fixture();
+  const contact = catalog => renderToStaticMarkup(React.createElement(LanguageProvider, null, React.createElement(ContactSection, { catalog })));
+  data.productDetails = [
+    { ...entity('archived-company'), lifecycle: 'archived', enabled: true, companyName: 'Old company', companyAddress: 'Old address' },
+    { ...entity('disabled-company'), enabled: false, companyName: 'Disabled company', companyAddress: 'Disabled address' },
+    { ...entity('public-company'), enabled: true, companyName: 'VINUT <company>', companyAddress: 'Public address & office' },
+  ];
+  const html = contact(data);
+  assert.match(html, /id="contact"/); assert.match(html, /mailto:hello@vinut.com/);
+  assert.match(html, /VINUT &lt;company&gt;/); assert.match(html, /Public address &amp; office/);
+  assert.doesNotMatch(html, /Old company|Disabled company|Old address|<company>/);
+  assert.match(contact(undefined), /<bdi>VINUT<\/bdi>/);
+  assert.match(contact(undefined), /<address><bdi>Vietnam<\/bdi><\/address>/);
+});
+
 test('flavor buttons use their own fruit pool images and omit All flavors without replacing product artwork', () => {
   const data = fixture();
   const { html } = render(data);
@@ -171,8 +237,10 @@ test('production hero renders more than four admin flavors with the valid defaul
   assert.equal((html.match(/class="flavor-background-color"/g) || []).length, 6);
   assert.doesNotMatch(html, /catalog-carousel-controls|catalog-carousel-motion/);
   assert.match(html, /<span class="showcase-badge" dir="ltr">Hot<\/span>/);
-  assert.match(html, /showcase-metrics[\s\S]*?<strong dir="ltr">3D<\/strong>/);
-  assert.match(text, /06/); assert.match(text, /330/); assert.match(text, /Admin Alu can/); assert.match(text, /Juice 30% from admin/);
+  assert.match(text, /Many flavor choices/); assert.match(text, /Real fruit from Vietnam/);
+  assert.match(text, /330/); assert.match(text, /Net content/); assert.match(text, /Juice 30% from admin/);
+  const messages = html.match(/<div class="showcase-metrics[\s\S]*?<\/div>/)?.[0];
+  assert.doesNotMatch(messages, /Experience|>3D<|>06<|Flavors/);
   for (const flavor of data.flavors) assert.ok(text.includes(flavor.shortName));
   const picker = html.match(/<div class="model-picker"[\s\S]*?<\/div><\/div>/)?.[0];
   assert.ok(picker); assert.match(picker, /BEST SELLER/);
@@ -224,11 +292,13 @@ test('the page initializes a stable random entry then group selection resets the
   const selected = render(data, pageStateWrites[0]);
   assert.match(selected.html, /data-variant="glass-product"/); assert.match(productFigure(selected.html), /uploaded-glass-guava/);
   assert.match(selected.text, /250/); assert.equal(selected.viewers.length, 0);
-  const collection = html.slice(html.indexOf('<section id="collection"'), html.indexOf('<section id="story"'));
+  const collection = html.slice(html.indexOf('<section id="collection"'), html.indexOf('<section id="contact"'));
   assert.match(collection, /Juice 30% Lychee 330 ml/); assert.match(collection, /other-product/);
   assert.doesNotMatch(collection, /category-filter-summary/);
   assert.match(collection, /collection-row/);
   assert.match(collection, /See all products/);
+  assert.match(html, /href="#contact"[^>]*>Contact<\/a>/);
+  assert.doesNotMatch(html, /id="story"|#story|Our story/);
 });
 
 test('uploaded model and label plus this flavor decoration reach the actual 3D boundary without procedural label data', () => {
@@ -283,7 +353,7 @@ test('2D mode renders only the selected variant image and bypasses the WebGL com
   assert.doesNotMatch(figure, /uploaded-product-[035]|neutral-can-poster|uploaded-other-product/);
   assert.match(text, /2D/);
   assert.match(html, /<span class="showcase-badge" dir="ltr">Hot<\/span>/);
-  assert.match(html, /showcase-metrics[\s\S]*?<strong dir="ltr">2D<\/strong>/);
+  assert.match(text, /Many flavor choices/); assert.match(text, /Real fruit from Vietnam/);
 });
 
 test('a flavor without a reviewed thumbnail renders a named icon in the round portrait rather than an unrelated full-wrap image', () => {

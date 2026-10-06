@@ -3,6 +3,8 @@
 import ShowcaseHero from '@/components/ShowcaseHero';
 import BeverageCategoryRail from '@/components/BeverageCategoryRail';
 import LanguageSelector from '@/components/LanguageSelector';
+import ContactSection from '@/components/ContactSection';
+import { storefrontMarketingCopy } from '@/lib/i18n/storefront-marketing';
 import { LanguageProvider, useLanguage } from '@/components/LanguageProvider';
 import { collectionCopy } from '@/lib/i18n/collection-copy';
 import { collectionSections, filterCollectionProducts } from '@/lib/catalog/collection';
@@ -14,7 +16,7 @@ import { useTranslatedCatalog } from '@/components/useTranslatedCatalog';
 import { useStorefrontTelemetry } from '@/components/useStorefrontTelemetry';
 import { catalogProducts, randomStorefrontEntry, resolveStorefrontSelection, type StorefrontSelectionRequest } from '@/lib/catalog/storefront';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Check, Menu, Search, X } from 'lucide-react';
+import { ArrowRight, Menu, Search, X } from 'lucide-react';
 
 
 function BrandMark() {
@@ -36,6 +38,7 @@ function Storefront() {
   const track = useStorefrontTelemetry(locale);
   const copy = storefrontStatus[locale];
   const collectionText = collectionCopy(locale);
+  const marketingText = storefrontMarketingCopy(locale);
   const { published, loading, error, refresh } = usePublishedCatalog();
   const usingSnapshotFallback = published?.source === 'static' && process.env.NEXT_PUBLIC_CATALOG_MODE !== 'static';
   const data = useTranslatedCatalog(published?.catalog);
@@ -94,7 +97,7 @@ function Storefront() {
           <a className="nav-link" aria-current="page" href="#top" onClick={() => setMenuOpen(false)}>{t('nav.home')}</a>
           <a className="nav-link" href="#collection" onClick={() => setMenuOpen(false)}>{t('nav.flavors')}</a>
           <a className="nav-link" href={publicUrl('/products/')} onClick={() => setMenuOpen(false)}>{t('nav.products')}</a>
-          <a className="nav-link" href="#story" onClick={() => setMenuOpen(false)}>{t('nav.story')}</a>
+          <a className="nav-link" href="#contact" onClick={() => setMenuOpen(false)}>{t('nav.contact')}</a>
         </nav>
         <BeverageCategoryRail />
         <div className="header-actions">
@@ -128,24 +131,9 @@ function Storefront() {
         {data && sections.length > 0 ? <CollectionRows catalog={data} sections={sections} /> : <p className="collection-empty" role="status">{!published ? (loading ? copy.loading : error ? copy.unavailable : copy.empty) : !products.length || !searchQuery.trim() ? copy.empty : t('collection.emptySearch')}</p>}
       </section>
 
-      <section id="story" className="section" aria-labelledby="story-title">
-        <div className="experience-strip">
-          <div className="experience-visual"><div className="can-fallback" aria-hidden="true" /></div>
-          <div className="experience-copy">
-            <p className="section-kicker">{t('story.kicker')}</p>
-            <h2 id="story-title">{t('story.titleFirst')}<br />{t('story.titleSecond')}</h2>
-            <p>{t('story.copy')}</p>
-            <ul className="bullet-list">
-              <li><Check size={16} aria-hidden="true" /> {t('story.packaging')}</li>
-              <li><Check size={16} aria-hidden="true" /> {t('story.data')}</li>
-              <li><Check size={16} aria-hidden="true" /> {t('story.interactive')}</li>
-            </ul>
-            <button type="button" className="btn btn-ghost" onClick={() => scrollTo('collection')}>{t('story.viewAll')} <ArrowRight size={16} aria-hidden="true" /></button>
-          </div>
-        </div>
-      </section>
+      <ContactSection catalog={data} />
 
-      <footer className="site-footer"><span className="footer-brand">VINUT</span><span>{t('footer.copy')}</span><div className="footer-links"><a href={publicUrl('/products/')}>{t('nav.products')}</a><a href="#story">{t('nav.story')}</a><a href="mailto:hello@vinut.com">{t('nav.contact')}</a></div></footer>
+      <footer className="site-footer"><span className="footer-brand">VINUT</span><span>{t('footer.copy')}</span><div className="footer-links"><a href={publicUrl('/products/')}>{t('nav.products')}</a><a href="#contact">{t('nav.contact')}</a><a href="mailto:hello@vinut.com">{marketingText.emailCta}</a></div></footer>
     </main>
   );
 }

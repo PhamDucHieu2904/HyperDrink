@@ -95,7 +95,7 @@ export function createAdminHandler(repository:LocalCatalogRepository,options:{al
       if (path === '/api/admin/v1/archive' && request.method === 'POST') { const body=await readAdminJson(request); await repository.archiveRecord(collection(body.collection),String(body.id),Number(body.expectedRevision),user.email); return respond(json(null)); }
       if (path === '/api/admin/v1/flavor-pool' && request.method === 'POST') {
         const body = await readAdminJson(request);
-        if (!body || typeof body.id !== 'string' || typeof body.flavorId !== 'string' || typeof body.mediaId !== 'string' || !['fruit', 'leaf', 'splash'].includes(body.role) || Object.keys(body).some(key => !['id', 'flavorId', 'mediaId', 'role'].includes(key))) return respond(fail('Thông tin thêm ảnh vào pool không hợp lệ.', 422));
+        if (!body || typeof body.id !== 'string' || typeof body.flavorId !== 'string' || typeof body.mediaId !== 'string' || !['fruit', 'leaf', 'splash', 'ice'].includes(body.role) || Object.keys(body).some(key => !['id', 'flavorId', 'mediaId', 'role'].includes(key))) return respond(fail('Thông tin thêm ảnh vào pool không hợp lệ.', 422));
         return respond(json(await repository.addFlavorPoolAsset(body as FlavorPoolAssetInput, user.email)));
       }
       if (path === '/api/admin/v1/display' && request.method === 'POST') {

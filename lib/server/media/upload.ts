@@ -12,6 +12,7 @@ const imageLimits: Record<Exclude<MediaRole, 'model'>, number> = {
   fruit: 1600,
   leaf: 1600,
   splash: 1600,
+  ice: 1600,
   poster: 1600,
   'image-2d': 1600,
 };
@@ -19,7 +20,7 @@ const decoderOptions = { failOn: 'warning' as const, limitInputPixels: 32_000_00
 
 /** Bounds describe visible content for scene framing; they never crop the stored image. */
 async function alphaBounds(buffer: Buffer, role: MediaRole, hasAlpha: boolean): Promise<MediaAsset['imageBounds']> {
-  if (!hasAlpha || !['fruit', 'leaf', 'splash', 'icon'].includes(role)) return null;
+  if (!hasAlpha || !['fruit', 'leaf', 'splash', 'ice', 'icon'].includes(role)) return null;
   const { data, info } = await sharp(buffer, decoderOptions).ensureAlpha().extractChannel('alpha').raw()
     .timeout({ seconds: 15 }).toBuffer({ resolveWithObject: true });
   let left = info.width, top = info.height, right = -1, bottom = -1;

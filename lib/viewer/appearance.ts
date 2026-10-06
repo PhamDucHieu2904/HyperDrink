@@ -4,6 +4,10 @@ import { ProductAppearance, ProductAsset, resolveMaterialOverride, type TextureS
 
 type MaterialBinding = { mesh: THREE.Mesh; original: THREE.Material; index: number };
 export interface AppearanceHandle { apply(appearance?: ProductAppearance): Promise<void>; dispose(): void }
+export interface AppearanceLoadOptions {
+  /** A compressed-file cache lease lasts until Three finishes decoding the image. */
+  acquireUrl?: (url: string) => { url: string; release(): void };
+}
 
 function applySampler(texture: THREE.Texture, sampler?: TextureSampler) {
   // Cylindrical seam triangles deliberately interpolate U past 1. Clamp would stretch
@@ -60,7 +64,7 @@ function createPrintTexture(label: NonNullable<ProductAppearance['label']>, volu
 }
 
 /** All changes are isolated to matching semantic slots and reversible to imported PBR. */
-export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset): AppearanceHandle {
+export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset, options: AppearanceLoadOptions = {}): AppearanceHandle {
   const bindings: MaterialBinding[] = [];
   const ownedMaterials = new Set<THREE.Material>();
   const ownedTextures = new Set<THREE.Texture>();
@@ -94,14 +98,17 @@ export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset
       const requested = new Map<string, Promise<THREE.Texture>>();
       const loadTexture = (url: string, srgb: boolean, sampler?: TextureSampler) => {
         const key = JSON.stringify([url, srgb, sampler?.wrapS ?? 'clamp', sampler?.wrapT ?? 'clamp']);
-        if (!requested.has(key)) requested.set(key, textureLoader.loadAsync(publicUrl(url)).then((texture) => {
+        if (!requested.has(key)) {
+          const lease = options.acquireUrl?.(url);
+          requested.set(key, textureLoader.loadAsync(lease?.url ?? publicUrl(url)).then((texture) => {
           texture.flipY = false;
           texture.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
           texture.anisotropy = 4;
           applySampler(texture, sampler);
           nextTextures.add(texture);
           return texture;
-        }));
+          }).finally(() => lease?.release()));
+        }
         return requested.get(key)!;
       };
       const nextMaterials = new Map<MaterialBinding, THREE.Material>();

@@ -1,4 +1,5 @@
 import type { CatalogData, CatalogRecord, MediaAsset, MediaRole } from './contracts';
+import { mediaFlavorIds } from './flavor-pool-library';
 
 export type ResourceCollection = 'labels' | 'models3d' | 'assets2d';
 export type ResourceFilter = 'all' | MediaRole;
@@ -9,6 +10,7 @@ export interface ResourceItem {
   role: MediaRole;
   media?: MediaAsset;
   configurations: ResourceConfiguration[];
+  flavorIds: string[];
 }
 export const RESOURCE_TYPES: { role: MediaRole; label: string; collection?: ResourceCollection }[] = [
   { role: 'model', label: '3D model', collection: 'models3d' },
@@ -16,6 +18,7 @@ export const RESOURCE_TYPES: { role: MediaRole; label: string; collection?: Reso
   { role: 'fruit', label: 'Fruit image' },
   { role: 'leaf', label: 'Leaf image' },
   { role: 'splash', label: 'Splash' },
+  { role: 'ice', label: 'Ice · Đá viên' },
   { role: 'icon', label: 'Icon' },
   { role: 'image-2d', label: '2D model', collection: 'assets2d' },
   { role: 'poster', label: 'Poster 3D' },
@@ -24,7 +27,7 @@ export const RESOURCE_TYPES: { role: MediaRole; label: string; collection?: Reso
 
 /** One file can have several reusable configurations. Drafts without files remain visible. */
 export function catalogResources(data: CatalogData): ResourceItem[] {
-  const rows: ResourceItem[] = data.media.map(media => ({ key: `media:${media.id}`, name: media.name, role: media.role, media, configurations: [] }));
+  const rows: ResourceItem[] = data.media.map(media => ({ key: `media:${media.id}`, name: media.name, role: media.role, media, configurations: [], flavorIds: mediaFlavorIds(data, media.id) }));
   const byId = new Map(rows.map(row => [row.media!.id, row]));
   for (const type of RESOURCE_TYPES) {
     if (!type.collection) continue;
@@ -32,24 +35,25 @@ export function catalogResources(data: CatalogData): ResourceItem[] {
       const configuration = { collection: type.collection, record };
       const linked = record.mediaId ? byId.get(record.mediaId) : undefined;
       if (linked && linked.role === type.role) linked.configurations.push(configuration);
-      else rows.push({ key: `${type.collection}:${record.id}`, name: record.name, role: type.role, configurations: [configuration] });
+      else rows.push({ key: `${type.collection}:${record.id}`, name: record.name, role: type.role, configurations: [configuration], flavorIds: 'flavorId' in record && record.flavorId ? [record.flavorId as string] : [] });
     }
   }
   return rows;
 }
 
-export function filterResources(rows: ResourceItem[], role: ResourceFilter, status: string, query: string) {
+export function filterResources(rows: ResourceItem[], role: ResourceFilter, status: string, query: string, flavorId = 'all') {
   const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLocaleLowerCase('vi');
   const words = normalize(query).trim().split(/\s+/).filter(Boolean);
   return rows.filter(row => {
     const record = row.media ?? row.configurations[0]?.record;
     const text = normalize([row.name, row.media?.slug, ...row.configurations.flatMap(item => [item.record.name, item.record.slug])].join(' '));
-    return (role === 'all' || row.role === role) && (status === 'all' || record?.lifecycle === status) && words.every(word => text.includes(word));
+    return (role === 'all' || row.role === role) && (status === 'all' || record?.lifecycle === status) && (flavorId === 'all' || (flavorId === 'unassigned' ? !row.flavorIds.length : row.flavorIds.includes(flavorId))) && words.every(word => text.includes(word));
   }).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 }
 
 export function resourceLocation(module: string, type?: string | null): { module: string; filter: ResourceFilter } {
-  const legacy: Record<string, MediaRole> = { labels: 'label', models3d: 'model', icons: 'icon' };
+  if (module === 'labels' || module === 'models3d') return { module, filter: module === 'labels' ? 'label' : 'model' };
+  const legacy: Record<string, MediaRole> = { icons: 'icon' };
   if (Object.hasOwn(legacy, module)) return { module: 'media', filter: legacy[module] };
   return { module, filter: RESOURCE_TYPES.some(item => item.role === type) ? type as MediaRole : 'all' };
 }

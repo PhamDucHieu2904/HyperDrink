@@ -25,7 +25,7 @@ const fail = (message: string): never => { throw new MediaValidationError(messag
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const list = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
 const uint = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-const roles: MediaRole[] = ['fruit', 'leaf', 'splash', 'thumbnail', 'icon', 'label', 'model', 'poster', 'image-2d'];
+const roles: MediaRole[] = ['fruit', 'leaf', 'splash', 'ice', 'thumbnail', 'icon', 'label', 'model', 'poster', 'image-2d'];
 const crcTable = Array.from({ length: 256 }, (_, value) => {
   for (let i = 0; i < 8; i++) value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
   return value >>> 0;

@@ -14,6 +14,7 @@ import type { FlavorAsset, FlavorPoolAssetInput } from '@/lib/catalog/contracts'
 import { CATALOG_COLLECTIONS, preflightCatalog, hasValidationErrors } from '@/lib/catalog/validation';
 import type { ValidationIssue } from '@/lib/catalog/contracts';
 import { inspectMedia } from './media/inspect';
+import { checkModelLabelGeometry } from './media/model-slots';
 import { getMediaPath } from './media/upload';
 
 /** Local demo adapter. Move provider-specific SQL here; UI/domain stays portable. */
@@ -166,6 +167,7 @@ export class LocalCatalogRepository implements CatalogRepository {
           for(const model of data.models3d.filter(item=>item.mediaId===media.id)) {
             const missing=Object.values(model.materialSlots).flat().filter(name=>!names.has(name));
             if(missing.length)issues.push({code:'material_slot_missing',message:'Model “'+model.name+'” khai báo tên vật liệu/mesh không có trong GLB: '+missing.join(', ')+'. Kiểm tra lại material slots.',collection:'models3d',entityId:model.id,field:'materialSlots',severity:'error'});
+            issues.push(...checkModelLabelGeometry(model, bytes));
           }
         }
       } catch {

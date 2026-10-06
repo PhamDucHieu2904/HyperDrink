@@ -3,7 +3,7 @@ import { CatalogDomainError, updateCatalogRecord } from './service';
 
 /** Run inside the repository transaction so concurrent imports always append to the latest pool. */
 export function addFlavorPoolAsset(data: CatalogData, input: FlavorPoolAssetInput, now = new Date().toISOString()): { catalog: CatalogData; asset: FlavorAsset; created: boolean } {
-  if (!input || !/^[a-f0-9-]{36}$/i.test(input.id) || !['fruit', 'leaf', 'splash'].includes(input.role)) throw new CatalogDomainError('pool_invalid', 'Chọn vai trò hợp lệ cho ảnh.');
+  if (!input || !/^[a-f0-9-]{36}$/i.test(input.id) || !['fruit', 'leaf', 'splash', 'ice'].includes(input.role)) throw new CatalogDomainError('pool_invalid', 'Chọn vai trò hợp lệ cho ảnh.');
   const flavor = data.flavors.find(item => item.id === input.flavorId && item.lifecycle === 'active');
   if (!flavor) throw new CatalogDomainError('pool_flavor_invalid', 'Hương vị không còn hoạt động. Tải lại pool trước khi thêm ảnh.');
   const media = data.media.find(item => item.id === input.mediaId && item.lifecycle === 'active' && item.status === 'ready' && item.role === input.role && item.mime.startsWith('image/'));
@@ -14,8 +14,11 @@ export function addFlavorPoolAsset(data: CatalogData, input: FlavorPoolAssetInpu
     return { catalog: data, asset: existing, created: false };
   }
   const position = data.flavorAssets.filter(item => item.flavorId === flavor.id && item.lifecycle === 'active').reduce((max, item) => Math.max(max, item.position), -1) + 1;
-  const fileName = media.name.replace(/\.[^.]+$/, '').trim() || ({ fruit: 'Trái cây', leaf: 'Lá cây', splash: 'Splash' }[input.role]);
+  const linked = data.flavorAssets.find(item => item.lifecycle === 'active' && item.flavorId === flavor.id && item.mediaId === media.id && item.role === input.role);
+  if (linked) return { catalog: data, asset: linked, created: false };
+  const fileName = media.name.replace(/\.[^.]+$/, '').trim() || ({ fruit: 'Trái cây', leaf: 'Lá cây', splash: 'Splash', ice: 'Đá viên' }[input.role]);
   const asset: FlavorAsset = { ...input, name: `${flavor.shortName || flavor.name} · ${fileName}`.slice(0, 160), slug: `pool-${input.id.toLowerCase()}`, position, enabled: true, lifecycle: 'active', revision: 0, createdAt: now, updatedAt: now };
-  const catalog = updateCatalogRecord(data, 'flavorAssets', asset, null, now);
+  let catalog = updateCatalogRecord(data, 'flavorAssets', asset, null, now);
+  if (input.role === 'ice' && !flavor.icePoolConfigured) catalog = updateCatalogRecord(catalog, 'flavors', { ...flavor, icePoolConfigured: true }, flavor.revision, now);
   return { catalog, asset: catalog.flavorAssets.find(item => item.id === input.id)!, created: true };
 }

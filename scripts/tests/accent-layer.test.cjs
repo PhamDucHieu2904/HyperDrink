@@ -509,3 +509,93 @@ test('paused and reduced-motion viewers show the current ready composition witho
   update({ reducedMotion: true, deltaSeconds: 0.2 });
   assert.ok(root.children[0].position.equals(frame));
 }));
+
+test('sprite source cache evicts old flavors at 16 entries and reuses recent decoded images without another request', async () => {
+  const mount = { dataset: {} };
+  await harness(async ({ layer, root, textureRequests, update }) => {
+    const textures = [];
+    for (let index = 0; index < 32; index += 1) {
+      layer.configure(sceneConfig([node('fruit', { assetUrl: `/demo/flavor-${index}.webp` })]), `flavor-${index}`, 'citrus');
+      update({ reducedMotion: true });
+      const texture = fakeTexture(); texture.disposals = 0;
+      texture.addEventListener('dispose', () => { texture.disposals += 1; }); textures.push(texture);
+      textureRequests[index].resolve(texture); await flush(); update({ reducedMotion: true });
+      assert.ok(Number(mount.dataset.accentSourceCount) <= 16);
+      assert.ok(Number(mount.dataset.accentSourceReady) <= 16);
+      assert.equal(mount.dataset.accentSourcePinned, '1');
+      assert.equal(texture.disposals, 0, 'The configured source cannot be evicted');
+      assert.equal(root.children[0].children[0].material.map.source, texture.source);
+    }
+    assert.ok(textures.slice(0, 16).every(texture => texture.disposals === 1));
+    assert.ok(textures.slice(16).every(texture => texture.disposals === 0));
+    layer.configure(sceneConfig([node('fruit', { assetUrl: '/demo/flavor-20.webp' })]), 'recent-flavor', 'citrus');
+    update({ reducedMotion: true }); await flush(); update({ reducedMotion: true });
+    assert.equal(textureRequests.length, 32, 'A retained source stays decoded across flavor changes');
+    assert.equal(root.children[0].children[0].material.map.source, textures[20].source);
+    layer.configure(sceneConfig([node('fruit', { assetUrl: '/demo/flavor-0.webp' })]), 'evicted-flavor', 'citrus');
+    update({ reducedMotion: true });
+    assert.equal(textureRequests.length, 33, 'An evicted flavor is loaded again on demand');
+    layer.dispose();
+    assert.ok(textures.every(texture => texture.disposals === 1), 'Cache disposal releases each owned source exactly once');
+    assert.equal(mount.dataset.accentSourceCount, '0');
+    assert.equal(mount.dataset.accentSourcePinned, '0');
+  }, mount);
+});
+
+test('a composition exceeding the cache budget keeps every required source until its outgoing fade has finished', async () => {
+  const mount = { dataset: {} };
+  await harness(async ({ layer, root, textureRequests, update, settle }) => {
+    const configured = sceneConfig(Array.from({ length: 20 }, (_, index) => node(`fruit-${index}`, {
+      assetUrl: `/demo/old-${index}.webp`, variants: { lime: { assetUrl: `/demo/new-${index}.webp` } },
+    })));
+    layer.configure(configured, 'old-flavor', 'citrus'); update();
+    const outgoingTextures = textureRequests.map(() => fakeTexture());
+    const disposals = Array(20).fill(0);
+    outgoingTextures.forEach((texture, index) => texture.addEventListener('dispose', () => { disposals[index] += 1; }));
+    textureRequests.forEach((request, index) => request.resolve(outgoingTextures[index])); await flush(); await settle();
+    assert.equal(mount.dataset.accentSourceCount, '20'); assert.equal(mount.dataset.accentSourceLimit, '20');
+    assert.ok(root.children.every(group => group.visible));
+    const outgoing = root.children[0];
+    layer.configure(configured, 'new-flavor', 'lime');
+    update({ viewerIdle: false, deltaSeconds: 0.04 });
+    assert.equal(root.children[0], outgoing); assert.equal(mount.dataset.accentSourcePinned, '40');
+    assert.equal(mount.dataset.accentSourceLimit, '40');
+    assert.ok(disposals.every(count => count === 0), 'The still-visible outgoing cutouts retain their shared sources');
+    update({ viewerIdle: false, deltaSeconds: 0.2 });
+    assert.notEqual(root.children[0], outgoing);
+    assert.equal(textureRequests.length, 40);
+    assert.equal(mount.dataset.accentSourceCount, '20'); assert.equal(mount.dataset.accentSourceLimit, '20');
+    assert.ok(disposals.every(count => count === 1), 'Outgoing sources are evicted only after all transform clones are removed');
+    textureRequests.slice(20).forEach(request => request.resolve(fakeTexture())); await flush(); await settle();
+    assert.ok(root.children.every(group => group.visible), 'A required composition is never truncated to the normal cache budget');
+  }, mount);
+});
+
+test('evicted image completions and failures cannot delete a newer request for the same source URL', async () => {
+  for (const oldResult of ['resolve', 'reject']) {
+    const mount = { dataset: {} };
+    await harness(async ({ layer, root, textureRequests, update }) => {
+      layer.configure(sceneConfig([node('fruit', { assetUrl: '/demo/revisited.webp' })]), 'initial', 'citrus'); update();
+      const stale = textureRequests[0];
+      for (let index = 1; index <= 17; index += 1) {
+        layer.configure(sceneConfig([node('fruit', { assetUrl: `/demo/intermediate-${index}.webp` })]), `intermediate-${index}`, 'citrus');
+        update({ reducedMotion: true }); textureRequests[index].resolve(fakeTexture()); await flush();
+      }
+      layer.configure(sceneConfig([node('fruit', { assetUrl: '/demo/revisited.webp' })]), 'revisited', 'citrus'); update({ reducedMotion: true });
+      assert.equal(textureRequests.length, 19);
+      const late = fakeTexture(); let lateDisposals = 0; late.addEventListener('dispose', () => { lateDisposals += 1; });
+      if (oldResult === 'resolve') stale.resolve(late); else stale.reject(new Error('Obsolete image request failed'));
+      await flush();
+      if (oldResult === 'resolve') assert.equal(lateDisposals, 1, 'An evicted late result is released immediately');
+      assert.equal(root.children[0].children.length, 0, 'An old result cannot populate the latest slot');
+      const current = fakeTexture(); let currentDisposals = 0; current.addEventListener('dispose', () => { currentDisposals += 1; });
+      textureRequests[18].resolve(current); await flush(); update({ reducedMotion: true });
+      assert.equal(root.children[0].children[0].material.map.source, current.source);
+      layer.configure(sceneConfig([node('fruit', { assetUrl: '/demo/revisited.webp' })]), 'revisited-again', 'citrus');
+      update({ reducedMotion: true }); await flush(); update({ reducedMotion: true });
+      assert.equal(textureRequests.length, 19, 'Obsolete rejection preserves the latest cache entry');
+      assert.equal(currentDisposals, 0); assert.equal(mount.dataset.accentSourcePending, '0');
+      layer.dispose(); assert.equal(currentDisposals, 1);
+    }, mount);
+  }
+});

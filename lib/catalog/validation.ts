@@ -15,14 +15,14 @@ const commonFields = ['id', 'name', 'slug', 'lifecycle', 'revision', 'createdAt'
 const fields: Record<CollectionName, readonly string[]> = {
   drinkTypes: ['description', 'position'], packagingCategories: ['viewerKind', 'position'],
   packagingVariants: ['categoryId', 'volumeMl', 'shape', 'position'],
-  flavors: ['shortName', 'description', 'accentColor', 'backgroundColor', 'textColor', 'icon', 'iconId', 'thumbnailId', 'position'],
+  flavors: ['shortName', 'description', 'accentColor', 'backgroundColor', 'textColor', 'icon', 'iconId', 'thumbnailId', 'icePoolConfigured', 'position'],
   flavorAssets: ['flavorId', 'mediaId', 'role', 'position', 'enabled'],
-  productGroups: ['drinkTypeId', 'description', 'buttonLabel', 'position', 'visible', 'collectionVisible', 'collectionTitle', 'collectionPosition'],
+  productGroups: ['drinkTypeId', 'description', 'buttonLabel', 'heroVolumeCaption', 'heroFlavorText', 'heroOriginText', 'position', 'visible', 'collectionVisible', 'collectionTitle', 'collectionPosition'],
   productVariants: ['groupId', 'packagingVariantId', 'flavorId', 'code', 'description', 'enabled'],
   packagingSlots: ['groupId', 'packagingVariantId', 'regionKey', 'position', 'buttonLabel', 'mode', 'defaultVariantId', 'enabled'],
   media: ['role', 'status', 'url', 'storageKey', 'mime', 'bytes', 'sha256', 'width', 'height', 'imageBounds', 'error'],
-  labels: ['drinkTypeId', 'flavorId', 'mediaId', 'compatibilities'],
-  models3d: ['packagingVariantId', 'mediaId', 'posterId', 'layoutProfile', 'materialSlots', 'orientation'],
+  labels: ['drinkTypeId', 'flavorId', 'mediaId', 'compatibilities', 'mockupVisible', 'mockupPosition'],
+  models3d: ['packagingVariantId', 'mediaId', 'posterId', 'layoutProfile', 'materialSlots', 'orientation', 'mockupVisible', 'mockupPosition', 'mockupFrontYaw'],
   assets2d: ['packagingVariantId', 'drinkTypeId', 'flavorId', 'mediaId', 'galleryIds', 'description'],
   displays3d: ['productVariantId', 'modelId', 'labelId', 'enabled'],
   displays2d: ['productVariantId', 'assetId', 'alt', 'enabled'],
@@ -55,6 +55,10 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
   const bool = (field: string) => { if (typeof record[field] !== 'boolean') add(field, `${field} phải là giá trị bật/tắt.`); };
   const oneOf = (field: string, allowed: readonly string[]) => { if (typeof record[field] !== 'string' || !allowed.includes(record[field])) add(field, `${field} không nằm trong danh mục được hỗ trợ.`); };
   const position = () => num('position', 0, 100000, true);
+  const mockup = () => {
+    if (record.mockupVisible !== undefined) bool('mockupVisible');
+    if (record.mockupPosition !== undefined) num('mockupPosition', 0, 100000, true);
+  };
   const color = (field: string) => { str(field, 7, publishing); if (record[field] && !/^#[0-9a-f]{6}$/i.test(String(record[field]))) add(field, 'Màu phải có định dạng #RRGGBB.'); };
   const refsArray = (field: string) => {
     const value = record[field];
@@ -73,10 +77,11 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
     case 'packagingCategories': oneOf('viewerKind', ['can', 'glass', 'pp', 'pet', 'pouch', 'other']); position(); break;
     case 'packagingVariants': ref('categoryId', false, publishing); num('volumeMl', Number.MIN_VALUE, 100000, false, true); str('shape', 160); position(); break;
     case 'flavors':
-      str('shortName', 60, publishing); str('description', 5000); color('accentColor'); color('backgroundColor'); color('textColor'); str('icon', 128, publishing, tokenPattern); if (record.iconId !== undefined) ref('iconId', true); ref('thumbnailId', true); position(); break;
-    case 'flavorAssets': ref('flavorId', false, publishing); ref('mediaId', false, publishing); oneOf('role', ['fruit', 'leaf', 'splash']); position(); bool('enabled'); break;
+      str('shortName', 60, publishing); str('description', 5000); color('accentColor'); color('backgroundColor'); color('textColor'); str('icon', 128, publishing, tokenPattern); if (record.iconId !== undefined) ref('iconId', true); ref('thumbnailId', true); if (record.icePoolConfigured !== undefined) bool('icePoolConfigured'); position(); break;
+    case 'flavorAssets': ref('flavorId', false, publishing); ref('mediaId', false, publishing); oneOf('role', ['fruit', 'leaf', 'splash', 'ice']); position(); bool('enabled'); break;
     case 'productGroups':
       ref('drinkTypeId', false, publishing); str('description', 5000); str('buttonLabel', 100, publishing); position(); bool('visible');
+      for (const field of ['heroVolumeCaption', 'heroFlavorText', 'heroOriginText']) if (record[field] !== undefined) str(field, 100);
       if (record.collectionVisible !== undefined) bool('collectionVisible');
       if (record.collectionTitle !== undefined) str('collectionTitle', 100);
       if (record.collectionPosition !== undefined) num('collectionPosition', 0, 100000, true);
@@ -84,7 +89,7 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
     case 'productVariants': ref('groupId', false, publishing); ref('packagingVariantId', false, publishing); ref('flavorId', false, publishing); str('code', 128); str('description', 5000); bool('enabled'); break;
     case 'packagingSlots': ref('groupId', false, publishing); ref('packagingVariantId', false, publishing); oneOf('regionKey', ['packaging-picker']); position(); str('buttonLabel', 100, publishing); oneOf('mode', ['3d', '2d', 'auto']); ref('defaultVariantId', true, publishing); bool('enabled'); break;
     case 'media': {
-      oneOf('role', ['fruit', 'leaf', 'splash', 'thumbnail', 'icon', 'label', 'model', 'poster', 'image-2d']); oneOf('status', ['uploaded', 'processing', 'ready', 'failed']);
+      oneOf('role', ['fruit', 'leaf', 'splash', 'ice', 'thumbnail', 'icon', 'label', 'model', 'poster', 'image-2d']); oneOf('status', ['uploaded', 'processing', 'ready', 'failed']);
       str('url', 2048, publishing); str('storageKey', 512); str('mime', 100, publishing); num('bytes', publishing ? 1 : 0, Number.MAX_SAFE_INTEGER, true);
       str('sha256', 64, publishing, /^[0-9a-f]{64}$/i); num('width', 1, 32768, true, true); num('height', 1, 32768, true, true); str('error', 2000);
       if (record.url && !isSafeAssetUrl(record.url)) add('url', 'URL phải là đường dẫn cùng website hoặc HTTPS không có thông tin đăng nhập.', 'unsafe_url');
@@ -98,6 +103,7 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
       break;
     }
     case 'labels': {
+      mockup();
       ref('drinkTypeId', false, publishing); ref('flavorId', true); ref('mediaId', true, publishing);
       if (!Array.isArray(record.compatibilities) || record.compatibilities.length > 500) add('compatibilities', 'Danh sách tương thích phải có tối đa 500 quy cách.');
       else {
@@ -111,6 +117,8 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
       break;
     }
     case 'models3d': {
+      mockup();
+      if (record.mockupFrontYaw !== undefined) num('mockupFrontYaw', -Math.PI * 8, Math.PI * 8);
       ref('packagingVariantId', false, publishing); ref('mediaId', true, publishing); ref('posterId', true, publishing); str('layoutProfile', 128, publishing, tokenPattern);
       if (!Array.isArray(record.orientation) || record.orientation.length !== 3 || record.orientation.some(value => typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > Math.PI * 8)) add('orientation', 'Orientation phải có ba góc hữu hạn trong ±8π radians.');
       if (!plain(record.materialSlots) || Object.keys(record.materialSlots).length > 32) add('materialSlots', 'Material slots phải là bảng tối đa 32 semantic slots.');
@@ -236,6 +244,17 @@ export function validateCatalog(input: unknown, options: ValidationOptions = {})
   }
   for (const display of publicData.displays3d) issues.push(...checkDisplay3DCompatibility(data, display));
   for (const display of publicData.displays2d) issues.push(...checkDisplay2DCompatibility(data, display));
+  // Mockup roots may have no sales display to trigger the checks above.
+  for (const model of publicData.models3d) {
+    for (const [field, role] of [['mediaId', 'model'], ['posterId', 'poster']] as const) {
+      const media = data.media.find(item => item.id === model[field]);
+      if (media && media.role !== role) add('models3d', model.id, field, 'media_role_mismatch', field === 'posterId' ? 'Ảnh poster của model phải thuộc Poster Library.' : 'File model phải thuộc thư viện GLB.');
+    }
+  }
+  for (const label of publicData.labels) {
+    const media = data.media.find(item => item.id === label.mediaId);
+    if (media && media.role !== 'label') add('labels', label.id, 'mediaId', 'media_role_mismatch', 'Artwork nhãn phải thuộc Label Library.');
+  }
   for (const detail of publicData.productDetails) {
     if (detail.posterId) {
       const poster = data.media.find(item => item.id === detail.posterId);
@@ -244,7 +263,7 @@ export function validateCatalog(input: unknown, options: ValidationOptions = {})
   }
   for (const asset of publicData.flavorAssets) {
     const media = data.media.find(item => item.id === asset.mediaId);
-    if (media && media.role !== asset.role) add('flavorAssets', asset.id, 'mediaId', 'media_role_mismatch', 'Vai trò ảnh phải khớp fruit, leaf hoặc splash của slot.');
+    if (media && media.role !== asset.role) add('flavorAssets', asset.id, 'mediaId', 'media_role_mismatch', 'Vai trò ảnh phải khớp trái cây, lá, splash hoặc đá viên của slot.');
   }
   for (const flavor of publicData.flavors) {
     const thumbnail = data.media.find(item => item.id === flavor.thumbnailId);

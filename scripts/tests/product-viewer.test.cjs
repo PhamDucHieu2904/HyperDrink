@@ -325,6 +325,8 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
   };
   const geometryRequests = [];
   const appearanceRequests = [];
+  const appearanceCalls = [];
+  const disposedProducts = [];
   const accentFrames = [];
   const backdropResources = [];
   const backdropBindings = [];
@@ -353,7 +355,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
     getBoundingClientRect() { return { left: 0, top: 0, width: 500, height: 700 }; },
   };
   class Renderer {
-    constructor() { this.domElement = canvas; this.resolutionTargets = new Set(); this.draws = []; renderers.push(this); }
+    constructor() { this.domElement = canvas; this.resolutionTargets = new Set(); this.draws = []; this.warmedTextures = []; this.compiledRoots = []; renderers.push(this); }
     setClearColor() {} dispose() {}
     setPixelRatio(value) { this.pixelRatio = value; }
     setSize(width, height) { this.width = width; this.height = height; }
@@ -362,6 +364,8 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
       return target.set(Math.floor(this.width * this.pixelRatio), Math.floor(this.height * this.pixelRatio));
     }
     setAnimationLoop(frame) { this.frame = frame; }
+    initTexture(texture) { this.warmedTextures.push(texture); }
+    compileAsync(root) { this.compiledRoots.push(root); return Promise.resolve(); }
     render(scene, camera) {
       this.scene = scene; this.camera = camera;
       this.draws.push({ scene, camera }); renderEvents.push({ type: 'main', scene, camera });
@@ -374,6 +378,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
   }
   class GltfLoader {
     setMeshoptDecoder() { return this; } setDRACOLoader() { return this; } setKTX2Loader() { return this; }
+    setResourcePath(value) { this.resourcePath = value; return this; }
     loadAsync(src) { const request = deferred(); geometryRequests.push({ src, ...request }); return request.promise; }
   }
   class ExrLoader { loadAsync() { return environment.promise; } }
@@ -399,6 +404,31 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
       if (value === undefined) delete global[key]; else global[key] = value;
     }
   });
+  const appearanceBoundary = {
+    createAppearanceHandle(root, asset) {
+      return {
+        apply(value) {
+          appearanceCalls.push({ root, assetId: asset.id, asset, value });
+          if (immediateAppearance) return Promise.resolve();
+          const request = deferred();
+          appearanceRequests.push({ assetId: asset.id, asset, value, ...request });
+          return request.promise;
+        },
+        dispose() {},
+      };
+    },
+    disposeProduct(root) { productsDisposed += 1; disposedProducts.push(root); },
+  };
+  const pooledAppearance = loadSource('lib/viewer/pooled-appearance.ts', name => {
+    if (name === 'three') return THREE;
+    if (name === './appearance') return appearanceBoundary;
+    throw new Error(`Unexpected pooled appearance dependency: ${name}`);
+  });
+  const resourcePrefetch = loadSource('lib/viewer/resource-prefetch.ts', name => {
+    if (name === '../public-url') return publicUrls;
+    if (name === '../viewer-config') return config;
+    throw new Error(`Unexpected resource prefetch dependency: ${name}`);
+  });
   const runtime = loadSource('lib/viewer/runtime.ts', (name) => {
     if (name === '../public-url') return publicUrls;
     if (name === 'three') return { ...THREE, WebGLRenderer: Renderer, PMREMGenerator: PMREM };
@@ -413,6 +443,12 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
     if (name === './package-motion') return packageMotion;
     if (name === './environment') return environments;
     if (name === './product-hit-region') return hitRegions;
+    if (name === './pooled-appearance') return pooledAppearance;
+    if (name === './resource-prefetch') return {
+      // The real queue/lifetime implementation remains installed; this fixture
+      // disables only its background network boundary, tested separately.
+      createResourcePrefetcher: options => resourcePrefetch.createResourcePrefetcher({ ...options, allowBackground: () => false }),
+    };
     if (name === './backdrop-texture') return {
       createBackdropTexture(state, config, mount) {
         const resource = { state, config, mount, texture: new THREE.Texture(), updates: 0, disposals: 0, paintNext: true };
@@ -443,20 +479,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
       update(frame) { accentFrames.push(frame); return { phase: 'waiting', count: 0 }; },
       dispose() {},
     }) };
-    if (name === './appearance') return {
-      createAppearanceHandle(root, asset) {
-        return {
-          apply(value) {
-            if (immediateAppearance) return Promise.resolve();
-            const request = deferred();
-            appearanceRequests.push({ assetId: asset.id, asset, value, ...request });
-            return request.promise;
-          },
-          dispose() {},
-        };
-      },
-      disposeProduct() { productsDisposed += 1; },
-    };
+    if (name === './appearance') return appearanceBoundary;
     throw new Error(`Unexpected runtime dependency: ${name}`);
   });
   const classes = new Set();
@@ -478,7 +501,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
       renderers[0].frame(frameTime);
     }
   };
-  return { viewer, mount, canvas, hitRegion: mount.children.find(child => child.dataset.productHitRegion), renderer: renderers[0], geometryRequests, appearanceRequests, accentFrames, backdropResources, backdropBindings, waterPassResources, renderEvents, environment, statuses,
+  return { viewer, mount, canvas, hitRegion: mount.children.find(child => child.dataset.productHitRegion), renderer: renderers[0], geometryRequests, appearanceRequests, appearanceCalls, disposedProducts, accentFrames, backdropResources, backdropBindings, waterPassResources, renderEvents, environment, statuses,
     model, asset, flush, advance, setReducedMotion: (matches) => motionListeners.forEach((listener) => listener({ matches })),
     disposedCount: () => productsDisposed };
 }
@@ -664,6 +687,74 @@ test('runtime resolves selection races, preserves loading state, respects pause 
   await flush();
   assert.equal(statuses.at(-1).phase, 'loading', 'Disposed viewer must not publish a late ready status');
   assert.ok(disposedCount() >= 3, 'Active, outgoing and late-loading product resources must be released');
+});
+
+test('hero resources reuse geometry for A to B to A and keep only two models when a third package is selected', async context => {
+  const f = runtimeFixture(context, true);
+  const candidate = id => ({ asset: f.asset(id), appearance: { id: `label-${id}` } });
+  const a = candidate('a'), b = candidate('b'), c = candidate('c');
+  f.viewer.pause(true);
+  f.viewer.resources({ ready: [a, b, c], files: [a, b, c] });
+  f.viewer.select(a.asset, a.appearance);
+  f.geometryRequests[0].resolve(f.model()); await f.flush(); f.advance(0.05);
+  const product = f.renderer.scene.children.find(node => node instanceof THREE.Group);
+  const firstA = product.children[0];
+  assert.equal(f.mount.dataset.productId, 'a');
+  assert.equal(f.mount.dataset.modelPoolSize, '1');
+
+  f.viewer.select(b.asset, b.appearance);
+  f.geometryRequests[1].resolve(f.model()); await f.flush();
+  const firstB = product.children[0];
+  assert.equal(f.mount.dataset.productId, 'b');
+  assert.equal(f.mount.dataset.modelPoolSize, '2');
+  assert.equal(f.disposedCount(), 0, 'The outgoing A geometry remains reusable');
+
+  f.viewer.select(a.asset, a.appearance); await f.flush();
+  assert.equal(f.geometryRequests.length, 2, 'Returning to A does not load its GLB again');
+  assert.equal(product.children[0], firstA, 'The exact scene object is reused');
+  assert.equal(f.mount.dataset.productId, 'a');
+  assert.equal(f.mount.dataset.modelPoolSize, '2');
+
+  f.viewer.select(c.asset, c.appearance);
+  assert.ok(f.disposedProducts.includes(firstB), 'The unused B model is evicted before the third geometry loads');
+  assert.equal(f.geometryRequests.length, 3);
+  f.geometryRequests[2].resolve(f.model()); await f.flush();
+  assert.equal(f.mount.dataset.productId, 'c');
+  assert.equal(f.mount.dataset.modelPoolSize, '2');
+
+  f.viewer.select(b.asset, b.appearance);
+  assert.equal(f.geometryRequests.length, 4, 'An evicted model is loaded only when it is selected again');
+  f.geometryRequests[3].resolve(f.model()); await f.flush();
+  assert.equal(f.mount.dataset.productId, 'b');
+  assert.equal(f.mount.dataset.modelPoolSize, '2');
+  f.viewer.dispose();
+  assert.equal(f.disposedCount(), 4, 'Both evictions and both retained model instances are released once');
+});
+
+test('hero label pool switches back to a ready appearance without repeating its loader or shader warmup', async context => {
+  const f = runtimeFixture(context, true);
+  const asset = f.asset('can');
+  const red = { id: 'red' }, blue = { id: 'blue' };
+  f.viewer.pause(true);
+  f.viewer.resources({ ready: [{ asset, appearance: red }, { asset, appearance: blue }], files: [] });
+  f.viewer.select(asset, red); f.geometryRequests[0].resolve(f.model()); await f.flush();
+  assert.equal(f.appearanceCalls.length, 1);
+  assert.equal(f.mount.dataset.labelPoolReady, '1');
+
+  f.viewer.select(asset, blue); await f.flush();
+  assert.equal(f.appearanceCalls.length, 2);
+  assert.equal(f.mount.dataset.labelPoolReady, '2');
+  assert.equal(f.mount.dataset.labelCacheHit, 'false');
+  const compileCount = f.renderer.compiledRoots.length;
+  assert.equal(compileCount, 2, 'Each new material set is prepared before it can become ready');
+
+  f.viewer.select(asset, red); await f.flush();
+  assert.equal(f.mount.dataset.labelCacheHit, 'true');
+  assert.equal(f.appearanceCalls.length, 2, 'Cached appearance bypasses its loader');
+  assert.equal(f.renderer.compiledRoots.length, compileCount, 'Cached appearance bypasses shader preparation');
+  assert.equal(f.geometryRequests.length, 1, 'Every label uses the same can scene');
+  assert.equal(f.mount.dataset.labelPoolReady, '2');
+  assert.equal(f.statuses.at(-1).phase, 'ready');
 });
 
 test('image-cutout storefront without a backdrop allocates no painter or capture pass, including paused repaints', async (context) => {

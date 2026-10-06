@@ -1,0 +1,32 @@
+.site-shell>.contact-section { display:grid; grid-template-columns:1fr 1fr; gap:clamp(32px,6vw,110px); width:100%; background:#f6f7ee; color:#173e35; padding:90px 4% 100px; scroll-margin-top:100px; }
+.contact-intro { align-self:center; max-width:600px; }
+.contact-intro .section-kicker { color:#98603b; }
+.contact-intro h2 { margin:20px 0 24px; color:#173e35; font-size:clamp(36px,3.9vw,66px); line-height:1.08; font-weight:700; letter-spacing:-.055em; text-wrap:balance; }
+.contact-description { max-width:490px; font-size:16px; line-height:1.85; color:#536a5f; }
+.contact-products { display:inline-flex; align-items:center; gap:12px; min-height:44px; margin-top:18px; font-size:14px; font-weight:600; border-bottom:1px solid #46685b; }
+.contact-products:hover { color:#98603b; border-color:currentColor; }
+.contact-signature { display:flex; align-items:center; gap:10px; margin-top:40px; font-size:12px; color:#607967; }
+.contact-details { display:grid; gap:18px; min-width:0; }
+.contact-email-card,.contact-company-card { position:relative; padding:30px; border-radius:24px; border:1px solid #dae4d5; }
+.contact-email-card { background:#1d4b3d; border-color:#1d4b3d; color:#fff; }
+.contact-label { margin:0 48px 16px 0; font-size:10px; font-weight:600; letter-spacing:normal; }
+.contact-email-card .contact-label { color:#d4e8c7; }
+.contact-email { display:block; width:fit-content; max-width:100%; font-size:clamp(22px,2.4vw,36px); font-weight:500; letter-spacing:-.035em; overflow-wrap:anywhere; }
+.contact-email:hover { text-decoration:underline; text-underline-offset:6px; }
+.contact-email-card>p:not(.contact-label) { font-size:13px; line-height:1.7; color:#dce8df; margin:16px 0 22px; }
+.contact-write { display:flex; justify-content:space-between; align-items:center; min-height:44px; padding-top:12px; border-top:1px solid #ffffff38; font-size:13px; font-weight:600; }
+.contact-write:hover svg { transform:translate(2px,-2px); }
+.contact-symbol { position:absolute; inset-inline-end:28px; top:26px; }
+.contact-company-card { background:#fff; }
+.contact-company-card .contact-label { color:#637866; }
+.contact-company-card h3 { max-width:90%; margin:0; font-size:18px; line-height:1.55; font-weight:600; overflow-wrap:anywhere; }
+.contact-company-card .contact-address-label { margin:22px 0 10px; }
+.contact-company-card address { max-width:95%; color:#5b7063; font-style:normal; font-size:13px; line-height:1.9; overflow-wrap:anywhere; }
+.contact-section a:focus-visible { outline:3px solid #bc753d; outline-offset:5px; border-radius:3px; }
+.contact-email-card a:focus-visible { outline-color:#efcf87; }
+.contact-section+.site-footer { width:100%; padding:28px 4% 36px; background:#f6f7ee; color:#536a5f; border-color:#dce4d5; }
+.contact-section+.site-footer .footer-brand { color:#173e35; }
+[dir=rtl] .contact-label { margin:0 0 16px 48px; }
+@media(max-width:900px) { .site-shell>.contact-section { grid-template-columns:1fr; padding-block:64px; gap:32px; }.contact-intro { max-width:640px; }.contact-signature { margin-top:24px; }.contact-details { grid-template-columns:1fr 1fr; align-items:stretch; }.contact-email { font-size:25px; } }
+@media(max-width:600px) { .contact-details { grid-template-columns:1fr; }.contact-email-card,.contact-company-card { padding:26px; border-radius:22px; }.contact-intro h2 { font-size:38px; }.contact-email { font-size:30px; }.contact-description { font-size:14px; } }
+@media(prefers-reduced-motion:reduce) { .contact-write:hover svg { transform:none; } }

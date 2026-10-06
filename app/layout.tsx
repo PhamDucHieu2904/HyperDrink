@@ -7,11 +7,12 @@ import './catalog-showcase.css';
 import './flavor-carousel.css';
 import './storefront-catalog.css';
 import './catalog-collection.css';
+import './contact.css';
 
 export const metadata: Metadata = {
   title: 'Vinut — Taste the extraordinary',
-  description: 'Explore the Vinut beverage collection in an interactive 3D experience.',
-  keywords: ['Vinut', 'beverages', 'refreshments', '3D showcase'],
+  description: 'Discover Vinut beverages, real fruit flavors and refreshing drinks from Vietnam.',
+  keywords: ['Vinut', 'beverages', 'refreshments', 'fruit drinks', 'Vietnam'],
   openGraph: {
     title: 'Vinut — Taste the extraordinary',
     description: 'Discover flavors in a whole new way.',

@@ -12,6 +12,7 @@
 .fileSummary strong { font-size: 13px; overflow-wrap: anywhere; color: #163b2f; }
 .metadata { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0 5px; font-size: 11px; color: #658274; }
 .fileSummary small { color: #658274; font-size: 11px; }
+.flavorMembership { display: block; margin-top: 6px; line-height: 1.6; overflow-wrap: anywhere; }
 .fileActions { position: absolute; right: 12px; top: 15px; display: flex; }
 .fileActions button, .configuration > button { min-width: 44px; min-height: 44px; }
 .delete { color: #a34c42; }

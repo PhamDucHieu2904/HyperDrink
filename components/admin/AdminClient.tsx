@@ -1,5 +1,7 @@
 'use client';
 
+import { mergeFlavorPoolAsset } from '@/lib/catalog/flavor-pool-library';
+
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, Leaf, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 import AdminApp from './AdminApp';
@@ -62,7 +64,7 @@ export default function AdminClient() {
   }
   async function addFlavorAsset(input: FlavorPoolAssetInput) {
     const saved = await request<FlavorAsset>('flavor-pool', input);
-    setWorkspace(current => current ? { ...current, catalog: { ...current.catalog, flavorAssets: current.catalog.flavorAssets.some(item => item.id === saved.id) ? current.catalog.flavorAssets.map(item => item.id === saved.id ? saved : item) : [...current.catalog.flavorAssets, saved] } } : current);
+    setWorkspace(current => current ? { ...current, catalog: mergeFlavorPoolAsset(current.catalog, saved) } : current);
     return saved;
   }
   async function displayAction(input: DisplayAction) {

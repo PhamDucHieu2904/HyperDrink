@@ -1,6 +1,6 @@
 'use client';
 import { useEffect,useState } from 'react';
-import { Bell,ShieldCheck,TriangleAlert } from 'lucide-react';
+import { Bell,TriangleAlert } from 'lucide-react';
 import type { SecurityReport } from '@/lib/operations/contracts';
 import { operationRequest } from './api';
 import styles from './operations.module.css';
@@ -13,5 +13,6 @@ export default function OperationsStatus({onOpen}:{onOpen:()=>void}){
     return()=>{controller.abort();window.clearInterval(timer);document.removeEventListener('visibilitychange',load);};
   },[]);
   const count=report?.totals.openAlerts||0,unavailable=failed||report?.monitoring==='degraded';
-  return <button type="button" className={`${styles.statusButton} ${count||unavailable?styles.statusWarning:''}`} onClick={onOpen} aria-label={unavailable?'Giám sát cần kiểm tra':count?`${count} cảnh báo cần kiểm tra`:'Mở an ninh và log'} title={unavailable?'Không nhận được log mới':report?`Kiểm tra gần nhất: ${new Date(report.generatedAt).toLocaleTimeString('vi-VN')}`:'Đang kết nối giám sát'}>{unavailable?<TriangleAlert size={17}/>:count?<Bell size={17}/>:<ShieldCheck size={17}/>}<span>{unavailable?'Kiểm tra log':count?`${count} cảnh báo`:report?'Giám sát đang chạy':'Đang kết nối'}</span></button>;
+  if (!count && !unavailable) return null;
+  return <button type="button" className={`${styles.statusButton} ${styles.statusWarning}`} onClick={onOpen} aria-label={unavailable?'Giám sát cần kiểm tra':`${count} cảnh báo cần kiểm tra`} title={unavailable?'Không nhận được log mới':report?`Kiểm tra gần nhất: ${new Date(report.generatedAt).toLocaleTimeString('vi-VN')}`:undefined}>{unavailable?<TriangleAlert size={17}/>:<Bell size={17}/>}<span>{unavailable?'Kiểm tra log':`${count} cảnh báo`}</span></button>;
 }

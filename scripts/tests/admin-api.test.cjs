@@ -111,12 +111,44 @@ test('pool imports assign names, unique IDs, flavor and append order automatical
   const leaf = (await context.upload('leaf')).media;
   const batch = await Promise.all(['fruit', 'leaf'].map(role => context.request('/api/admin/v1/flavor-pool', { method: 'POST', body: { ...input, id: randomUUID(), role, mediaId: role === 'leaf' ? leaf.id : media.id } })));
   batch.forEach(result => assert.equal(result.response.status, 200, JSON.stringify(result.payload)));
-  assert.deepEqual(batch.map(result => result.payload.data.position).sort(), [1, 2]);
+  assert.deepEqual(batch.map(result => result.payload.data.position).sort(), [0, 1]);
   assert.equal((await context.repository.readActiveRelease()), null);
   const conflict = await context.request('/api/admin/v1/flavor-pool', { method: 'POST', body: { ...input, role: 'leaf', mediaId: leaf.id } });
   assert.equal(conflict.response.status, 409);
   const audits = context.repository.database.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE entity_id=? AND action='save:flavorAssets'").get(input.id);
   assert.equal(audits.count, 1);
+}));
+
+test('reusable ice adopts a flavor pool atomically, deduplicates assignments and exports with the product', async () => withBackend(async context => {
+  await context.setup(); const product = await createVisible2DProduct(context);
+  const ice = (await context.upload('ice')).media;
+  const filesBefore = fs.readdirSync(path.join(context.folder, 'media')).sort();
+  const input = { id: randomUUID(), flavorId: product.flavor.id, mediaId: ice.id, role: 'ice' };
+  const saved = await context.request('/api/admin/v1/flavor-pool', { method: 'POST', body: input });
+  assert.equal(saved.response.status, 200, JSON.stringify(saved.payload));
+  const retry = await context.request('/api/admin/v1/flavor-pool', { method: 'POST', body: { ...input, id: randomUUID() } });
+  assert.deepEqual(retry.payload.data, saved.payload.data);
+  const shared = await context.request('/api/admin/v1/flavor-pool', { method: 'POST', body: { ...input, id: randomUUID(), flavorId: 'peach' } });
+  assert.equal(shared.response.status, 200);
+  let draft = await context.repository.readDraft();
+  assert.equal(draft.flavors.find(flavor => flavor.id === product.flavor.id).icePoolConfigured, true);
+  assert.equal(draft.flavors.find(flavor => flavor.id === product.flavor.id).revision, product.flavor.revision + 1);
+  assert.equal(draft.flavorAssets.filter(asset => asset.mediaId === ice.id).length, 2);
+  assert.deepEqual(fs.readdirSync(path.join(context.folder, 'media')).sort(), filesBefore);
+  context.reopen(); assert.deepEqual(await context.repository.readDraft(), draft);
+  const release = await context.repository.publish(draft, owner.email, 'Reusable ice', null);
+  exportPublishedCatalog({ dataDir: context.folder, outputDir: context.staticOutputDir });
+  const published = JSON.parse(fs.readFileSync(path.join(context.staticOutputDir, 'current.json'), 'utf8')).data.catalog;
+  assert.equal(published.media.filter(media => media.id === ice.id).length, 1);
+  assert.match(published.media.find(media => media.id === ice.id).url, /^\/catalog\/media\//);
+  assert.equal(published.flavors.find(flavor => flavor.id === product.flavor.id).icePoolConfigured, true);
+  assert.equal(published.flavorAssets.filter(asset => asset.mediaId === ice.id).length, 1);
+  const hash = createHash('sha256').update(JSON.stringify(draft)).digest('hex');
+  await context.repository.deleteRecord('flavorAssets', saved.payload.data.id, saved.payload.data.revision, hash, owner.email);
+  draft = await context.repository.readDraft();
+  const { resolveFlavorScene } = require('../../lib/catalog/resolve.ts');
+  assert.equal(resolveFlavorScene(draft, draft.flavors.find(flavor => flavor.id === product.flavor.id), 'deleted').nodes.filter(node => node.kind === 'ice').length, 0);
+  assert.deepEqual(await context.repository.readActiveRelease(), release);
 }));
 
 test('pool rejects wrong-role, missing or archived resources and cannot accept manual metadata', async () => withBackend(async context => {

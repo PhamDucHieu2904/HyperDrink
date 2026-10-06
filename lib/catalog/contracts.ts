@@ -2,7 +2,7 @@
 export type EntityId = string;
 export type Lifecycle = 'active' | 'archived';
 export type MediaStatus = 'uploaded' | 'processing' | 'ready' | 'failed';
-export type MediaRole = 'fruit' | 'leaf' | 'splash' | 'thumbnail' | 'icon' | 'label' | 'model' | 'poster' | 'image-2d';
+export type MediaRole = 'fruit' | 'leaf' | 'splash' | 'ice' | 'thumbnail' | 'icon' | 'label' | 'model' | 'poster' | 'image-2d';
 export type RenderMode = '3d' | '2d' | 'auto';
 export type AdminRole = 'owner' | 'editor';
 
@@ -37,12 +37,14 @@ export interface Flavor extends Entity {
   /** Optional reusable uploaded icon; the built-in icon remains the fallback. */
   iconId?: EntityId | null;
   thumbnailId: EntityId | null;
+  /** Legacy releases keep the shared ice preset until this flavor adopts an editable pool. */
+  icePoolConfigured?: boolean;
   position: number;
 }
 export interface FlavorAsset extends Entity {
   flavorId: EntityId;
   mediaId: EntityId;
-  role: 'fruit' | 'leaf' | 'splash';
+  role: 'fruit' | 'leaf' | 'splash' | 'ice';
   position: number;
   enabled: boolean;
 }
@@ -57,6 +59,10 @@ export interface ProductGroup extends Entity {
   drinkTypeId: EntityId;
   description: string;
   buttonLabel: string;
+  /** Editable product messages on the hero card; the volume itself comes from packaging. */
+  heroVolumeCaption?: string;
+  heroFlavorText?: string;
+  heroOriginText?: string;
   position: number;
   visible: boolean;
   /** Collection settings are independent of the Best seller buttons; old releases inherit visible/position. */
@@ -96,12 +102,20 @@ export interface MediaAsset extends Entity {
   error: string;
 }
 export interface Label extends Entity {
+  /** Explicit Mockup publication root; absent fields inherit only public sales displays. */
+  mockupVisible?: boolean;
+  mockupPosition?: number;
   drinkTypeId: EntityId;
   flavorId: EntityId | null;
   mediaId: EntityId | null;
   compatibilities: { packagingVariantId: EntityId; layoutProfile: string }[];
 }
 export interface Model3D extends Entity {
+  /** Independent from sales displays; false hides this model only in Mockup. */
+  mockupVisible?: boolean;
+  mockupPosition?: number;
+  /** Front-view correction in radians, applied only by the Mockup controller. */
+  mockupFrontYaw?: number;
   packagingVariantId: EntityId;
   mediaId: EntityId | null;
   posterId: EntityId | null;
