@@ -31,7 +31,11 @@ async function readRelease(fetcher: typeof fetch, url: string, source: Published
   try {
     assertNotAborted();
     let response: Response;
-    try { response = await fetcher(url, { cache: 'no-store', credentials: 'omit', signal: request.signal }); }
+    // Static snapshots revalidate cached bytes and match the anonymous HTML preload.
+    // The API keeps its independent, credential-free request policy.
+    const cache = source === 'static' ? 'no-cache' : 'no-store';
+    const credentials = source === 'static' ? 'same-origin' : 'omit';
+    try { response = await fetcher(url, { cache, credentials, signal: request.signal }); }
     catch (cause) {
       assertNotAborted();
       if (cause instanceof Error && cause.name === 'AbortError') throw cause;

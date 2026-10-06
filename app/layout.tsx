@@ -21,8 +21,10 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const preloadStaticCatalog = process.env.GITHUB_PAGES === 'true' && !process.env.NEXT_PUBLIC_ADMIN_API_URL;
   return (
     <html lang="en" dir="ltr">
+      <head>{preloadStaticCatalog && <link rel="preload" as="fetch" href={publicUrl('/catalog/current.json')} crossOrigin="anonymous" />}</head>
       <body style={{
         '--hero-atmosphere': `url("${publicUrl('/assets/backgrounds/hero-atmosphere.png')}")`,
         '--hero-splash': `url("${publicUrl('/assets/backgrounds/hero-water-splash.jpg')}")`,

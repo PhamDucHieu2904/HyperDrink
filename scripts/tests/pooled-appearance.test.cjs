@@ -13,6 +13,7 @@ function load(file, importer) {
 const urls = load('lib/public-url.ts', require), config = load('lib/viewer-config.ts', require);
 const appearance = id => ({ id, requiredSlots: ['label'], slots: { label: { baseColorMap: `/labels/${id}.webp`, roughness: .15 } } });
 function fixture(context, options = {}) {
+  const { importedTexture, ...poolOptions } = options;
   const requests = [], warmed = [], reports = [];
   class TextureLoader {
     loadAsync(url) {
@@ -30,10 +31,11 @@ function fixture(context, options = {}) {
   });
   const pooling = load('lib/viewer/pooled-appearance.ts', name => name === 'three' ? THREE : legacy);
   const root = new THREE.Group(), original = new THREE.MeshPhysicalMaterial(); original.name = 'print';
+  if (importedTexture) original.normalMap = importedTexture;
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(), original); root.add(mesh);
   const handle = pooling.createPooledAppearanceHandle(root, { id: 'can', name: 'Can', src: '/can.glb', packaging: 'can', materialSlots: { label: ['print'] } }, {
     warmup: async prepared => { assert.equal(prepared.children[0].geometry, mesh.geometry); warmed.push(prepared.children[0].material.map); },
-    onChange: (ready, pending) => reports.push({ ready, pending }), ...options,
+    onChange: (ready, pending) => reports.push({ ready, pending }), ...poolOptions,
   });
   context.after(() => { handle.dispose(); mesh.geometry.dispose(); original.dispose(); });
   return { handle, mesh, original, requests, warmed, reports };
@@ -49,6 +51,128 @@ test('preparing neighbors shares geometry, leaves the visible label intact, and 
   assert.equal(f.mesh.material, visible); assert.equal(f.warmed.length, 2); assert.ok(f.handle.has(appearance('b')));
   await f.handle.apply(appearance('b')); assert.equal(f.requests.length, 2); assert.equal(f.mesh.material.map, f.requests[1].texture);
   await f.handle.apply(appearance('a')); assert.equal(f.requests.length, 2); assert.equal(f.mesh.material, visible);
+});
+
+test('a cold selected appearance starts warmup as foreground without a background idle wait', async context => {
+  let foregroundWarmups = 0, backgroundWarmups = 0;
+  const f = fixture(context, { warmup: async (_root, _isCurrent, priority) => {
+    if (priority.isForeground()) foregroundWarmups++;
+    else backgroundWarmups++;
+  } });
+  f.handle.setWindow(['a', 'b'].map(appearance));
+  await apply(f, 'a');
+  assert.equal(foregroundWarmups, 1); assert.equal(backgroundWarmups, 0);
+  const neighbor = f.handle.prepare(appearance('b')); f.requests[1].resolve(); await neighbor;
+  assert.equal(foregroundWarmups, 1); assert.equal(backgroundWarmups, 1);
+});
+
+test('selecting a partially warmed neighbor wakes its idle yield without reloading or waiting for unrelated neighbors', async context => {
+  const warmups = [], idleGates = new Map();
+  const f = fixture(context, { warmup: async (root, _isCurrent, priority) => {
+    const name = root.children[0].material.map.name;
+    warmups.push({ name, foreground: priority.isForeground() });
+    if (priority.isForeground()) return;
+    // The first upload already finished; the remaining work waits for an idle
+    // callback. Foreground selection must wake this exact task immediately.
+    let releaseIdle;
+    const idle = new Promise(resolve => { releaseIdle = resolve; });
+    const unsubscribe = priority.onPromote(releaseIdle);
+    idleGates.set(name, { releaseIdle, priority });
+    try { await idle; }
+    finally { unsubscribe(); }
+  } });
+  f.handle.setWindow(['a', 'b', 'c'].map(appearance));
+  const initial = f.handle.apply(appearance('a')); f.requests[0].texture.name = 'a'; f.requests[0].resolve(); await initial;
+  const visible = f.mesh.material;
+  const first = f.handle.prepare(appearance('b')); f.requests[1].texture.name = 'b'; f.requests[1].resolve();
+  const unrelated = f.handle.prepare(appearance('c')); f.requests[2].texture.name = 'c'; f.requests[2].resolve(); await settle();
+  assert.equal(f.mesh.material, visible); assert.equal(f.handle.has(appearance('b')), false);
+  assert.equal(idleGates.get('b').priority.isForeground(), false);
+  const selected = f.handle.apply(appearance('b'));
+  assert.equal(idleGates.get('b').priority.isForeground(), true, 'Promotion is synchronous');
+  await settle();
+  assert.equal(f.mesh.material.map, f.requests[1].texture, 'The selected label commits before either idle callback fires');
+  assert.equal(f.requests.length, 3, 'Promotion reuses the already decoded neighbor texture');
+  assert.deepEqual(warmups, [{ name: 'a', foreground: true }, { name: 'b', foreground: false }, { name: 'c', foreground: false }]);
+  assert.equal(f.handle.has(appearance('c')), false, 'Unrelated background work stays pending');
+  await Promise.all([first, selected]);
+  idleGates.get('c').releaseIdle(); await unrelated;
+  assert.equal(f.mesh.material.map, f.requests[1].texture, 'Completing another neighbor does not commit it');
+});
+
+test('foreground priority follows the newest selection while obsolete warming retains safe ownership', async context => {
+  const gates = new Map();
+  const f = fixture(context, { warmup: (root, _isCurrent, priority) => {
+    const name = root.children[0].material.map.name;
+    let finish;
+    const promise = new Promise(resolve => { finish = resolve; });
+    gates.set(name, { priority, finish });
+    return promise;
+  } });
+  f.handle.setWindow(['a', 'b'].map(appearance));
+  const first = f.handle.apply(appearance('a')); f.requests[0].texture.name = 'a'; f.requests[0].resolve(); await settle();
+  assert.equal(gates.get('a').priority.isForeground(), true);
+  const latest = f.handle.apply(appearance('b')); f.requests[1].texture.name = 'b'; f.requests[1].resolve(); await settle();
+  assert.equal(gates.get('a').priority.isForeground(), false);
+  assert.equal(gates.get('b').priority.isForeground(), true);
+  gates.get('a').finish(); await first;
+  assert.equal(f.mesh.material, f.original, 'An obsolete foreground request cannot commit');
+  gates.get('b').finish(); await latest;
+  assert.equal(f.mesh.material.map, f.requests[1].texture);
+});
+
+test('an oversized decoded neighbor is skipped before GPU warmup, remembered, and may still replace the pinned label', async context => {
+  const f = fixture(context, { maxTextureBytes: 1500 });
+  f.handle.setWindow(['a', 'b', 'c'].map(appearance));
+  const first = f.handle.apply(appearance('a'));
+  f.requests[0].texture.image = { width: 10, height: 10 }; f.requests[0].resolve(); await first;
+  const visible = f.mesh.material;
+  const oversized = f.handle.prepare(appearance('b'));
+  f.requests[1].texture.image = { width: 20, height: 20 }; f.requests[1].resolve(); await oversized;
+  assert.equal(f.warmed.length, 1, 'Oversized background texture never reaches GPU warmup');
+  assert.equal(f.handle.has(appearance('b')), false); assert.equal(f.requests[1].texture.disposals, 1);
+  assert.equal(f.mesh.material, visible); assert.equal(f.requests[0].texture.disposals, 0, 'Visible label stays pinned');
+  await f.handle.prepare(appearance('b')); await f.handle.prepare(appearance('b'));
+  assert.equal(f.requests.length, 2, 'The same inadmissible neighbor is not decoded repeatedly');
+  const selected = f.handle.apply(appearance('b'));
+  f.requests[2].texture.image = { width: 20, height: 20 }; f.requests[2].resolve(); await selected;
+  assert.equal(f.mesh.material.map, f.requests[2].texture, 'Required replacement bypasses the background byte limit');
+  assert.equal(f.requests[0].texture.disposals, 1, 'Outgoing label retires after oversized replacement commits');
+  assert.equal(f.requests[2].texture.disposals, 0, 'An oversized selected label remains usable');
+  const smaller = f.handle.apply(appearance('c'));
+  f.requests[3].texture.image = { width: 10, height: 10 }; f.requests[3].resolve(); await smaller;
+  assert.equal(f.requests[2].texture.disposals, 1); assert.equal(f.mesh.material.map, f.requests[3].texture);
+  f.handle.dispose(); f.requests.forEach(request => assert.equal(request.texture.disposals, 1));
+});
+
+test('decoded budget includes mip allowance and evicts unpinned neighbors before uploading a selected replacement', async context => {
+  const f = fixture(context, { maxTextureBytes: 1500 });
+  f.handle.setWindow(['a', 'b', 'c'].map(appearance));
+  const first = f.handle.apply(appearance('a')); f.requests[0].texture.image = { width: 10, height: 10 }; f.requests[0].resolve(); await first;
+  const second = f.handle.prepare(appearance('b')); f.requests[1].texture.image = { width: 10, height: 10 }; f.requests[1].resolve(); await second;
+  const third = f.handle.prepare(appearance('c')); f.requests[2].texture.image = { width: 10, height: 10 }; f.requests[2].resolve(); await third;
+  assert.equal(f.warmed.length, 2, 'Three 400-byte RGBA maps would fit without mips; three 534-byte mip estimates must not');
+  assert.equal(f.requests[2].texture.disposals, 1); assert.equal(f.requests[0].texture.disposals, 0);
+  await f.handle.prepare(appearance('c')); assert.equal(f.requests.length, 3);
+  const selected = f.handle.apply(appearance('c')); f.requests[3].texture.image = { width: 10, height: 10 }; f.requests[3].resolve(); await selected;
+  assert.equal(f.requests[1].texture.disposals, 1, 'An unselected neighbor yields space to the new selected label');
+  assert.equal(f.requests[0].texture.disposals, 0); assert.equal(f.requests[3].texture.disposals, 0);
+  f.handle.dispose(); f.requests.forEach(request => assert.equal(request.texture.disposals, 1));
+});
+
+test('budget ignores shared imported textures and uses intrinsic image dimensions', async context => {
+  const importedTexture = new THREE.Texture({ width: 2048, height: 2048 });
+  let importedDisposals = 0; importedTexture.addEventListener('dispose', () => importedDisposals++);
+  context.after(() => importedTexture.dispose());
+  const f = fixture(context, { importedTexture, maxTextureBytes: 1200 });
+  f.handle.setWindow(['a', 'b'].map(appearance));
+  const first = f.handle.apply(appearance('a'));
+  f.requests[0].texture.image = { naturalWidth: 10, naturalHeight: 10, width: 2048, height: 2048 }; f.requests[0].resolve(); await first;
+  const second = f.handle.prepare(appearance('b'));
+  f.requests[1].texture.image = { naturalWidth: 10, naturalHeight: 10, width: 2048, height: 2048 }; f.requests[1].resolve(); await second;
+  assert.equal(f.handle.has(appearance('b')), true); assert.equal(f.warmed.length, 2);
+  assert.equal(f.requests[0].texture.disposals, 0); assert.equal(f.requests[1].texture.disposals, 0);
+  f.handle.dispose(); assert.equal(importedDisposals, 0, 'Shared model maps remain owned by the model');
 });
 
 test('moving the five-entry window pins the visible old label until replacement commits, then evicts it exactly once', async context => {

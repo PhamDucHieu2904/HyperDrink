@@ -316,7 +316,7 @@ test('camera keeps varied packages inside the viewport during upright lid turns 
   assert.ok(maximumNdc <= config.DEFAULT_VIEWER_PRESENTATION.camera.fill + 0.015, 'Framing lost its requested edge clearance');
 });
 
-function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
+function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, options = {}) {
   const deferred = () => {
     let resolve;
     let reject;
@@ -337,7 +337,11 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
   const motionListeners = new Set();
   let productsDisposed = 0;
   const renderers = [];
+  const labelTextures = [];
+  const idleCallbacks = new Map();
+  let nextIdleId = 0;
   let viewer;
+  if (options.controlledIdle) context.mock.timers.enable({ apis: ['setTimeout'] });
 
   // Replace browser/GPU boundaries only. Scene graph, quaternions, camera,
   // framing and the runtime selection/lifecycle code remain real production code.
@@ -355,7 +359,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
     getBoundingClientRect() { return { left: 0, top: 0, width: 500, height: 700 }; },
   };
   class Renderer {
-    constructor() { this.domElement = canvas; this.resolutionTargets = new Set(); this.draws = []; this.warmedTextures = []; this.compiledRoots = []; renderers.push(this); }
+    constructor() { this.domElement = canvas; this.info = { programs: [] }; this.resolutionTargets = new Set(); this.draws = []; this.warmedTextures = []; this.compiledRoots = []; this.asyncCompiledRoots = []; renderers.push(this); }
     setClearColor() {} dispose() {}
     setPixelRatio(value) { this.pixelRatio = value; }
     setSize(width, height) { this.width = width; this.height = height; }
@@ -365,7 +369,18 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
     }
     setAnimationLoop(frame) { this.frame = frame; }
     initTexture(texture) { this.warmedTextures.push(texture); }
-    compileAsync(root) { this.compiledRoots.push(root); return Promise.resolve(); }
+    compile(root) {
+      this.compiledRoots.push(root);
+      const materials = new Set();
+      root.traverse(node => {
+        if (node instanceof THREE.Mesh) for (const material of Array.isArray(node.material) ? node.material : [node.material]) materials.add(material);
+      });
+      return materials;
+    }
+    compileAsync(root) {
+      this.asyncCompiledRoots.push(root);
+      return options.unfinishedAsyncCompile ? new Promise(() => {}) : Promise.resolve();
+    }
     render(scene, camera) {
       this.scene = scene; this.camera = camera;
       this.draws.push({ scene, camera }); renderEvents.push({ type: 'main', scene, camera });
@@ -395,6 +410,10 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
     matchMedia() { return { matches: false, addEventListener(_type, listener) { motionListeners.add(listener); },
       removeEventListener(_type, listener) { motionListeners.delete(listener); } }; },
   };
+  if (options.controlledIdle) {
+    global.window.requestIdleCallback = callback => { const id = ++nextIdleId; idleCallbacks.set(id, callback); return id; };
+    global.window.cancelIdleCallback = id => idleCallbacks.delete(id);
+  }
   global.document = { hidden: false, createElement: domElement, addEventListener() {}, removeEventListener() {} };
   global.ResizeObserver = class { observe() {} disconnect() {} };
   global.IntersectionObserver = class { observe() {} disconnect() {} };
@@ -409,7 +428,19 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
       return {
         apply(value) {
           appearanceCalls.push({ root, assetId: asset.id, asset, value });
-          if (immediateAppearance) return Promise.resolve();
+          if (immediateAppearance) {
+            if (options.labelTextures && value?.slots?.label?.baseColorMap) {
+              const texture = new THREE.Texture(); texture.name = value.id;
+              labelTextures.push(texture);
+              root.traverse(node => {
+                if (!(node instanceof THREE.Mesh)) return;
+                const materials = Array.isArray(node.material) ? node.material : [node.material];
+                const cloned = materials.map(original => { const material = original.clone(); material.map = texture; return material; });
+                node.material = Array.isArray(node.material) ? cloned : cloned[0];
+              });
+            }
+            return Promise.resolve();
+          }
           const request = deferred();
           appearanceRequests.push({ assetId: asset.id, asset, value, ...request });
           return request.promise;
@@ -447,7 +478,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
     if (name === './resource-prefetch') return {
       // The real queue/lifetime implementation remains installed; this fixture
       // disables only its background network boundary, tested separately.
-      createResourcePrefetcher: options => resourcePrefetch.createResourcePrefetcher({ ...options, allowBackground: () => false }),
+      createResourcePrefetcher: prefetchOptions => resourcePrefetch.createResourcePrefetcher({ ...prefetchOptions, allowBackground: () => Boolean(options.allowBackground) }),
     };
     if (name === './backdrop-texture') return {
       createBackdropTexture(state, config, mount) {
@@ -490,7 +521,9 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
   viewer = runtime.createProductViewer(mount, config.resolveViewerPresentation({environment:{mode:'hdri'}}), (status) => statuses.push(status));
   const model = (height = 0.115) => {
     const scene = new THREE.Group();
-    scene.add(new THREE.Mesh(new THREE.BoxGeometry(0.065, height, 0.065), new THREE.MeshPhysicalMaterial()));
+    const material = new THREE.MeshPhysicalMaterial();
+    if (options.importedTexture) material.roughnessMap = new THREE.Texture();
+    scene.add(new THREE.Mesh(new THREE.BoxGeometry(0.065, height, 0.065), material));
     return { scene };
   };
   const flush = async () => { for (let index = 0; index < 12; index += 1) await Promise.resolve(); };
@@ -501,10 +534,24 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1) {
       renderers[0].frame(frameTime);
     }
   };
-  return { viewer, mount, canvas, hitRegion: mount.children.find(child => child.dataset.productHitRegion), renderer: renderers[0], geometryRequests, appearanceRequests, appearanceCalls, disposedProducts, accentFrames, backdropResources, backdropBindings, waterPassResources, renderEvents, environment, statuses,
+  return { viewer, mount, canvas, hitRegion: mount.children.find(child => child.dataset.productHitRegion), renderer: renderers[0], geometryRequests, appearanceRequests, appearanceCalls, labelTextures, idleCallbacks, disposedProducts, accentFrames, backdropResources, backdropBindings, waterPassResources, renderEvents, environment, statuses,
+    tickIdleTimers: milliseconds => context.mock.timers.tick(milliseconds),
+    releaseIdle() { const next = idleCallbacks.entries().next().value; assert.ok(next, 'An idle task must actually be queued'); idleCallbacks.delete(next[0]); next[1]({ didTimeout: false, timeRemaining: () => 50 }); },
+    advanceFrames(timestamps) { for (const timestamp of timestamps) { frameTime = timestamp; renderers[0].frame(frameTime); } },
     model, asset, flush, advance, setReducedMotion: (matches) => motionListeners.forEach((listener) => listener({ matches })),
     disposedCount: () => productsDisposed };
 }
+
+test('60 Hz animation frames with ordinary timestamp jitter retain nearly every draw instead of falling to half the frame rate', async context => {
+  const f = runtimeFixture(context, true);
+  f.viewer.select(f.asset('can')); f.geometryRequests[0].resolve(f.model()); await f.flush();
+  const timestamps = Array.from({ length: 120 }, (_, index) => (index + 1) * (1000 / 60) + 1 + (index % 2 ? 0.02 : 0.18));
+  const before = f.renderer.draws.length;
+  f.advanceFrames(timestamps);
+  const draws = f.renderer.draws.length - before;
+  assert.ok(draws >= 119, `Two seconds at 60 Hz should keep at least 119 draws; got ${draws}`);
+  assert.ok(draws <= 120, 'A render loop must not create extra draws between animation frames');
+});
 
 test('blank mobile canvas preserves native vertical scrolling while only the projected can accepts rotation', async context => {
   const { viewer, mount, canvas, hitRegion, renderer, geometryRequests, model, asset, flush, advance } = runtimeFixture(context, true);
@@ -746,7 +793,8 @@ test('hero label pool switches back to a ready appearance without repeating its 
   assert.equal(f.mount.dataset.labelPoolReady, '2');
   assert.equal(f.mount.dataset.labelCacheHit, 'false');
   const compileCount = f.renderer.compiledRoots.length;
-  assert.equal(compileCount, 2, 'Each new material set is prepared before it can become ready');
+  assert.equal(compileCount, 2, 'Each material set binds through the renderer program cache without polling');
+  assert.equal(f.renderer.asyncCompiledRoots.length, 0, 'Speculative clones never start uncancellable shader polling');
 
   f.viewer.select(asset, red); await f.flush();
   assert.equal(f.mount.dataset.labelCacheHit, 'true');
@@ -755,6 +803,66 @@ test('hero label pool switches back to a ready appearance without repeating its 
   assert.equal(f.geometryRequests.length, 1, 'Every label uses the same can scene');
   assert.equal(f.mount.dataset.labelPoolReady, '2');
   assert.equal(f.statuses.at(-1).phase, 'ready');
+});
+
+test('selected textured labels become ready without waiting for idle callbacks or asynchronous shader polling', async context => {
+  const f = runtimeFixture(context, true, 1, {
+    importedTexture: true, labelTextures: true, controlledIdle: true, unfinishedAsyncCompile: true,
+  });
+  const asset = f.asset('textured-can');
+  const red = { id: 'red', slots: { label: { baseColorMap: '/red.webp' } } };
+  const blue = { id: 'blue', slots: { label: { baseColorMap: '/blue.webp' } } };
+  f.viewer.pause(true);
+  f.viewer.resources({ ready: [{ asset, appearance: red }, { asset, appearance: blue }], files: [] });
+  f.viewer.select(asset, red);
+  f.geometryRequests[0].resolve(f.model());
+  await f.flush(); await f.flush();
+  f.tickIdleTimers(1000);
+  await f.flush();
+  assert.equal(f.statuses.at(-1).phase, 'ready', 'Demand must finish even when requestIdleCallback never runs');
+  assert.ok(f.renderer.warmedTextures.includes(f.labelTextures[0]), 'The real texture boundary is exercised');
+  assert.equal(f.mount.dataset.labelPoolReady, '1');
+
+  f.viewer.select(asset, blue);
+  await f.flush(); await f.flush();
+  assert.equal(f.mount.dataset.labelPoolReady, '2', 'The next selected label is uploaded in the foreground too');
+  assert.ok(f.renderer.warmedTextures.includes(f.labelTextures[1]));
+  assert.equal(f.renderer.compiledRoots.length, 2, 'Both selected material sets are prepared without asynchronous polling');
+  assert.equal(f.renderer.asyncCompiledRoots.length, 0, 'A never-settling compileAsync cannot hold a selection or teardown hostage');
+  f.viewer.dispose();
+  assert.equal(f.renderer.asyncCompiledRoots.length, 0);
+});
+
+test('selecting a neighbor parked in GPU warmup promotes it without an idle callback or a second label load', async context => {
+  const f = runtimeFixture(context, true, 1, {
+    importedTexture: true, labelTextures: true, controlledIdle: true, allowBackground: true, unfinishedAsyncCompile: true,
+  });
+  const asset = f.asset('neighbor-can');
+  const red = { id: 'red', slots: { label: { baseColorMap: '/red.webp' } } };
+  const blue = { id: 'blue', slots: { label: { baseColorMap: '/blue.webp' } } };
+  // Put the unselected neighbor first so the background worker reaches it directly.
+  f.viewer.resources({ ready: [{ asset, appearance: blue }, { asset, appearance: red }], files: [] });
+  f.viewer.select(asset, red); f.geometryRequests[0].resolve(f.model());
+  await f.flush(); await f.flush();
+  assert.equal(f.statuses.at(-1).phase, 'ready');
+
+  f.tickIdleTimers(40); f.releaseIdle();
+  await f.flush(); await f.flush();
+  f.tickIdleTimers(40);
+  assert.equal(f.appearanceCalls.length, 2, 'A neighbor decode must actually have started');
+  const neighborTexture = f.labelTextures[1];
+  assert.ok(neighborTexture);
+  assert.equal(f.renderer.warmedTextures.includes(neighborTexture), false, 'Background upload is genuinely parked behind idle');
+  assert.ok(f.idleCallbacks.size > 0, 'The blocked idle callback is deliberately never released');
+
+  f.viewer.select(asset, blue);
+  await f.flush(); await f.flush();
+  assert.ok(f.renderer.warmedTextures.includes(neighborTexture), 'The click promotes an already-started texture upload immediately');
+  assert.equal(f.mount.dataset.labelPoolReady, '2');
+  assert.equal(f.appearanceCalls.length, 2, 'Promotion reuses the in-flight label instead of decoding another copy');
+  assert.equal(f.geometryRequests.length, 1);
+  assert.equal(f.renderer.compiledRoots.length, 2);
+  assert.equal(f.renderer.asyncCompiledRoots.length, 0);
 });
 
 test('image-cutout storefront without a backdrop allocates no painter or capture pass, including paused repaints', async (context) => {

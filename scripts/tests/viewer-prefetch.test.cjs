@@ -60,6 +60,7 @@ test('deduplicates shared model/maps, prefetches nearest-first and caps the cand
   assert.deepEqual(f.requests.map(value => value.source), ['/can.glb']);
   assert.equal(f.requests[0].init.cache, 'force-cache');
   assert.equal(f.requests[0].init.credentials, 'same-origin');
+  assert.equal(f.requests[0].init.priority, 'low');
   await f.drain();
   assert.deepEqual(f.requests.map(value => value.source), ['/can.glb', ...Array.from({ length: 21 }, (_, index) => `/label-${index}.webp`)]);
   assert.equal(f.diagnostics.at(-1).entries, 22);
@@ -77,6 +78,60 @@ test('caps distinct file count even when appearances contain several maps', asyn
   assert.equal(f.requests.length, 60);
   assert.equal(f.diagnostics.at(-1).entries, 60);
   assert.equal(f.handle.resolveUrl('/can-20.glb'), '/can-20.glb');
+});
+
+test('completed selected model/maps do not download again into the compressed Blob cache', async context => {
+  const f = fixture(context);
+  const selected = candidate('/selected.webp', '/selected.glb'), neighbor = candidate('/neighbor.webp', '/selected.glb');
+  f.handle.configure([selected, neighbor]);
+  f.handle.markLoaded('/selected.glb'); f.handle.markLoaded('/selected.webp');
+  await f.drain();
+  assert.deepEqual(f.requests.map(request => request.source), ['/neighbor.webp']);
+  assert.equal(f.handle.acquireUrl('/selected.glb').url, '/selected.glb');
+  assert.equal(f.handle.acquireUrl('/selected.webp').url, '/selected.webp');
+  f.handle.configure([neighbor, selected]); await f.drain();
+  assert.equal(f.requests.length, 1, 'Successful selected URLs survive a pure priority reorder');
+  f.handle.configure([selected, neighbor]); await f.drain();
+  assert.equal(f.requests.length, 1, 'An improved rank must not clear a successful selected-file marker');
+});
+
+test('completing a selected file aborts its duplicate in-flight prefetch and does not accept or retry a late response', async context => {
+  const f = fixture(context, { deferred: true });
+  f.handle.configure([candidate('/selected.webp', '/selected.glb'), candidate('/neighbor.webp', '/selected.glb')]);
+  await f.next(); assert.equal(f.requests[0].source, '/selected.glb');
+  f.handle.markLoaded('/selected.glb'); f.handle.markLoaded('/selected.webp');
+  assert.equal(f.requests[0].init.signal.aborted, true);
+  assert.equal(await f.next(), false, 'Wait for the aborted transport to settle instead of overlapping requests');
+  f.requests[0].resolve(response()); await flush();
+  assert.equal(f.created.length, 0);
+  await f.next(); assert.equal(f.requests[1].source, '/neighbor.webp');
+  f.requests[1].resolve(response()); await flush(); await f.drain();
+  assert.deepEqual(f.requests.map(request => request.source), ['/selected.glb', '/neighbor.webp']);
+});
+
+test('marking a fetched file preserves its cached Blob and outstanding lease through retirement', async context => {
+  const f = fixture(context);
+  f.handle.configure([candidate('/a.webp')]); await f.drain();
+  const lease = f.handle.acquireUrl('/a.webp');
+  f.handle.markLoaded('/a.webp');
+  assert.equal(f.handle.resolveUrl('/a.webp'), lease.url); assert.equal(f.revoked.includes(lease.url), false);
+  f.handle.configure([candidate('/b.webp')]);
+  assert.equal(f.revoked.includes(lease.url), false);
+  lease.release(); lease.release();
+  assert.equal(f.revoked.filter(url => url === lease.url).length, 1);
+});
+
+test('pure reorders retry only improved ranks, while changed membership can retry previously rejected files', async context => {
+  const f = fixture(context, { maxBytes: 1, respond: source => response(source === '/can.glb' ? 1 : 2) });
+  f.handle.configure([candidate('/a.webp'), candidate('/b.webp'), candidate('/c.webp')]); await f.drain();
+  assert.deepEqual(f.requests.map(request => request.source), ['/can.glb', '/a.webp', '/b.webp', '/c.webp']);
+  f.handle.configure([candidate('/a.webp'), candidate('/c.webp'), candidate('/b.webp')]); await f.drain();
+  assert.deepEqual(f.requests.slice(4).map(request => request.source), ['/c.webp']);
+  f.handle.configure([candidate('/a.webp'), candidate('/c.webp'), candidate('/b.webp')]); await f.drain();
+  assert.equal(f.requests.length, 5, 'Stable rejected files do not churn');
+  f.handle.configure([candidate('/a.webp'), candidate('/c.webp'), candidate('/d.webp')]); await f.drain();
+  assert.deepEqual(f.requests.slice(5).map(request => request.source), ['/a.webp', '/c.webp', '/d.webp']);
+  assert.ok(f.diagnostics.every(value => value.bytes <= 1));
 });
 
 test('byte budget preserves nearer files, stops instead of churning and moves with selection', async context => {

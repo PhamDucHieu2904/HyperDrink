@@ -2,6 +2,11 @@
 require('../register-admin-typescript.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const ts = require('typescript');
+const React = require('react');
+const { renderToStaticMarkup } = require('react-dom/server');
 const { resolveStorefrontSelection, randomStorefrontEntry, catalogProducts, parsePublishedCatalog } = require('../../lib/catalog/storefront.ts');
 const { fetchPublishedCatalog } = require('../../components/usePublishedCatalog.ts');
 const { validateCatalog } = require('../../lib/catalog/validation.ts');
@@ -36,6 +41,14 @@ function fixture() {
 
 const envelope = (catalog = fixture(), releaseId = 'release-one') => ({ data: { catalog, releaseId, publishedAt: '2026-10-01T06:00:00Z', schemaVersion: 1 } });
 const response = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+function renderRootLayout() {
+  const source = fs.readFileSync(path.resolve(__dirname, '../../app/layout.tsx'), 'utf8');
+  const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
+  const loaded = { exports: {} };
+  new Function('require', 'module', 'exports', outputText)(name => name.endsWith('.css') ? {} : require(name), loaded, loaded.exports);
+  return renderToStaticMarkup(React.createElement(loaded.exports.default, null, 'Storefront'));
+}
 
 test('collection title and ordering are independent of the hero buttons and older releases keep their rows', () => {
   const data = fixture();
@@ -244,12 +257,45 @@ test('static mode skips API and repository base paths are applied only once', as
   process.env.NEXT_PUBLIC_BASE_PATH = '/HyperDrink';
   try {
     const calls = [];
-    assert.equal((await fetchPublishedCatalog({ apiBase: '', mode: 'static', fetcher: async url => { calls.push(url); return response(envelope()); } })).source, 'static');
-    assert.deepEqual(calls, ['/HyperDrink/catalog/current.json']);
+    assert.equal((await fetchPublishedCatalog({ apiBase: '', mode: 'static', fetcher: async (url, options) => { calls.push({ url, options }); return response(envelope()); } })).source, 'static');
+    assert.deepEqual(calls.map(call => call.url), ['/HyperDrink/catalog/current.json']);
+    assert.equal(calls[0].options.cache, 'no-cache'); assert.equal(calls[0].options.credentials, 'same-origin');
+    assert.equal(new Request(`https://storefront.example.test${calls[0].url}`, calls[0].options).mode, 'cors', 'Static fetch must match the anonymous preload CORS mode');
     calls.length = 0;
     await fetchPublishedCatalog({ apiBase: '', mode: 'api', fetcher: async url => { calls.push(url); return response(envelope()); } });
     assert.deepEqual(calls, ['/HyperDrink/api/public/v1/catalog']);
   } finally { if (old === undefined) delete process.env.NEXT_PUBLIC_BASE_PATH; else process.env.NEXT_PUBLIC_BASE_PATH = old; }
+});
+
+test('Pages starts one matching static catalog preload before hydration and hosted API/local layouts omit it', () => {
+  const keys = ['GITHUB_PAGES', 'NEXT_PUBLIC_ADMIN_API_URL', 'NEXT_PUBLIC_BASE_PATH'];
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  try {
+    process.env.GITHUB_PAGES = 'true'; process.env.NEXT_PUBLIC_BASE_PATH = '/HyperDrink'; delete process.env.NEXT_PUBLIC_ADMIN_API_URL;
+    const html = renderRootLayout();
+    assert.match(html, /<head><link rel="preload" as="fetch" href="\/HyperDrink\/catalog\/current\.json" crossorigin="anonymous"\/><\/head>/i);
+    assert.equal((html.match(/rel="preload"/g) || []).length, 1);
+    process.env.NEXT_PUBLIC_ADMIN_API_URL = 'https://catalog.example.test';
+    assert.doesNotMatch(renderRootLayout(), /catalog\/current\.json/);
+    delete process.env.NEXT_PUBLIC_ADMIN_API_URL; process.env.GITHUB_PAGES = 'false';
+    assert.doesNotMatch(renderRootLayout(), /catalog\/current\.json/);
+  } finally { for (const key of keys) if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key]; }
+});
+
+test('static revalidation can receive a new release and rejects authoritative 404, invalid JSON and invalid graphs', async () => {
+  let revision = 0;
+  const calls = [];
+  const fetcher = async (url, options) => { calls.push({ url, options }); return response(envelope(fixture(), `release-${++revision}`)); };
+  assert.equal((await fetchPublishedCatalog({ apiBase: '', mode: 'static', fetcher })).releaseId, 'release-1');
+  assert.equal((await fetchPublishedCatalog({ apiBase: '', mode: 'static', fetcher })).releaseId, 'release-2');
+  assert.ok(calls.every(call => call.options.cache === 'no-cache' && call.options.credentials === 'same-origin'));
+  const invalidGraph = fixture(); invalidGraph.media[0].url = 'javascript:alert(1)';
+  for (const bad of [response({ error: { message: 'No published release' } }, 404), new Response('{invalid', { headers: { 'content-type': 'application/json' } }), response(envelope(invalidGraph))]) {
+    const attempts = [];
+    await assert.rejects(fetchPublishedCatalog({ apiBase: '', mode: 'static', fetcher: async (url, options) => { attempts.push({ url, options }); return bad; } }));
+    assert.deepEqual(attempts.map(call => call.url), ['/catalog/current.json']);
+    assert.equal(attempts[0].options.cache, 'no-cache'); assert.equal(attempts[0].options.credentials, 'same-origin');
+  }
 });
 
 test('authoritative API 404 or invalid release never exposes a stale static snapshot', async () => {
@@ -263,9 +309,11 @@ test('authoritative API 404 or invalid release never exposes a stale static snap
 test('initial API outages may read exported static release while refresh failure cannot replace a good release', async () => {
   for (const first of ['network', 'server']) {
     const calls = [];
-    const result = await fetchPublishedCatalog({ apiBase: '', mode: 'api', fetcher: async url => { calls.push(url); if (calls.length === 1) { if (first === 'network') throw new TypeError('offline'); return response({ error: { message: 'Unavailable' } }, 503); } return response(envelope(fixture(), 'retained-release')); } });
+    const result = await fetchPublishedCatalog({ apiBase: '', mode: 'api', fetcher: async (url, options) => { calls.push({ url, options }); if (calls.length === 1) { if (first === 'network') throw new TypeError('offline'); return response({ error: { message: 'Unavailable' } }, 503); } return response(envelope(fixture(), 'retained-release')); } });
     assert.equal(result.source, 'static'); assert.equal(result.releaseId, 'retained-release');
-    assert.deepEqual(calls, ['/api/public/v1/catalog', '/catalog/current.json']);
+    assert.deepEqual(calls.map(call => call.url), ['/api/public/v1/catalog', '/catalog/current.json']);
+    assert.equal(calls[0].options.cache, 'no-store'); assert.equal(calls[0].options.credentials, 'omit');
+    assert.equal(calls[1].options.cache, 'no-cache'); assert.equal(calls[1].options.credentials, 'same-origin');
   }
   const calls = [];
   await assert.rejects(fetchPublishedCatalog({ apiBase: '', mode: 'api', allowStaticFallback: false, fetcher: async url => { calls.push(url); throw new TypeError('offline'); } }));

@@ -57,6 +57,9 @@ export function createResourcePrefetcher(options: ResourcePrefetchOptions = {}) 
   // Remember attempts in a stable window, including evicted/oversize files. Otherwise
   // a full byte budget would cause an endless download/evict/download cycle.
   const attempted = new Set<string>();
+  // Selected loaders use the browser's immutable-file cache directly. Do not
+  // download those completed files a second time merely to create a Blob URL.
+  const loaded = new Set<string>();
   const waitingForLease = new Set<string>();
   let desired: string[] = [];
   let desiredSet = new Set<string>();
@@ -67,7 +70,7 @@ export function createResourcePrefetcher(options: ResourcePrefetchOptions = {}) 
   let disposed = false;
 
   const canonical = (original: string) => publicUrl(original);
-  const queued = () => desired.filter(source => !cache.has(source) && !attempted.has(source) && !waitingForLease.has(source) && source !== download?.source);
+  const queued = () => desired.filter(source => !cache.has(source) && !loaded.has(source) && !attempted.has(source) && !waitingForLease.has(source) && source !== download?.source);
   const report = () => options.onDiagnostics?.({ entries: cache.size, bytes, queued: queued().length, inFlight: download ? 1 : 0 });
   const remove = (file: CachedFile) => {
     if (cache.get(file.source) !== file) return;
@@ -104,7 +107,7 @@ export function createResourcePrefetcher(options: ResourcePrefetchOptions = {}) 
       const task: Download = { source, controller: new AbortController(), cancelled: false };
       download = task;
       report();
-      void fetchFile(source, { signal: task.controller.signal, credentials: 'same-origin', cache: 'force-cache' })
+      void fetchFile(source, { signal: task.controller.signal, credentials: 'same-origin', cache: 'force-cache', priority: 'low' })
         .then(async response => {
           if (!response.ok) throw new Error('Prefetch request failed');
           const declaredBytes = Number(response.headers.get('content-length'));
@@ -149,9 +152,18 @@ export function createResourcePrefetcher(options: ResourcePrefetchOptions = {}) 
         }
       }
       const nextDesired = [...urls];
-      if (nextDesired.length !== desired.length || nextDesired.some((source, index) => desired[index] !== source)) attempted.clear();
+      const nextDesiredSet = new Set(nextDesired);
+      const membershipChanged = nextDesired.length !== desired.length || nextDesired.some(source => !desiredSet.has(source));
+      if (membershipChanged) attempted.clear();
+      else {
+        // A pure carousel reorder must not retry every failed/oversize file.
+        // An improved rank may now displace a farther file within the budget.
+        const previousRanks = new Map(desired.map((source, index) => [source, index]));
+        nextDesired.forEach((source, index) => { if (index < previousRanks.get(source)!) attempted.delete(source); });
+      }
       desired = nextDesired;
-      desiredSet = new Set(desired);
+      desiredSet = nextDesiredSet;
+      for (const source of loaded) if (!desiredSet.has(source)) loaded.delete(source);
       waitingForLease.clear();
       for (const file of cache.values()) {
         file.retired = !desiredSet.has(file.source);
@@ -161,6 +173,16 @@ export function createResourcePrefetcher(options: ResourcePrefetchOptions = {}) 
       cancelScheduled?.(); cancelScheduled = null;
       report();
       scheduleNext();
+    },
+    markLoaded(original: string) {
+      if (disposed) return;
+      const valid = assetUrl(original);
+      if (!valid) return;
+      const source = canonical(valid);
+      loaded.add(source);
+      // Keep any cached/leased Blob intact. Only redundant unfinished work stops.
+      if (download?.source === source) cancelDownload();
+      report(); scheduleNext();
     },
     setEnabled(value: boolean) {
       if (disposed) return;
@@ -196,7 +218,7 @@ export function createResourcePrefetcher(options: ResourcePrefetchOptions = {}) 
     dispose() {
       if (disposed) return;
       disposed = true;
-      desired = []; desiredSet.clear(); attempted.clear(); waitingForLease.clear();
+      desired = []; desiredSet.clear(); attempted.clear(); loaded.clear(); waitingForLease.clear();
       cancelScheduled?.(); cancelScheduled = null;
       cancelDownload();
       // Leases survive disposal until their loader completes, then revoke exactly once.

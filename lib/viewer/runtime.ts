@@ -8,7 +8,7 @@ import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { ProductAppearance, ProductAsset, ViewerPresentation, assetUrl } from '../viewer-config';
 import { AppearanceHandle, createAppearanceHandle, disposeProduct } from './appearance';
-import { createPooledAppearanceHandle, type PooledAppearanceHandle } from './pooled-appearance';
+import { createPooledAppearanceHandle, type AppearanceWarmupPriority, type PooledAppearanceHandle } from './pooled-appearance';
 import { createResourcePrefetcher, type ViewerResourceWindow } from './resource-prefetch';
 import { createProductFramingFrames, createRadialProductEnvelope, fitProductCamera, interpolatePackageAim } from './framing';
 import { packageCapPose, packageEntryScale, packageExitProgress, packageMaximumScale, packageSpinProgress, smoothstep } from './package-motion';
@@ -88,6 +88,10 @@ export function createProductViewer(
   let animationTime = 0;
   let lastTime = performance.now();
   let lastDrawTime = 0;
+  let frameSampleAt = performance.now();
+  let sampleDraws = 0;
+  let previousDrawAt = 0;
+  let sampleLongestGap = 0;
   let lastInputAt = -Infinity;
   let returnFrom: THREE.Quaternion | null = null;
   let returnElapsed = 0;
@@ -101,6 +105,7 @@ export function createProductViewer(
   let assetRevision = 0;
   const appearanceRevisions = new WeakMap<LoadedProduct, number>();
   const appearanceReadiness = new WeakMap<LoadedProduct, boolean>();
+  const appliedAppearanceIds = new WeakMap<LoadedProduct, string>();
   let currentAppearanceKey = '';
   let failedAppearanceKey: string | null = null;
   let appearanceReady = true;
@@ -122,16 +127,53 @@ export function createProductViewer(
       else resolve();
     }, 40);
   });
+  const canWarmNeighbors = () => !document.hidden && visible && !paused && !dragging && !cinematic && !packageTransition;
+  const yieldWarmup = (priority: AppearanceWarmupPriority) => {
+    if (priority.isForeground()) return Promise.resolve();
+    return new Promise<void>(resolve => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let idleCallback: number | undefined;
+      let unsubscribe = () => {};
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        if (idleCallback !== undefined) window.cancelIdleCallback(idleCallback);
+        unsubscribe();
+        resolve();
+      };
+      unsubscribe = priority.onPromote(finish);
+      // A click promotes an already-decoded neighbor instead of inheriting its
+      // background timer. Foreground work never waits for requestIdleCallback.
+      if (priority.isForeground()) { finish(); return; }
+      timer = setTimeout(() => {
+        timer = undefined;
+        if ('requestIdleCallback' in window) idleCallback = window.requestIdleCallback(finish, { timeout: 800 });
+        else finish();
+      }, 40);
+    });
+  };
   const poolOf = (loaded: LoadedProduct | null) => loaded?.appearance && 'setWindow' in loaded.appearance ? loaded.appearance as PooledAppearanceHandle : null;
   const updatePrefetch = () => prefetch.setEnabled(Boolean(resourceWindow && active && appearanceReady && !document.hidden && visible && !paused));
+  const rememberLoaded = (asset: ProductAsset, appearance?: ProductAppearance) => {
+    if (!resourceWindow) return;
+    prefetch.markLoaded(asset.src);
+    for (const slot of Object.values(appearance?.slots ?? {})) {
+      for (const url of [slot.baseColorMap, slot.normalMap, slot.roughnessMap]) if (url) prefetch.markLoaded(url);
+    }
+  };
   const createHandle = (content: THREE.Group, asset: ProductAsset): AppearanceHandle => resourceWindow ? createPooledAppearanceHandle(content, asset, {
+    capacity: window.innerWidth <= 760 ? 3 : 5,
+    maxTextureBytes: (window.innerWidth <= 760 ? 20 : 32) * 1024 * 1024,
     acquireUrl: prefetch.acquireUrl,
-    onChange: (ready, pending) => {
+    onChange: (ready, pending, textureBytes) => {
       if (definitionOf(asset) !== assetDefinitionKey) return;
       mount.dataset.labelPoolReady = String(ready);
       mount.dataset.labelPoolPending = String(pending);
+      mount.dataset.labelTextureBytes = String(textureBytes);
     },
-    async warmup(root, isCurrent) {
+    async warmup(root, isCurrent, priority) {
       const textures = new Set<THREE.Texture>();
       root.traverse(node => {
         if (!(node instanceof THREE.Mesh)) return;
@@ -141,13 +183,19 @@ export function createProductViewer(
       });
       for (const texture of textures) {
         if (warmedTextures.has(texture)) continue;
-        await idle();
+        if (!priority.isForeground()) await yieldWarmup(priority);
+        while (!priority.isForeground() && !canWarmNeighbors() && !disposed && isCurrent()) await yieldWarmup(priority);
         if (disposed || !isCurrent()) return;
         renderer.initTexture(texture);
         warmedTextures.add(texture);
       }
+      while (!priority.isForeground() && !canWarmNeighbors() && !disposed && isCurrent()) await yieldWarmup(priority);
       if (disposed || !isCurrent()) return;
-      await renderer.compileAsync(root, camera, scene);
+      // Three reuses its program cache for identical shader variants. Async
+      // polling of every temporary material clone delayed demand commits and
+      // could outlive disposal of the imported materials shared by those clones.
+      renderer.compile(root, camera, scene);
+      mount.dataset.shaderPrograms = String(renderer.info.programs?.length ?? 0);
     },
   }) : createAppearanceHandle(content, asset);
   const warmNeighbors = () => {
@@ -161,6 +209,7 @@ export function createProductViewer(
     void (async () => {
       for (const candidate of neighbors) {
         await idle();
+        while (!canWarmNeighbors() && !disposed && thisRevision === warmRevision && active === loaded && appearanceReady) await idle();
         if (disposed || thisRevision !== warmRevision || active !== loaded || !appearanceReady || document.hidden || !visible || paused || !prefetch.allowsBackground()) return;
         try { await pool.prepare(candidate.appearance); } catch { /* A neighbor may be missing; selected-product validation still reports it. */ }
       }
@@ -387,6 +436,7 @@ export function createProductViewer(
     product.add(active.root);
     appearanceReady = appearanceReadiness.get(active) ?? true;
     mount.dataset.productId = active.asset.id;
+    mount.dataset.appearanceId = appliedAppearanceIds.get(active) ?? '';
     fitCamera();
     emitStatus('ready');
     reportGeometry(); updatePrefetch(); warmNeighbors();
@@ -403,10 +453,13 @@ export function createProductViewer(
     try {
       await loaded.appearance.apply(appearance);
       if (disposed || thisRevision !== appearanceRevisions.get(loaded)) return;
+      rememberLoaded(loaded.asset, appearance);
       appearanceReadiness.set(loaded, true);
+      appliedAppearanceIds.set(loaded, appearance?.id ?? '');
       loaded.root.visible = true;
       if (loaded === active) {
         appearanceReady = true;
+        mount.dataset.appearanceId = appliedAppearanceIds.get(loaded) ?? '';
         if (loaded.definitionKey === assetDefinitionKey && appearanceKey === currentAppearanceKey && statusPhase !== 'ready') emitStatus('ready');
       }
       dirty = true;
@@ -561,6 +614,8 @@ export function createProductViewer(
         if (disposed || thisRevision !== assetRevision) { discard(loaded); return; }
       } while (appliedAppearanceKey !== JSON.stringify(desiredAppearance ?? null));
       appearanceReadiness.set(loaded, true);
+      appliedAppearanceIds.set(loaded, desiredAppearance?.id ?? '');
+      rememberLoaded(asset, desiredAppearance);
       pendingProduct = loaded;
       reportGeometry();
       if (!active || reducedMotion || dragging || paused) {
@@ -801,18 +856,31 @@ export function createProductViewer(
     mount.dataset.accentPhase = accentFrame.phase;
     mount.dataset.accentCount = String(accentFrame.count);
     if (accentFrame.count > 0 && !paused && !reducedMotion) dirty = true;
-    if (dirty && now - lastDrawTime >= 1000 / presentation.quality.maxFps) {
+    const frameInterval = 1000 / presentation.quality.maxFps;
+    const sinceDraw = now - lastDrawTime;
+    if (dirty && sinceDraw >= frameInterval) {
       hitRegion.update(active && !packageTransition ? active.root : null, camera, mount.clientWidth, mount.clientHeight, now, dragging);
       if (backdrop && waterBackdrop) waterBackdrop.render(backdrop.texture, camera);
       renderer.render(scene, camera);
       mount.dataset.viewerReady = active ? 'true' : 'false';
-      lastDrawTime = now; dirty = false;
+      sampleDraws++;
+      if (previousDrawAt) sampleLongestGap = Math.max(sampleLongestGap, now - previousDrawAt);
+      previousDrawAt = now;
+      if (now - frameSampleAt >= 1000) {
+        mount.dataset.viewerFps = String(Math.round(sampleDraws * 1000 / (now - frameSampleAt)));
+        mount.dataset.viewerFrameGapMs = String(Math.round(sampleLongestGap));
+        sampleDraws = 0; sampleLongestGap = 0; frameSampleAt = now;
+      }
+      // Preserve the cap's clock phase. Resetting it to every jittered RAF
+      // timestamp can skip alternate 60 Hz frames and look like a 30 FPS cap.
+      lastDrawTime = now - (sinceDraw % frameInterval); dirty = false;
     }
   };
   const syncVisibility = () => {
     if (document.hidden || !visible) { cancelPointers(); hitRegion.clear(); }
     renderer.setAnimationLoop(!document.hidden && visible ? render : null);
     lastTime = performance.now();
+    frameSampleAt = lastTime; sampleDraws = 0; previousDrawAt = 0; sampleLongestGap = 0;
     dirty = true;
     updatePrefetch(); warmNeighbors();
   };
