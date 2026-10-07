@@ -29,6 +29,8 @@ export interface StorefrontProduct {
   display2d?: Display2D;
   model?: Model3D;
   label?: Label;
+  catalogItem?: import('./contracts').CatalogItem;
+  productDetail?: import('./contracts').ProductDetail;
 }
 export interface PublishedCatalog {
   catalog: CatalogData;

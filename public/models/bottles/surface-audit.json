@@ -1,0 +1,435 @@
+{
+  "assetSha256": "a64bc5bd802ec4d9d59dc3e381d3743e9c8cf7d088052aa9f92f2eb803787a0f",
+  "assetShaMatches": true,
+  "sourceSha256": "c432b17ad92ec472f2ff4fffa4dfe997a31045272bc9f24249e36c7905f05b45",
+  "sourceShaMatches": true,
+  "decoded": [
+    {
+      "role": "body",
+      "triangles": 38736,
+      "vertices": 24190,
+      "smoothTriangles": 38709,
+      "flatTriangles": 27,
+      "boundaryEdgesWelded": 480,
+      "boundaryHeightRange": [
+        0.05488533526659012,
+        0.07225023955106735
+      ],
+      "nonManifoldEdgesWelded": 480,
+      "signedVolume": 0.00030268170086491484,
+      "degenerateTriangles": 0,
+      "degenerateUvTriangles": 0,
+      "inwardLabelTriangles": 0,
+      "maxTriangleUSpan": 0.048076555132865906,
+      "shadingOutlierCorners": 0,
+      "uvRange": [
+        [
+          0.006034264340996742,
+          0.9939830303192139
+        ],
+        [
+          0.0004591941833496094,
+          1.0
+        ]
+      ]
+    },
+    {
+      "role": "cap",
+      "triangles": 32000,
+      "vertices": 81106,
+      "smoothTriangles": 27376,
+      "flatTriangles": 4624,
+      "boundaryEdgesWelded": 0,
+      "boundaryHeightRange": [],
+      "nonManifoldEdgesWelded": 0,
+      "signedVolume": 8.109379449834625e-07,
+      "degenerateTriangles": 0,
+      "degenerateUvTriangles": 0,
+      "inwardLabelTriangles": 0,
+      "maxTriangleUSpan": 0.2854788452386856,
+      "shadingOutlierCorners": 0,
+      "uvRange": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "role": "inclusions",
+      "triangles": 2488,
+      "vertices": 2263,
+      "smoothTriangles": 2488,
+      "flatTriangles": 0,
+      "boundaryEdgesWelded": 0,
+      "boundaryHeightRange": [],
+      "nonManifoldEdgesWelded": 0,
+      "signedVolume": 1.5615349037622097e-05,
+      "degenerateTriangles": 0,
+      "degenerateUvTriangles": 0,
+      "inwardLabelTriangles": 0,
+      "maxTriangleUSpan": 0.23811673745512962,
+      "shadingOutlierCorners": 0,
+      "uvRange": [
+        [
+          0.0015149252722039819,
+          0.9990937113761902
+        ],
+        [
+          0.001262962818145752,
+          1.0
+        ]
+      ]
+    },
+    {
+      "role": "label",
+      "triangles": 4800,
+      "vertices": 2507,
+      "smoothTriangles": 4800,
+      "flatTriangles": 0,
+      "boundaryEdgesWelded": 96,
+      "boundaryHeightRange": [
+        0.0026884451508522034,
+        0.04796679690480232
+      ],
+      "nonManifoldEdgesWelded": 96,
+      "signedVolume": 0.00010309779416642359,
+      "degenerateTriangles": 0,
+      "degenerateUvTriangles": 0,
+      "inwardLabelTriangles": 0,
+      "maxTriangleUSpan": 0.020874083042144775,
+      "shadingOutlierCorners": 0,
+      "uvRange": [
+        [
+          0.0,
+          1.0208333730697632
+        ],
+        [
+          -2.1696090698242188e-05,
+          1.0
+        ]
+      ]
+    },
+    {
+      "role": "liquid",
+      "triangles": 35734,
+      "vertices": 22065,
+      "smoothTriangles": 35734,
+      "flatTriangles": 0,
+      "boundaryEdgesWelded": 0,
+      "boundaryHeightRange": [],
+      "nonManifoldEdgesWelded": 0,
+      "signedVolume": 0.00030674764191335045,
+      "degenerateTriangles": 0,
+      "degenerateUvTriangles": 0,
+      "inwardLabelTriangles": 0,
+      "maxTriangleUSpan": 0.2727656066417694,
+      "shadingOutlierCorners": 282,
+      "uvRange": [
+        [
+          0.005792689044028521,
+          0.9941789507865906
+        ],
+        [
+          0.0005103349685668945,
+          1.0
+        ]
+      ]
+    }
+  ],
+  "labelClearance": {
+    "minimumMeters": 0.00014040442039210677,
+    "negativeSamples": 0,
+    "under25MicrometerSamples": 0,
+    "samples": 72000,
+    "misses": 0,
+    "badExamples": []
+  },
+  "liquidNesting": {
+    "outsideVertices": 0,
+    "minimumInsetMeters": 1.9932764871555264e-05,
+    "outsideHeightRange": [],
+    "outsideByClosestMaterial": {},
+    "outsideTenMillimeterHistogram": {
+      "-80": 0,
+      "-70": 0,
+      "-60": 0,
+      "-50": 0,
+      "-40": 0,
+      "-30": 0,
+      "-20": 0,
+      "-10": 0,
+      "0": 0,
+      "10": 0,
+      "20": 0,
+      "30": 0,
+      "40": 0,
+      "50": 0,
+      "60": 0,
+      "70": 0,
+      "80": 0
+    },
+    "shellOnlyOutsideVertices": 500,
+    "shellOnlyMaxProtrusion": 0.00035176610172982237,
+    "radialOutsideVertices": 0,
+    "maximumRadialProtrusion": -2.1732744945365812e-05,
+    "radialBadExamples": [
+      {
+        "protrusion": -2.1732744945365812e-05,
+        "point": [
+          0.00392507016658783,
+          -0.025833874940872192,
+          -0.03559034317731857
+        ]
+      },
+      {
+        "protrusion": -2.25208493053429e-05,
+        "point": [
+          -0.003926977515220642,
+          -0.025833874940872192,
+          -0.03559034317731857
+        ]
+      },
+      {
+        "protrusion": -3.744566095550961e-05,
+        "point": [
+          -0.018002847209572792,
+          0.024615639820694923,
+          -0.010958634316921234
+        ]
+      },
+      {
+        "protrusion": -3.744566095550961e-05,
+        "point": [
+          -0.018002847209572792,
+          0.024615639820694923,
+          -0.010958634316921234
+        ]
+      },
+      {
+        "protrusion": -3.7837668930208734e-05,
+        "point": [
+          0.03030829131603241,
+          -0.0032810233533382416,
+          -0.012737780809402466
+        ]
+      },
+      {
+        "protrusion": -3.7897141569098736e-05,
+        "point": [
+          0.017996691167354584,
+          0.024607136845588684,
+          -0.012737780809402466
+        ]
+      },
+      {
+        "protrusion": -3.7897141569098736e-05,
+        "point": [
+          0.017996691167354584,
+          0.024607136845588684,
+          -0.012737780809402466
+        ]
+      },
+      {
+        "protrusion": -3.790619961818384e-05,
+        "point": [
+          0.017996691167354584,
+          0.024607136845588684,
+          -0.058938175439834595
+        ]
+      },
+      {
+        "protrusion": -3.790619961818384e-05,
+        "point": [
+          0.017996691167354584,
+          0.024607136845588684,
+          -0.058938175439834595
+        ]
+      },
+      {
+        "protrusion": -3.7925319887312237e-05,
+        "point": [
+          -0.018002847209572792,
+          -0.024615895003080368,
+          -0.010958634316921234
+        ]
+      },
+      {
+        "protrusion": -3.7925319887312237e-05,
+        "point": [
+          -0.018002847209572792,
+          -0.024615895003080368,
+          -0.010958634316921234
+        ]
+      },
+      {
+        "protrusion": -3.799744257596341e-05,
+        "point": [
+          0.01231277734041214,
+          0.027889098972082138,
+          -0.012737780809402466
+        ]
+      }
+    ]
+  },
+  "jellyNesting": {
+    "outsideVertices": 0,
+    "parityDisagreementVertices": 0,
+    "signedNearestPositiveVertices": 0,
+    "signedNearestMinimumInsetMeters": 0.000561486990505955
+  },
+  "denseLiquidNesting": {
+    "samples": 536010,
+    "outsideSamples": 0,
+    "method": "signed nearest surface plus radial outer shell",
+    "signedNearestPositiveSamples": 0,
+    "signedNearestMinimumInset": 1.9932764871555264e-05,
+    "minimumEuclideanDistance": 1.9932764189434238e-05,
+    "parityDisagreementSamples": 0,
+    "radialOutsideSamples": 0,
+    "minimumRadialInset": 2.1732744945365812e-05,
+    "badExamples": []
+  },
+  "denseJellyNesting": {
+    "samples": 37320,
+    "outsideSamples": 0,
+    "method": "majority ray parity (five directions)",
+    "signedNearestPositiveSamples": 0,
+    "signedNearestMinimumInset": 0.000561486990505955,
+    "minimumEuclideanDistance": 0.000561486987862736,
+    "parityDisagreementSamples": 0,
+    "radialOutsideSamples": 0,
+    "minimumRadialInset": null,
+    "badExamples": []
+  },
+  "sourceFidelity": {
+    "modifierSettings": {
+      "Body": [
+        {
+          "name": "Subdivision",
+          "type": "SUBSURF",
+          "viewportLevels": 1,
+          "renderLevels": 2,
+          "showViewport": true,
+          "showRender": true
+        }
+      ],
+      "PlasticCap": [
+        {
+          "name": "Subdivision",
+          "type": "SUBSURF",
+          "viewportLevels": 1,
+          "renderLevels": 2,
+          "showViewport": true,
+          "showRender": true
+        },
+        {
+          "name": "Solidify",
+          "type": "SOLIDIFY",
+          "viewportLevels": null,
+          "renderLevels": null,
+          "showViewport": true,
+          "showRender": true
+        }
+      ],
+      "Label": [
+        {
+          "name": "Subdivision",
+          "type": "SUBSURF",
+          "viewportLevels": 1,
+          "renderLevels": 2,
+          "showViewport": true,
+          "showRender": true
+        }
+      ],
+      "Water": [
+        {
+          "name": "Subdivision",
+          "type": "SUBSURF",
+          "viewportLevels": 1,
+          "renderLevels": 2,
+          "showViewport": true,
+          "showRender": true
+        }
+      ],
+      "Nata de coco": []
+    },
+    "evaluatedSourceTriangles": {
+      "body": 38736,
+      "cap": 32000,
+      "label": 4800,
+      "liquid": 35640,
+      "inclusions": 2488
+    },
+    "positionChecks": {
+      "body": {
+        "maximumDecodedVertexErrorMeters": 1.910984110509162e-06,
+        "sourceTriangles": 38736,
+        "decodedTriangles": 38736
+      },
+      "cap": {
+        "maximumDecodedVertexErrorMeters": 3.7656010931641504e-07,
+        "sourceTriangles": 32000,
+        "decodedTriangles": 32000
+      },
+      "liquid": {
+        "maximumDecodedVertexErrorMeters": 1.7992730363403098e-06,
+        "sourceTriangles": 35640,
+        "decodedTriangles": 35734
+      }
+    },
+    "expectedLiquidClosureTriangles": 94,
+    "authoredSmoothing": {
+      "body": {
+        "smoothTriangles": 38736,
+        "flatTriangles": 0
+      },
+      "cap": {
+        "smoothTriangles": 0,
+        "flatTriangles": 32000
+      },
+      "label": {
+        "smoothTriangles": 4800,
+        "flatTriangles": 0
+      },
+      "liquid": {
+        "smoothTriangles": 35640,
+        "flatTriangles": 0
+      },
+      "inclusions": {
+        "smoothTriangles": 2488,
+        "flatTriangles": 0
+      }
+    },
+    "normalFidelity": {
+      "body": {
+        "maximumCornerAngleDegrees": 0.19179700087998583,
+        "overOneDegree": 0,
+        "overFiveDegrees": 0,
+        "corners": 116208,
+        "method": "decoded explicit corner normal versus authored evaluated vertex corner normals within 5 micrometers"
+      },
+      "cap": {
+        "maximumCornerAngleDegrees": 0.06216504548129386,
+        "overOneDegree": 0,
+        "overFiveDegrees": 0,
+        "corners": 96000,
+        "method": "decoded explicit corner normal versus authored evaluated vertex corner normals within 5 micrometers"
+      },
+      "liquid": {
+        "maximumCornerAngleDegrees": 0.2361809647585727,
+        "overOneDegree": 0,
+        "overFiveDegrees": 0,
+        "corners": 107202,
+        "method": "decoded explicit corner normal versus authored evaluated vertex corner normals within 5 micrometers"
+      }
+    },
+    "importedSmoothingNote": "glTF stores explicit vertex normals; Blender reconstructs smooth/flat flags when importing, so those flags are diagnostic rather than a fidelity gate"
+  },
+  "sourceStillUnchanged": true,
+  "passed": true
+}

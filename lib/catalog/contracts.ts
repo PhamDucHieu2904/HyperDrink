@@ -135,6 +135,8 @@ export interface Display3D extends Entity {
   productVariantId: EntityId;
   modelId: EntityId | null;
   labelId: EntityId | null;
+  /** Null/absent follows the flavor accent; an explicit hex affects only the liquid slot. */
+  liquidColor?: string | null;
   enabled: boolean;
 }
 export interface Display2D extends Entity {
@@ -164,6 +166,21 @@ export interface ProductDetail extends Entity {
   sections: { title: string; body: string }[];
   enabled: boolean;
 }
+/** Editorial catalog collections are independent of the rotating hero. */
+export interface CatalogCollection extends Entity {
+  drinkTypeId: string;
+  homeVisible: boolean;
+  enabled: boolean;
+  position: number;
+}
+export interface CatalogItem extends Entity {
+  collectionId: string;
+  mediaId: string | null;
+  productDetailId: string | null;
+  packagingVariantId: string;
+  position: number;
+  enabled: boolean;
+}
 export interface CatalogData {
   schemaVersion: 1;
   drinkTypes: DrinkType[];
@@ -181,10 +198,12 @@ export interface CatalogData {
   displays3d: Display3D[];
   displays2d: Display2D[];
   productDetails: ProductDetail[];
+  catalogCollections: CatalogCollection[];
+  catalogItems: CatalogItem[];
 }
 /** New editorial data does not invalidate immutable releases created before this collection existed. */
 export function catalogWithDefaults(data: CatalogData): CatalogData {
-  return data.productDetails === undefined ? { ...data, productDetails: [] } : data;
+  return { ...data, productDetails: data.productDetails ?? [], catalogCollections: data.catalogCollections ?? [], catalogItems: data.catalogItems ?? [] };
 }
 export type CollectionName = Exclude<keyof CatalogData, 'schemaVersion'>;
 export type CatalogRecord = CatalogData[CollectionName][number];

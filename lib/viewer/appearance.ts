@@ -1,12 +1,15 @@
 import { publicUrl } from '../public-url';
 import * as THREE from 'three';
 import { ProductAppearance, ProductAsset, resolveMaterialOverride, type TextureSampler } from '../viewer-config';
+import { bottleMaterialRole, configureBottleRenderOrder, createBottleMaterialContext, prepareBottleLayers } from './bottle-materials';
 
 type MaterialBinding = { mesh: THREE.Mesh; original: THREE.Material; index: number };
 export interface AppearanceHandle { apply(appearance?: ProductAppearance): Promise<void>; dispose(): void }
 export interface AppearanceLoadOptions {
   /** A compressed-file cache lease lasts until Three finishes decoding the image. */
   acquireUrl?: (url: string) => { url: string; release(): void };
+  /** A prepared appearance clone can configure ordering on its visible pooled root. */
+  renderOrderRoot?: THREE.Object3D;
 }
 
 function applySampler(texture: THREE.Texture, sampler?: TextureSampler) {
@@ -65,6 +68,10 @@ function createPrintTexture(label: NonNullable<ProductAppearance['label']>, volu
 
 /** All changes are isolated to matching semantic slots and reversible to imported PBR. */
 export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset, options: AppearanceLoadOptions = {}): AppearanceHandle {
+  prepareBottleLayers(root, asset);
+  configureBottleRenderOrder(root, asset);
+  if (options.renderOrderRoot) configureBottleRenderOrder(options.renderOrderRoot, asset);
+  const bottle = createBottleMaterialContext(root, asset);
   const bindings: MaterialBinding[] = [];
   const ownedMaterials = new Set<THREE.Material>();
   const ownedTextures = new Set<THREE.Texture>();
@@ -135,14 +142,15 @@ export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset
         }
         const results = await Promise.allSettled(bindings.map(async (binding) => {
           const slot = slotFor(binding);
-          if (!slot || (!overrides[slot] && !(printTexture && slot === labelSlot))) return;
+          const bottleRole = bottle && bottleMaterialRole(asset, binding.mesh, binding.original);
+          if (!slot || (!overrides[slot] && !(printTexture && slot === labelSlot) && !bottleRole)) return;
           const sampler = asset.textureSamplers?.[slot];
           // Upgrade only a slot asking for physical options; don't flatten all materials.
           const override = resolveMaterialOverride(overrides[slot] ?? {});
           let material: THREE.MeshStandardMaterial;
           if (binding.original instanceof THREE.MeshPhysicalMaterial) material = binding.original.clone();
           else if (binding.original instanceof THREE.MeshStandardMaterial) {
-            if (['transmission', 'ior', 'thickness', 'clearcoat', 'clearcoatRoughness'].some((key) => key in override)) {
+            if (bottleRole === 'liquid' || ['transmission', 'ior', 'thickness', 'clearcoat', 'clearcoatRoughness'].some((key) => key in override)) {
               const physical = new THREE.MeshPhysicalMaterial();
               THREE.MeshStandardMaterial.prototype.copy.call(physical, binding.original);
               physical.defines = { STANDARD: '', PHYSICAL: '' };
@@ -165,6 +173,7 @@ export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset
           if (override.baseColorMap) material.map = await loadTexture(override.baseColorMap, true, sampler);
           if (override.normalMap) material.normalMap = await loadTexture(override.normalMap, false, sampler);
           if (override.roughnessMap) material.roughnessMap = await loadTexture(override.roughnessMap, false, sampler);
+          if (bottleRole) bottle.configure(material, binding.mesh, bottleRole, resolveMaterialOverride(overrides.liquid ?? {}).color);
           material.needsUpdate = true;
           appliedSlots.add(slot);
         }));

@@ -89,6 +89,37 @@ async function createVisible2DProduct(context) {
   return { media, bytes, group, flavor, variant, asset, display, slot };
 }
 
+test('liquidColor survives record and display API saves, preflight and backend restart across nine draft displays', async () => withBackend(async context => {
+  await context.setup();
+  const product = await createVisible2DProduct(context);
+  const colors = [null, null, '#ff3e68', '#ff4430', '#ffb52e', '#ffb52e', '#5144ad', '#f783ad', '#f9a4be'];
+  const displays = [];
+  for (const [index, liquidColor] of colors.entries()) {
+    const flavor = await context.save('flavors', { ...product.flavor, ...newEntity(`Liquid flavor ${index}`, `liquid-flavor-${index}`) });
+    const variant = await context.save('productVariants', { ...product.variant, ...newEntity(`Liquid product ${index}`, `liquid-product-${index}`), flavorId: flavor.id, code: `LIQUID-${index}`, enabled: false });
+    const display = await context.save('displays3d', { ...newEntity(`Liquid display ${index}`, `liquid-display-${index}`), productVariantId: variant.id, modelId: null, labelId: null, enabled: false, liquidColor });
+    assert.equal(display.liquidColor, liquidColor);
+    displays.push({ variant, display });
+  }
+  const target = displays[2];
+  const saved = await context.request('/api/admin/v1/display', { method: 'POST', body: {
+    mode: '3d', variant: target.variant, expectedVariantRevision: target.variant.revision,
+    display: { ...target.display, liquidColor: '#ef315f' }, expectedDisplayRevision: target.display.revision,
+    slot: null, expectedSlotRevision: null,
+  } });
+  assert.equal(saved.response.status, 200, JSON.stringify(saved.payload));
+  assert.equal(saved.payload.data.display.liquidColor, '#ef315f');
+  const before = await context.repository.readDraft();
+  const invalid = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'displays3d', record: { ...saved.payload.data.display, liquidColor: 'pink' }, expectedRevision: saved.payload.data.display.revision } });
+  assert.equal(invalid.response.status, 422);
+  assert.deepEqual(await context.repository.readDraft(), before);
+  context.reopen();
+  assert.deepEqual(await context.repository.readDraft(), before);
+  const checked = await context.request('/api/admin/v1/preflight');
+  assert.equal(checked.response.status, 200);
+  assert.deepEqual(checked.payload.data.filter(issue => issue.severity === 'error'), []);
+}));
+
 test('pool imports assign names, unique IDs, flavor and append order automatically; retries survive restart without duplicates', async () => withBackend(async context => {
   await context.setup();
   const product = await createVisible2DProduct(context);
@@ -163,6 +194,31 @@ test('pool rejects wrong-role, missing or archived resources and cannot accept m
   assert.equal((await context.request('/api/admin/v1/flavor-pool', { method: 'POST', body: input })).response.status, 422);
   assert.equal((await context.repository.readDraft()).flavorAssets.some(item => item.id === input.id), false);
 }));
+
+test('editorial 2D collections and items persist, check revisions and publish homepage toggles independently of hero', async () => withBackend(async context => {
+  await context.setup(); const product = await createVisible2DProduct(context);
+  const artwork = (await context.upload('label')).media;
+  const label = await context.save('labels', { ...newEntity('Collection label', 'collection-label'), drinkTypeId: 'juice', flavorId: product.flavor.id, mediaId: artwork.id, compatibilities: [{ packagingVariantId: 'can-330', layoutProfile: 'can-wrap-v1' }] });
+  const sample = JSON.parse(fs.readFileSync(path.join(project, 'docs/samples/product-detail-mangosteen.json'), 'utf8'));
+  const detail = await context.save('productDetails', { ...newEntity('Collection detail', 'collection-detail'), ...sample, slug: 'collection-detail', labelId: label.id, posterId: null, headline: 'Citrus' });
+  const collection = await context.save('catalogCollections', { ...newEntity('Summer Juice', 'summer-juice'), drinkTypeId: 'juice', position: 0, homeVisible: true, enabled: true });
+  const item = await context.save('catalogItems', { ...newEntity('Citrus', 'collection-citrus'), collectionId: collection.id, mediaId: product.media.id, productDetailId: detail.id, packagingVariantId: 'can-330', position: 0, enabled: true });
+  const denied = await context.request('/api/admin/v1/record', { method: 'POST', cookie: '', body: { collection: 'catalogCollections', record: collection, expectedRevision: collection.revision } });
+  assert.equal(denied.response.status, 401);
+  const hidden = await context.save('catalogCollections', { ...collection, homeVisible: false }, collection.revision);
+  const stale = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'catalogCollections', record: collection, expectedRevision: collection.revision } });
+  assert.equal(stale.response.status, 409);
+  context.reopen(); assert.equal((await context.repository.readDraft()).catalogCollections[0].homeVisible, false);
+  const published = await context.request('/api/admin/v1/publish', { method: 'POST', body: { expectedReleaseId: null, note: 'Independent 2D catalog' } });
+  assert.equal(published.response.status, 201, JSON.stringify(published.payload));
+  const release = await context.repository.readActiveRelease();
+  assert.equal(release.data.catalogItems[0].id, item.id);
+  assert.equal(release.data.catalogCollections[0].homeVisible, hidden.homeVisible);
+  assert.equal(release.data.productGroups.find(group => group.id === product.group.id).visible, true);
+  assert.ok(release.data.productDetails.some(record => record.id === detail.id));
+  const exported = JSON.parse(fs.readFileSync(path.join(context.staticOutputDir, 'current.json'), 'utf8')).data.catalog;
+  assert.ok(exported.media.find(media => media.id === item.mediaId).url.startsWith('/catalog/media/'));
+}, { syncPublicCatalog: true }));
 
 test('product detail CRUD is authenticated, revision checked, published by label and retained in backups after deletion', async () => withBackend(async context => {
   await context.setup(); const product = await createVisible2DProduct(context);

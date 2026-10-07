@@ -108,19 +108,23 @@ export function collectSalesCatalogRoots(data: CatalogData) {
 /** Only sales reachability and explicitly enabled Mockup roots enter the release. */
 export function collectPublicCatalog(data: CatalogData): CatalogData {
   const { groups, slots, variants, displays3d, displays2d } = collectSalesCatalogRoots(data);
+  const catalogCollections = (data.catalogCollections ?? []).filter(item => item.lifecycle === 'active' && item.enabled);
+  const catalogItems = (data.catalogItems ?? []).filter(item => item.lifecycle === 'active' && item.enabled && catalogCollections.some(collection => collection.id === item.collectionId));
+  const detailIds = new Set(catalogItems.map(item => item.productDetailId));
   const modelIds = new Set(displays3d.map(item => item.modelId)); const labelIds = new Set(displays3d.map(item => item.labelId)); const assetIds = new Set(displays2d.map(item => item.assetId));
   const salesLabelIds = new Set(labelIds);
+  for (const detail of data.productDetails ?? []) if (detailIds.has(detail.id)) labelIds.add(detail.labelId);
   for (const model of data.models3d) if (model.lifecycle === 'active' && model.mockupVisible === true) modelIds.add(model.id);
   for (const label of data.labels) if (label.lifecycle === 'active' && label.mockupVisible === true) labelIds.add(label.id);
   const models = data.models3d.filter(item => modelIds.has(item.id)); const labels = data.labels.filter(item => labelIds.has(item.id)); const assets = data.assets2d.filter(item => assetIds.has(item.id));
   const salesFlavorIds = new Set(variants.map(item => item.flavorId));
   const flavorIds = new Set([...salesFlavorIds, ...labels.map(item => item.flavorId)]);
   const flavors = data.flavors.filter(item => flavorIds.has(item.id));
-  const productDetails = (data.productDetails ?? []).filter(item => item.lifecycle === 'active' && item.enabled && salesLabelIds.has(item.labelId));
+  const productDetails = (data.productDetails ?? []).filter(item => detailIds.has(item.id) || (item.lifecycle === 'active' && item.enabled && salesLabelIds.has(item.labelId)));
   const flavorAssets = data.flavorAssets.filter(item => item.lifecycle === 'active' && item.enabled && salesFlavorIds.has(item.flavorId));
-  const packageIds = new Set([...slots.map(item => item.packagingVariantId), ...variants.map(item => item.packagingVariantId), ...models.map(item => item.packagingVariantId), ...assets.map(item => item.packagingVariantId), ...labels.flatMap(item => item.compatibilities.map(entry => entry.packagingVariantId))]);
+  const packageIds = new Set([...catalogItems.map(item => item.packagingVariantId), ...slots.map(item => item.packagingVariantId), ...variants.map(item => item.packagingVariantId), ...models.map(item => item.packagingVariantId), ...assets.map(item => item.packagingVariantId), ...labels.flatMap(item => item.compatibilities.map(entry => entry.packagingVariantId))]);
   const packaging = data.packagingVariants.filter(item => packageIds.has(item.id)); const categoryIds = new Set(packaging.map(item => item.categoryId));
-  const drinkIds = new Set([...groups.map(item => item.drinkTypeId), ...labels.map(item => item.drinkTypeId), ...assets.map(item => item.drinkTypeId)]);
-  const mediaIds = new Set([...flavors.flatMap(item => [item.thumbnailId, item.iconId]), ...flavorAssets.map(item => item.mediaId), ...models.flatMap(item => [item.mediaId, item.posterId]), ...labels.map(item => item.mediaId), ...assets.flatMap(item => [item.mediaId, ...item.galleryIds]), ...productDetails.map(item => item.posterId)]);
-  return { schemaVersion: 1, drinkTypes: data.drinkTypes.filter(item => drinkIds.has(item.id)), packagingCategories: data.packagingCategories.filter(item => categoryIds.has(item.id)), packagingVariants: packaging, flavors, flavorAssets, productGroups: groups, productVariants: variants, packagingSlots: slots, media: data.media.filter(item => mediaIds.has(item.id)), labels, models3d: models, assets2d: assets, displays3d, displays2d, productDetails };
+  const drinkIds = new Set([...catalogCollections.map(item => item.drinkTypeId), ...groups.map(item => item.drinkTypeId), ...labels.map(item => item.drinkTypeId), ...assets.map(item => item.drinkTypeId)]);
+  const mediaIds = new Set([...catalogItems.map(item => item.mediaId), ...flavors.flatMap(item => [item.thumbnailId, item.iconId]), ...flavorAssets.map(item => item.mediaId), ...models.flatMap(item => [item.mediaId, item.posterId]), ...labels.map(item => item.mediaId), ...assets.flatMap(item => [item.mediaId, ...item.galleryIds]), ...productDetails.map(item => item.posterId)]);
+  return { schemaVersion: 1, drinkTypes: data.drinkTypes.filter(item => drinkIds.has(item.id)), packagingCategories: data.packagingCategories.filter(item => categoryIds.has(item.id)), packagingVariants: packaging, flavors, flavorAssets, productGroups: groups, productVariants: variants, packagingSlots: slots, media: data.media.filter(item => mediaIds.has(item.id)), labels, models3d: models, assets2d: assets, displays3d, displays2d, productDetails, catalogCollections, catalogItems };
 }

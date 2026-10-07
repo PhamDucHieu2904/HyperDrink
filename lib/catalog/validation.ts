@@ -4,7 +4,7 @@ import { checkDisplay2DCompatibility, checkDisplay3DCompatibility, collectPublic
 import { isImageMedia } from './media-roles';
 import { resolveFlavorFruitImage } from './flavor-media';
 
-export const CATALOG_COLLECTIONS = ['drinkTypes', 'packagingCategories', 'packagingVariants', 'flavors', 'flavorAssets', 'productGroups', 'productVariants', 'packagingSlots', 'media', 'labels', 'models3d', 'assets2d', 'displays3d', 'displays2d', 'productDetails'] as const satisfies readonly CollectionName[];
+export const CATALOG_COLLECTIONS = ['drinkTypes', 'packagingCategories', 'packagingVariants', 'flavors', 'flavorAssets', 'productGroups', 'productVariants', 'packagingSlots', 'media', 'labels', 'models3d', 'assets2d', 'displays3d', 'displays2d', 'productDetails', 'catalogCollections', 'catalogItems'] as const satisfies readonly CollectionName[];
 export interface ValidationOptions { mode?: 'draft' | 'publish' }
 export const hasValidationErrors = (issues: ValidationIssue[]) => issues.some(issue => issue.severity === 'error');
 
@@ -13,6 +13,8 @@ const idPattern = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
 const tokenPattern = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
 const commonFields = ['id', 'name', 'slug', 'lifecycle', 'revision', 'createdAt', 'updatedAt'];
 const fields: Record<CollectionName, readonly string[]> = {
+  catalogCollections: ['drinkTypeId', 'homeVisible', 'enabled', 'position'],
+  catalogItems: ['collectionId', 'mediaId', 'productDetailId', 'packagingVariantId', 'position', 'enabled'],
   drinkTypes: ['description', 'position'], packagingCategories: ['viewerKind', 'position'],
   packagingVariants: ['categoryId', 'volumeMl', 'shape', 'position'],
   flavors: ['shortName', 'description', 'accentColor', 'backgroundColor', 'textColor', 'icon', 'iconId', 'thumbnailId', 'icePoolConfigured', 'position'],
@@ -24,7 +26,7 @@ const fields: Record<CollectionName, readonly string[]> = {
   labels: ['drinkTypeId', 'flavorId', 'mediaId', 'compatibilities', 'mockupVisible', 'mockupPosition'],
   models3d: ['packagingVariantId', 'mediaId', 'posterId', 'layoutProfile', 'materialSlots', 'orientation', 'mockupVisible', 'mockupPosition', 'mockupFrontYaw'],
   assets2d: ['packagingVariantId', 'drinkTypeId', 'flavorId', 'mediaId', 'galleryIds', 'description'],
-  displays3d: ['productVariantId', 'modelId', 'labelId', 'enabled'],
+  displays3d: ['productVariantId', 'modelId', 'labelId', 'liquidColor', 'enabled'],
   displays2d: ['productVariantId', 'assetId', 'alt', 'enabled'],
   productDetails: ['labelId', 'posterId', 'eyebrow', 'headline', 'subtitle', 'introduction', 'ingredients', 'allergens', 'servingSize', 'nutrition', 'companyName', 'companyAddress', 'countryOfOrigin', 'netContent', 'storage', 'shelfLife', 'sections', 'enabled'],
 };
@@ -135,8 +137,13 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
       if (publishing && (!plain(record.materialSlots) || !Array.isArray(record.materialSlots.label) || !record.materialSlots.label.length)) add('materialSlots.label', 'Model cần material slot label đã được kiểm tra.', 'required');
       break;
     }
+    case 'catalogCollections': ref('drinkTypeId', false, publishing); bool('homeVisible'); bool('enabled'); num('position', 0, 100000, true); break;
+    case 'catalogItems': ref('collectionId', false, publishing); ref('mediaId', true, publishing); ref('productDetailId', true, publishing); ref('packagingVariantId', false, publishing); num('position', 0, 100000, true); bool('enabled'); break;
     case 'assets2d': ref('packagingVariantId', false, publishing); ref('drinkTypeId', false, publishing); ref('flavorId', true); ref('mediaId', true, publishing); refsArray('galleryIds'); str('description', 5000); break;
-    case 'displays3d': ref('productVariantId', false, publishing); ref('modelId', true, publishing); ref('labelId', true, publishing); bool('enabled'); break;
+    case 'displays3d':
+      ref('productVariantId', false, publishing); ref('modelId', true, publishing); ref('labelId', true, publishing); bool('enabled');
+      if (record.liquidColor !== undefined && record.liquidColor !== null && (typeof record.liquidColor !== 'string' || record.liquidColor.length !== 7 || !/^#[0-9a-f]{6}$/i.test(record.liquidColor))) add('liquidColor', 'Màu nước phải có định dạng #RRGGBB, hoặc dùng màu hương vị.');
+      break;
     case 'displays2d': ref('productVariantId', false, publishing); ref('assetId', true, publishing); str('alt', 300, publishing); bool('enabled'); break;
     case 'productDetails': {
       ref('labelId', false, publishing); ref('posterId', true); bool('enabled');
@@ -164,6 +171,11 @@ export function isSafeAssetUrl(input: unknown): input is string {
 
 interface Reference { collection: CollectionName; field: string; target: CollectionName; nullable?: boolean }
 export const CATALOG_REFERENCES: readonly Reference[] = [
+  { collection: 'catalogCollections', field: 'drinkTypeId', target: 'drinkTypes' },
+  { collection: 'catalogItems', field: 'collectionId', target: 'catalogCollections' },
+  { collection: 'catalogItems', field: 'mediaId', target: 'media', nullable: true },
+  { collection: 'catalogItems', field: 'productDetailId', target: 'productDetails', nullable: true },
+  { collection: 'catalogItems', field: 'packagingVariantId', target: 'packagingVariants' },
   { collection: 'packagingVariants', field: 'categoryId', target: 'packagingCategories' },
   { collection: 'flavors', field: 'thumbnailId', target: 'media', nullable: true },
   { collection: 'flavors', field: 'iconId', target: 'media', nullable: true },
@@ -186,7 +198,7 @@ export function validateCatalog(input: unknown, options: ValidationOptions = {})
   if (Object.keys(input).some(key => key !== 'schemaVersion' && !(CATALOG_COLLECTIONS as readonly string[]).includes(key))) add('productGroups', '', '', 'unknown_field', 'Catalog chứa collection không thuộc schema.');
   for (const collection of CATALOG_COLLECTIONS) {
     const records = input[collection];
-    if (collection === 'productDetails' && records === undefined) continue;
+    if (['productDetails', 'catalogCollections', 'catalogItems'].includes(collection) && records === undefined) continue;
     if (!Array.isArray(records) || records.length > 10000) { add(collection, '', '', 'invalid_collection', 'Collection phải là danh sách tối đa 10.000 bản ghi.'); continue; }
     for (const record of records) issues.push(...validateRecord(collection, record));
   }
@@ -230,7 +242,7 @@ export function validateCatalog(input: unknown, options: ValidationOptions = {})
     issues.push(...validateRecord(collection, record, { mode: 'publish' }));
     if (record.lifecycle !== 'active') add(collection, record.id, 'lifecycle', 'dependency_archived', 'Nội dung hiển thị đang dùng bản ghi đã lưu trữ.');
   }
-  if (!publicData.productGroups.length) add('productGroups', '', 'visible', 'empty_public_catalog', 'Cần ít nhất một dòng sản phẩm hiển thị hợp lệ.');
+  if (!publicData.productGroups.length && !publicData.catalogItems.length) add('productGroups', '', 'visible', 'empty_public_catalog', 'Cần ít nhất một dòng sản phẩm hoặc bộ sưu tập 2D hiển thị hợp lệ.');
   for (const group of publicData.productGroups) if (!publicData.packagingSlots.some(slot => slot.groupId === group.id)) add('productGroups', group.id, 'visible', 'group_without_slots', 'Dòng đang hiển thị cần ít nhất một slot bao bì được bật.');
   for (const slot of publicData.packagingSlots) {
     const variants = publicData.productVariants.filter(variant => variant.groupId === slot.groupId && variant.packagingVariantId === slot.packagingVariantId);
@@ -244,6 +256,16 @@ export function validateCatalog(input: unknown, options: ValidationOptions = {})
   }
   for (const display of publicData.displays3d) issues.push(...checkDisplay3DCompatibility(data, display));
   for (const display of publicData.displays2d) issues.push(...checkDisplay2DCompatibility(data, display));
+  for (const item of publicData.catalogItems) {
+    const media = data.media.find(record => record.id === item.mediaId);
+    const detail = data.productDetails.find(record => record.id === item.productDetailId);
+    const label = data.labels.find(record => record.id === detail?.labelId);
+    const collection = data.catalogCollections.find(record => record.id === item.collectionId);
+    if (media && (media.role !== 'image-2d' || !isImageMedia(media) || media.status !== 'ready')) add('catalogItems', item.id, 'mediaId', 'image_unavailable', 'Chọn ảnh sản phẩm 2D đã sẵn sàng.');
+    if (detail && !detail.enabled) add('catalogItems', item.id, 'productDetailId', 'detail_disabled', 'Product Detail được chọn đang tắt.');
+    if (label && collection && label.drinkTypeId !== collection.drinkTypeId) add('catalogItems', item.id, 'productDetailId', 'drink_mismatch', 'Product Detail phải cùng loại nước với bộ sưu tập.');
+    if (label && !label.compatibilities.some(entry => entry.packagingVariantId === item.packagingVariantId)) add('catalogItems', item.id, 'packagingVariantId', 'packaging_mismatch', 'Bao bì phải tương thích với nhãn của Product Detail.');
+  }
   // Mockup roots may have no sales display to trigger the checks above.
   for (const model of publicData.models3d) {
     for (const [field, role] of [['mediaId', 'model'], ['posterId', 'poster']] as const) {

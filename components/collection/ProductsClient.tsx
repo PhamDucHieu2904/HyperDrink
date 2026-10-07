@@ -7,8 +7,7 @@ import { LanguageProvider, useLanguage } from '../LanguageProvider';
 import { usePublishedCatalog } from '../usePublishedCatalog';
 import { useTranslatedCatalog } from '../useTranslatedCatalog';
 import { useStorefrontTelemetry } from '../useStorefrontTelemetry';
-import { catalogProducts } from '@/lib/catalog/storefront';
-import { collectionDrinkTypes, filterCollectionProducts, productPage } from '@/lib/catalog/collection';
+import { collectionProducts, collectionDrinkTypes, filterCollectionProducts, productPage } from '@/lib/catalog/collection';
 import { publicUrl } from '@/lib/public-url';
 import { collectionCopy } from '@/lib/i18n/collection-copy';
 import { storefrontStatus } from '@/lib/i18n/storefront-status';
@@ -25,7 +24,7 @@ function ProductsCatalog() {
   const status = storefrontStatus[locale];
   const { published, loading, error, refresh } = usePublishedCatalog();
   const data = useTranslatedCatalog(published?.catalog);
-  const products = useMemo(() => data ? catalogProducts(data, 'catalog') : [], [data]);
+  const products = useMemo(() => data ? collectionProducts(data) : [], [data]);
   const types = useMemo(() => data ? collectionDrinkTypes(data, products) : [], [data, products]);
   const [drinkId, setDrink] = useState('');
   const [groupId, setGroup] = useState('');

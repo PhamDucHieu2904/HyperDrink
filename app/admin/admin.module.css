@@ -109,6 +109,12 @@
 .categoryTabs > button { border: 1px solid #e3e9e4; color: #7a8a7f; background: #fff; padding: 8px 12px; border-radius: 6px; font-size: 10px !important; font-weight: 600 !important; }
 .categoryTabs > button > span { color: #93a296; margin-left: 9px; font-size: 9px; }
 .categoryTabs > .categoryActive { border-color: #bad2c0; color: #2c7044; background: #eaf4ed; }
+.flavorGrouping { margin-bottom: 20px; }
+.flavorGrouping .categoryTabs { margin-bottom: 9px; }
+.flavorGrouping > p { margin: 0; color: #73867b; font-size: 12px; line-height: 1.6; }
+.flavorGrouping button:focus-visible { outline: 2px solid #176946; outline-offset: 3px; }
+.flavorTypeBadges { display: flex; flex-wrap: wrap; gap: 5px; margin: 5px 0; }
+.flavorTypeBadges > span { padding: 3px 7px; border: 1px solid #dce9e1; border-radius: 5px; background: #f0f7f2; color: #34664c; font-size: 11px; line-height: 1.4; }
 .contextBanner { display: flex; align-items: center; gap: 9px; padding: 13px 15px; border: 1px solid #dbe8de; border-radius: 8px; background: #edf5ef; color: #64836c; font-size: 11px; margin-bottom: 17px; }
 .contextBanner strong { color: #2e6341; }
 .contextBanner p { margin-left: auto; font-size: 10px; }

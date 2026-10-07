@@ -1,0 +1,7 @@
+.visual { height:100%; display:flex; flex-direction:column; justify-content:center; padding:24px; background:#eaf2e3; color:#46634f; }
+.frame { display:block; flex-shrink:0; width:100%; aspect-ratio:1; border:0; padding:0; overflow:hidden; background:#eaf2e3; border-radius:16px; cursor:zoom-in; touch-action:none; user-select:none; }
+.frame img { display:block; width:100%; height:100%; object-fit:contain; transform-origin:var(--inspect-x,50%) var(--inspect-y,50%); transform:scale(1); transition:transform 160ms ease-out; pointer-events:none; }
+.frame[data-zoomed=true] { cursor:grabbing; }
+.frame[data-zoomed=true] img { transform:scale(2.6); }
+.hint { display:flex; justify-content:center; align-items:center; gap:8px; text-align:center; font-size:11px; margin:24px 0 0; }
+@media(max-width:760px) { .visual { height:auto; padding:30px 18px 18px; }.frame { max-width:420px; margin-inline:auto; }.hint { margin-top:14px; } }

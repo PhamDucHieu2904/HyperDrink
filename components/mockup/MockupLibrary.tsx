@@ -9,6 +9,7 @@ import { getCompatibleMockupLabels, getMockupLibrary } from '@/lib/catalog/mocku
 import { mediaUrl } from '@/lib/catalog/resolve';
 import { normalizeSearch } from '@/lib/i18n/catalog';
 import type { MockupCopy } from '@/lib/i18n/mockup';
+import { mockupGlassStyle } from './glass';
 import styles from './mockup.module.css';
 
 type Tab = 'models' | 'presets' | 'labels';
@@ -81,7 +82,7 @@ export default function MockupLibrary({ data, source, copy, modelId, labelId, di
     </button>;
   };
   const icon = { models: Package, presets: Layers3, labels: Tag };
-  return <section className={styles.library} aria-labelledby={`${id}-title`}>
+  return <section className={styles.library} style={mockupGlassStyle} aria-labelledby={`${id}-title`}>
     <div className={styles.libraryHeading}><h2 id={`${id}-title`}>{copy.library}</h2><span>{library.models.length}<Package size={14} aria-hidden="true" /></span></div>
     <div className={styles.tabs} role="tablist" aria-label={copy.library} onKeyDown={event => {
       if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;

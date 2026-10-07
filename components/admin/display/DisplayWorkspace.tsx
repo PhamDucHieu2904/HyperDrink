@@ -110,6 +110,7 @@ export function DisplayEditor({ catalog, mode, selectedId, initialVariantId, foc
   const [flavorId, setFlavorId] = useState(originalVariant?.flavorId ?? '');
   const [modelId, setModelId] = useState(mode === '3d' ? (selected as Display3D | undefined)?.modelId ?? '' : '');
   const [labelId, setLabelId] = useState(mode === '3d' ? (selected as Display3D | undefined)?.labelId ?? '' : '');
+  const [liquidColor, setLiquidColor] = useState<string | null>(mode === '3d' ? (selected as Display3D | undefined)?.liquidColor ?? null : null);
   const [assetId, setAssetId] = useState(mode === '2d' ? (selected as Display2D | undefined)?.assetId ?? '' : '');
   const [alt, setAlt] = useState(mode === '2d' ? (selected as Display2D | undefined)?.alt ?? '' : '');
   const [code, setCode] = useState(originalVariant?.code ?? '');
@@ -143,11 +144,15 @@ export function DisplayEditor({ catalog, mode, selectedId, initialVariantId, foc
   const pack = catalog.packagingVariants.find(item => item.id === packagingId);
   const flavor = catalog.flavors.find(item => item.id === flavorId);
   const model = catalog.models3d.find(item => item.id === modelId);
+  const hasLiquid = mode === '3d' && !!model?.materialSlots.liquid?.length;
+  const flavorLiquidColor = /^#[0-9a-f]{6}$/i.test(flavor?.accentColor ?? '') ? flavor!.accentColor : '#ffc440';
+  const effectiveLiquidColor = liquidColor ?? flavorLiquidColor;
+  const validLiquidColor = /^#[0-9a-f]{6}$/i.test(effectiveLiquidColor);
   const models = catalog.models3d.filter(item => active(item) && item.packagingVariantId === packagingId);
   const labels = catalog.labels.filter(item => active(item) && item.drinkTypeId === group?.drinkTypeId && (!item.flavorId || item.flavorId === flavorId) && item.compatibilities.some(entry => entry.packagingVariantId === packagingId && (!model || entry.layoutProfile === model.layoutProfile)));
   const assets = catalog.assets2d.filter(item => active(item) && item.packagingVariantId === packagingId && item.drinkTypeId === group?.drinkTypeId && (!item.flavorId || item.flavorId === flavorId));
   const previewVariant: ProductVariant = { ...previewEntity, id: 'preview-variant', groupId, packagingVariantId: packagingId, flavorId, code, description, enabled: true };
-  const preview3d: Display3D = { ...previewEntity, id: selectedId || 'preview-display', productVariantId: previewVariant.id, modelId: modelId || null, labelId: labelId || null, enabled };
+  const preview3d: Display3D = { ...previewEntity, id: selectedId || 'preview-display', productVariantId: previewVariant.id, modelId: modelId || null, labelId: labelId || null, liquidColor: hasLiquid && validLiquidColor ? liquidColor : null, enabled };
   const preview2d: Display2D = { ...previewEntity, id: selectedId || 'preview-display', productVariantId: previewVariant.id, assetId: assetId || null, alt, enabled };
   const previewCatalog: CatalogData = { ...catalog, productVariants: [...catalog.productVariants, previewVariant] };
   const issues = mode === '3d' ? checkDisplay3DCompatibility(previewCatalog, preview3d) : checkDisplay2DCompatibility(previewCatalog, preview2d);
@@ -169,7 +174,8 @@ export function DisplayEditor({ catalog, mode, selectedId, initialVariantId, foc
       const duplicate = (mode === '3d' ? catalog.displays3d : catalog.displays2d).find(item => active(item) && item.productVariantId === variant.id && item.id !== selectedId);
       if (duplicate) throw new Error('Tổ hợp này đã có cấu hình hiển thị. Hãy chọn cấu hình đang có để chỉnh sửa.');
       const base = entity((name || defaultName).slice(0, 160), selected);
-      const display: Display3D | Display2D = mode === '3d' ? { ...base, productVariantId: variant.id, modelId: modelId || null, labelId: labelId || null, enabled } : { ...base, productVariantId: variant.id, assetId: assetId || null, alt, enabled };
+      if (hasLiquid && !validLiquidColor) throw new Error('Màu nước phải có định dạng #RRGGBB.');
+      const display: Display3D | Display2D = mode === '3d' ? { ...base, productVariantId: variant.id, modelId: modelId || null, labelId: labelId || null, liquidColor: hasLiquid ? liquidColor : null, enabled } : { ...base, productVariantId: variant.id, assetId: assetId || null, alt, enabled };
       let slot: PackagingSlot | null = null;
       if (createSlot) {
         slot = { ...entity(`${group?.buttonLabel || group?.name} · ${pack?.name}`.slice(0, 160), existingSlot), groupId, packagingVariantId: packagingId, regionKey: 'packaging-picker',
@@ -196,6 +202,15 @@ export function DisplayEditor({ catalog, mode, selectedId, initialVariantId, foc
         </div>
         <div className={styles.step}><h3><span className={styles.stepNumber}>2</span>{mode === '3d' ? 'Ghép model và nhãn' : 'Chọn hình sản phẩm'}</h3>
           {mode === '3d' ? <><label className={styles.field}><span>3D Packaging</span><select id="display-modelId" value={modelId} disabled={!packagingId} onChange={event => { setModelId(event.target.value); setLabelId(''); }}><option value="">Chọn model đúng bao bì</option>{models.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>{model ? 'Đã chọn model. Kiểu trải nhãn được kiểm tra tự động.' : 'Model và poster được quản lý trong Danh mục → 3D Model.'}</small></label><label className={styles.field}><span>Label tương thích</span><select id="display-labelId" value={labelId} disabled={!groupId || !packagingId} onChange={event => setLabelId(event.target.value)}><option value="">Chọn nhãn phù hợp với sản phẩm</option>{labels.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>Chỉ hiện nhãn khớp bao bì, loại nước, hương vị và kiểu trải nhãn của model.</small></label></> : <><label className={styles.field}><span>Ảnh / render 2D</span><select id="display-assetId" value={assetId} disabled={!groupId || !packagingId} onChange={event => setAssetId(event.target.value)}><option value="">Chọn hình đúng sản phẩm</option>{assets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>Thêm ảnh mới ở tab “Kho hình / render 2D” phía trên.</small></label><label className={styles.field}><span>Mô tả ảnh (alt)</span><input id="display-alt" maxLength={300} value={alt} onChange={event => setAlt(event.target.value)} placeholder="Ví dụ: Chai nước xoài Juice 30%, 330 ml" /></label></>}
+          {hasLiquid && <div className={styles.liquidSettings}>
+            <label className={styles.field}><span>Màu nước</span><select id="display-liquidColor" value={liquidColor === null ? 'flavor' : 'custom'} aria-describedby="display-liquidColor-help" onChange={event => setLiquidColor(event.target.value === 'flavor' ? null : flavorLiquidColor)}><option value="flavor">Theo màu hương vị</option><option value="custom">Màu riêng cho nước</option></select><small id="display-liquidColor-help">Mặc định lấy màu hương vị. Màu riêng chỉ đổi nước bên trong chai; màu nền giữ theo Flavor data.</small></label>
+            <div className={styles.liquidColorControls}>
+              <label className={styles.field}><span>Chọn màu nước</span><input type="color" value={validLiquidColor ? effectiveLiquidColor : flavorLiquidColor} disabled={liquidColor === null} onChange={event => setLiquidColor(event.target.value)} /></label>
+              <label className={styles.field}><span>Mã màu nước</span><input value={effectiveLiquidColor} disabled={liquidColor === null} maxLength={7} pattern="#[0-9a-fA-F]{6}" aria-invalid={!validLiquidColor} aria-describedby={!validLiquidColor ? 'display-liquidColor-error' : undefined} onChange={event => setLiquidColor(event.target.value)} /></label>
+            </div>
+            {!validLiquidColor && <p id="display-liquidColor-error" className={styles.error} role="alert">Nhập mã màu gồm dấu # và 6 ký tự, ví dụ #FFC440.</p>}
+            {liquidColor !== null && <button type="button" className={styles.secondary} onClick={() => { setLiquidColor(null); setDirty(true); }}>Đặt lại theo hương vị</button>}
+          </div>}
           {groupId && packagingId && flavorId && issues.length > 0 && <div className={styles.notice}><strong>Cần bổ sung trước khi xuất bản:</strong><ul>{issues.map((issue, index) => <li key={`${issue.code}-${index}`}>{issue.message}</li>)}</ul><span>Bạn vẫn có thể lưu bản nháp.</span></div>}
         </div>
         <div className={styles.step}><h3><span className={styles.stepNumber}>3</span>Nội dung và nút bao bì</h3>

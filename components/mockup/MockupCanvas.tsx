@@ -2,19 +2,18 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import type { ProductAsset, ProductAppearance } from '@/lib/viewer-config';
-import type { MockupAnimation, MockupBackground, MockupCameraPreset, MockupRuntime, MockupStatus } from '@/lib/mockup/contracts';
+import type { MockupAnimation, MockupBackground, MockupFocalPreset, MockupRuntime, MockupStatus } from '@/lib/mockup/contracts';
 import styles from './mockup.module.css';
 
 export interface MockupCanvasHandle {
-  camera: (preset: MockupCameraPreset) => void;
   zoom: (factor: number) => void;
   reset: () => void;
   capture: (options: { longEdge: 1024 | 2048; aspect: number; signal?: AbortSignal }) => Promise<Blob>;
 }
 interface Props {
   asset: ProductAsset; appearance?: ProductAppearance; frontYaw?: number;
-  background: MockupBackground; animation: MockupAnimation; aspect: number;
-  label: string; onStatus: (status: MockupStatus) => void; onInteraction: () => void; retry: number; locked: boolean;
+  background: MockupBackground; animation: MockupAnimation; aspect: number; focal: MockupFocalPreset;
+  label: string; onStatus: (status: MockupStatus) => void; onInteraction: () => void; onReset: () => void; retry: number; locked: boolean;
 }
 
 const MockupCanvas = forwardRef<MockupCanvasHandle, Props>(function MockupCanvas(props, ref) {
@@ -24,7 +23,6 @@ const MockupCanvas = forwardRef<MockupCanvasHandle, Props>(function MockupCanvas
   const latest = useRef(props);
   useEffect(() => { latest.current = props; });
   useImperativeHandle(ref, () => ({
-    camera: preset => runtime.current?.setCamera(preset),
     zoom: factor => runtime.current?.zoom(factor),
     reset: () => runtime.current?.resetView(),
     capture: options => runtime.current ? runtime.current.capture(options) : Promise.reject(new Error('Studio is still preparing.')),
@@ -39,7 +37,7 @@ const MockupCanvas = forwardRef<MockupCanvasHandle, Props>(function MockupCanvas
       });
       runtime.current = controller;
       const next = latest.current;
-      controller.setAspect(next.aspect); controller.setBackground(next.background); controller.setAnimation(next.animation);
+      controller.setAspect(next.aspect); controller.setFocalLength(next.focal); controller.setBackground(next.background); controller.setAnimation(next.animation);
       controller.select(next.asset, next.appearance, next.frontYaw);
     }).catch(() => {
       if (live) latest.current.onStatus({ phase: 'error', assetId: latest.current.asset.id, revision: 0, hasProduct: false, error: 'webgl' });
@@ -50,6 +48,7 @@ const MockupCanvas = forwardRef<MockupCanvasHandle, Props>(function MockupCanvas
   useEffect(() => { runtime.current?.setBackground(props.background); }, [props.background]);
   useEffect(() => { runtime.current?.setAnimation(props.animation); }, [props.animation]);
   useEffect(() => { runtime.current?.setAspect(props.aspect); }, [props.aspect]);
+  useEffect(() => { runtime.current?.setFocalLength(props.focal); }, [props.focal]);
   return <div ref={host} className={styles.canvas} role="group" aria-label={props.label} tabIndex={0} onKeyDown={event => {
     if (latest.current.locked || !currentStatus.current?.hasProduct || currentStatus.current.phase === 'exporting' || !runtime.current) return;
     const key = event.key, step = Math.PI / 36;
@@ -61,7 +60,7 @@ const MockupCanvas = forwardRef<MockupCanvasHandle, Props>(function MockupCanvas
     else if (key === 'ArrowDown') runtime.current.orbitView(0, step);
     else if (key === '+' || key === '=') runtime.current.zoom(1.15);
     else if (key === '-' || key === '_') runtime.current.zoom(1 / 1.15);
-    else runtime.current.resetView();
+    else { runtime.current.resetView(); latest.current.onReset(); }
   }} />;
 });
 

@@ -12,6 +12,7 @@ function loadSource(file, importer = require) {
   const loaded = { exports: {} }; new Function('require', 'module', 'exports', outputText)(importer, loaded, loaded.exports); return loaded.exports;
 }
 const config = loadSource('lib/viewer-config.ts'), urls = loadSource('lib/public-url.ts');
+const bottleMaterials = loadSource('lib/viewer/bottle-materials.ts');
 const required = url => ({ requiredSlots: ['label'], slots: { label: { baseColorMap: url, roughness: .15 } } });
 function fixture(context, { names = ['printed-label'], basic = false, uv = true, textureSamplers, secondary = false } = {}) {
   const requests = [], clones = [];
@@ -25,6 +26,7 @@ function fixture(context, { names = ['printed-label'], basic = false, uv = true,
     if (name === 'three') return { ...THREE, TextureLoader };
     if (name === '../viewer-config') return config;
     if (name === '../public-url') return urls;
+    if (name === './bottle-materials') return bottleMaterials;
     throw new Error(`Unexpected appearance dependency: ${name}`);
   });
   const texture = () => { const value = new THREE.Texture(); value.disposals = 0; value.addEventListener('dispose', () => { value.disposals++; }); return value; };

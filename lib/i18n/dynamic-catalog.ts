@@ -2,6 +2,7 @@ import type { CatalogData, CollectionName } from '@/lib/catalog/contracts';
 
 /** Translate public editorial copy only. IDs, references, artwork and admin metadata stay intact. */
 const fields: Partial<Record<CollectionName, string[]>> = {
+  catalogCollections: ['name'], catalogItems: ['name'],
   drinkTypes: ['name', 'description'], packagingCategories: ['name'], packagingVariants: ['name'],
   flavors: ['name', 'shortName', 'description'], productGroups: ['name', 'buttonLabel', 'description', 'collectionTitle', 'heroVolumeCaption', 'heroFlavorText', 'heroOriginText'],
   productVariants: ['name', 'description'], packagingSlots: ['name', 'buttonLabel'],

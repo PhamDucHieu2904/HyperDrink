@@ -1,7 +1,7 @@
 import type { CatalogData, Display3D, Label, MediaAsset, Model3D } from './contracts';
 import type { ProductAppearance, ProductAsset } from '@/lib/viewer-config';
 import { checkDisplay3DCompatibility, checkModelLabelCompatibility, collectSalesCatalogRoots } from './compatibility';
-import { resolveLabelAppearance, resolveModelAsset } from './resolve';
+import { resolveModelLabelAppearance, resolveModelAsset } from './resolve';
 
 export interface MockupLibrary { models: Model3D[]; labels: Label[]; displays: Display3D[] }
 export interface MockupQuery { display?: string | null; model?: string | null; label?: string | null }
@@ -59,11 +59,15 @@ export function resolveMockupSelection(data: CatalogData, query: MockupQuery = {
 
 /** No SKU creation: the existing media/material resolver supplies a free pairing.
  * Resolve again through IDs so callers cannot pass hidden/stale record objects. */
-export function resolveMockupProduct(data: CatalogData, selection: Pick<MockupSelection, 'model' | 'label'>): { asset: ProductAsset; appearance: ProductAppearance } | null {
+export function resolveMockupProduct(data: CatalogData, selection: Pick<MockupSelection, 'model' | 'label'> & Partial<Pick<MockupSelection, 'display'>>): { asset: ProductAsset; appearance: ProductAppearance } | null {
   if (!selection.model) return null;
   const resolved = resolveMockupSelection(data, { model: selection.model.id, label: selection.label?.id });
   if (resolved.warning || !resolved.model) return null;
   const asset = resolveModelAsset(data, resolved.model);
-  const appearance = resolved.label ? resolveLabelAppearance(data, resolved.label) : { id: `mockup-bare:${resolved.model.id}:${resolved.model.revision}`, slots: {} };
+  // A shared label can serve several flavors; preserve an explicitly selected permitted preset.
+  const display = selection.display ? getMockupLibrary(data).displays.find(item => item.id === selection.display?.id && item.modelId === resolved.model?.id && item.labelId === resolved.label?.id) : resolved.display;
+  const variant = data.productVariants.find(item => item.id === display?.productVariantId);
+  const flavor = data.flavors.find(item => item.id === (variant?.flavorId ?? resolved.label?.flavorId));
+  const appearance = resolved.label ? resolveModelLabelAppearance(data, resolved.model, resolved.label, flavor, display?.liquidColor) : { id: `mockup-bare:${resolved.model.id}:${resolved.model.revision}`, slots: {} };
   return asset && appearance ? { asset, appearance } : null;
 }

@@ -7,14 +7,14 @@ import ContactSection from '@/components/ContactSection';
 import { storefrontMarketingCopy } from '@/lib/i18n/storefront-marketing';
 import { LanguageProvider, useLanguage } from '@/components/LanguageProvider';
 import { collectionCopy } from '@/lib/i18n/collection-copy';
-import { collectionSections, filterCollectionProducts } from '@/lib/catalog/collection';
+import { collectionProducts, collectionSections, filterCollectionProducts } from '@/lib/catalog/collection';
 import { publicUrl } from '@/lib/public-url';
 import CollectionRows from '@/components/collection/CollectionRows';
 import { storefrontStatus } from '@/lib/i18n/storefront-status';
 import { usePublishedCatalog } from '@/components/usePublishedCatalog';
 import { useTranslatedCatalog } from '@/components/useTranslatedCatalog';
 import { useStorefrontTelemetry } from '@/components/useStorefrontTelemetry';
-import { catalogProducts, randomStorefrontEntry, resolveStorefrontSelection, type StorefrontSelectionRequest } from '@/lib/catalog/storefront';
+import { randomStorefrontEntry, resolveStorefrontSelection, type StorefrontSelectionRequest } from '@/lib/catalog/storefront';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Menu, Search, X } from 'lucide-react';
 
@@ -46,7 +46,7 @@ function Storefront() {
   const [entryReady, setEntryReady] = useState(false);
   const entryInitialized = useRef(false);
   const current = useMemo(() => data ? resolveStorefrontSelection(data, selection) : null, [data, selection]);
-  const products = useMemo(() => data ? catalogProducts(data, 'catalog') : [], [data]);
+  const products = useMemo(() => data ? collectionProducts(data) : [], [data]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);

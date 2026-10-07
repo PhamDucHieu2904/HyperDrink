@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, Leaf, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 import AdminApp from './AdminApp';
 import DisplayWorkspace from './display/DisplayWorkspace';
+import CollectionWorkspace from './display/CollectionWorkspace';
 import PublishingWorkspace from './publishing/PublishingWorkspace';
 import OperationsWorkspace from './operations/OperationsWorkspace';
 import type { AdminSession, CatalogData, CatalogRecord, CatalogRelease, CollectionName, DisplayAction, DisplayDraftResult, DisplayDraftSave, FlavorAsset, FlavorPoolAssetInput, MediaAsset, MediaRole, ValidationIssue } from '@/lib/catalog/contracts';
@@ -85,7 +86,8 @@ export default function AdminClient() {
 
   if (workspace && bootstrap?.session) return <AdminApp initialData={workspace.catalog} session={workspace.session} backendReady onSave={save} onAddFlavorAsset={addFlavorAsset} onDeleteRecord={deleteRecord} onSaveDisplay={saveDisplay} onUpload={upload} onArchive={async(collection,id,expectedRevision)=>{await request('archive',{collection,id,expectedRevision});await refresh();}} onReorder={async(collection,id,direction,expectedRevisions)=>{const catalog=await request<CatalogData>('reorder',{collection,id,direction,expectedRevisions});setWorkspace({...workspace,catalog});return catalog;}} onRefresh={refresh} onSignOut={async()=>{await request('logout',{});setWorkspace(null);setBootstrap({...bootstrap,session:null});}} renderWorkspace={(module,catalog,helpers)=>{
     if(module==='dashboard'||module==='analytics'||module==='security')return <OperationsWorkspace key={module} mode={module==='dashboard'?'overview':module} catalog={catalog} canAcknowledge={workspace.session.role==='owner'} onNavigate={helpers.onNavigate}/>;
-    if(module==='displays3d'||module==='displays2d') return <DisplayWorkspace catalog={catalog} mode={module==='displays3d'?'3d':'2d'} onSave={helpers.onSave} onSaveDisplay={helpers.onSaveDisplay} onDisplayAction={displayAction} onDeleteRecord={deleteRecord} onUpload={helpers.onUpload!} onRefresh={refresh} />;
+    if(module==='displays2d') return <CollectionWorkspace catalog={catalog} onSave={helpers.onSave} onUpload={helpers.onUpload} onRefresh={refresh} onDeleteRecord={deleteRecord} onNavigate={helpers.onNavigate} />;
+    if(module==='displays3d') return <DisplayWorkspace catalog={catalog} mode="3d" onSave={helpers.onSave} onSaveDisplay={helpers.onSaveDisplay} onDisplayAction={displayAction} onDeleteRecord={deleteRecord} onUpload={helpers.onUpload!} onRefresh={refresh} />;
     if(module==='publishing') return <PublishingWorkspace catalog={catalog} releases={workspace.releases} activeReleaseId={workspace.activeReleaseId} canPublish={workspace.session.role==='owner'} onOpenIssue={helpers.onOpenIssue} onDeleteRecord={deleteRecord} onDeleteRelease={async(releaseId,expectedReleaseId)=>{
       try { await request('releases/delete',{releaseId,expectedReleaseId}); }
       catch (cause) { await refresh().catch(()=>{}); throw cause; }

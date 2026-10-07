@@ -17,6 +17,16 @@ function normalizedWeights(state) {
   assert.ok(state.weights.every(weight => Number.isFinite(weight) && weight >= 0 && weight <= 1));
   assert.ok(Math.abs(state.weights.reduce((sum, weight) => sum + weight, 0) - 1) < 1e-10);
 }
+function backgroundComponent(effects = []) {
+  return loadSource('components/FlavorBackground.tsx', name => {
+    if (name === 'react') return { useRef: () => ({ current: null }), useMemo: factory => factory(), useEffect: effect => effects.push(effect) };
+    if (name.endsWith('background-config')) return config;
+    if (name.endsWith('background-render-state')) return rendering;
+    if (name === './BackgroundPattern') return { default: () => null };
+    if (name.endsWith('background-motion')) return loadSource('lib/background-motion.ts');
+    return require(name);
+  }).default;
+}
 
 test('default themes remain compatible while arbitrary catalog counts and repeated icons transition correctly', () => {
   assert.deepEqual(new rendering.BackgroundRenderState().weights, [1, 0, 0, 0]);
@@ -94,14 +104,7 @@ test('icon registry safely defaults unknown values and normalized IDs remain uni
 
 test('FlavorBackground emits one layer per catalog item with unique keys even when every icon is identical', () => {
   const effects = [];
-  const component = loadSource('components/FlavorBackground.tsx', name => {
-    if (name === 'react') return { useRef: () => ({ current: null }), useMemo: factory => factory(), useEffect: effect => effects.push(effect) };
-    if (name.endsWith('background-config')) return config;
-    if (name.endsWith('background-render-state')) return rendering;
-    if (name === './BackgroundPattern') return { default: () => null };
-    if (name.endsWith('background-motion')) return loadSource('lib/background-motion.ts');
-    return require(name);
-  }).default;
+  const component = backgroundComponent(effects);
   const catalogThemes = themes.map(theme => ({ ...theme, icon: 'leaf' }));
   const state = new rendering.BackgroundRenderState({}, catalogThemes);
   const tree = component({ flavorIndex: 23, themes: catalogThemes, renderState: state });
@@ -109,7 +112,8 @@ test('FlavorBackground emits one layer per catalog item with unique keys even wh
   assert.equal(colors.length, 32); assert.equal(patterns.length, 32);
   assert.equal(new Set(colors.map(layer => layer.key)).size, 32); assert.equal(new Set(patterns.map(layer => layer.key)).size, 32);
   assert.equal(colors[23].props.style.backgroundColor, catalogThemes[23].color);
-  assert.equal(patterns[23].props.opacity, 1);
+  assert.equal(patterns[23].props.opacity, 0, 'A requested theme must not flash before its fade begins');
+  assert.equal(patterns[0].props.opacity, 1);
   const originalMedia = global.matchMedia, originalPerformance = global.performance;
   try {
     global.matchMedia = () => ({ matches: true }); global.performance = { now: () => 200 };
@@ -121,14 +125,7 @@ test('FlavorBackground emits one layer per catalog item with unique keys even wh
 
 test('the first FlavorBackground effect keeps the already selected startup color and icon at normal motion', () => {
   const effects = [];
-  const component = loadSource('components/FlavorBackground.tsx', name => {
-    if (name === 'react') return { useRef: () => ({ current: null }), useMemo: factory => factory(), useEffect: effect => effects.push(effect) };
-    if (name.endsWith('background-config')) return config;
-    if (name.endsWith('background-render-state')) return rendering;
-    if (name === './BackgroundPattern') return { default: () => null };
-    if (name.endsWith('background-motion')) return loadSource('lib/background-motion.ts');
-    return require(name);
-  }).default;
+  const component = backgroundComponent(effects);
   const state = new rendering.BackgroundRenderState({}, themes);
   state.setFlavor(23, 0, true);
   const tree = component({ flavorIndex: 23, themes, renderState: state });
@@ -140,6 +137,53 @@ test('the first FlavorBackground effect keeps the already selected startup color
     effects[0](); state.advance(200, false);
     assert.equal(state.weights[23], 1); assert.equal(state.weights[0], 0);
   } finally { global.matchMedia = originalMedia; global.performance = originalPerformance; }
+});
+
+test('React renders preserve the visible blend when a new selection interrupts an unfinished fade', () => {
+  const component = backgroundComponent();
+  const state = new rendering.BackgroundRenderState({}, themes);
+  const render = flavorIndex => component({ flavorIndex, themes, renderState: state });
+  const opacities = tree => [tree.props.children[0].map(layer => layer.props.style.opacity), tree.props.children[1].props.children.map(layer => layer.props.opacity)];
+  state.setFlavor(23, 0, true);
+  let tree = render(31);
+  for (const layers of opacities(tree)) {
+    assert.equal(layers[23], 1);
+    assert.equal(layers[31], 0, 'The next requested color and icon cannot snap on during React commit');
+  }
+  state.setFlavor(31, 100, false); state.advance(550, false);
+  tree = render(5);
+  for (const layers of opacities(tree)) {
+    assert.equal(layers[23], .5); assert.equal(layers[31], .5);
+    assert.equal(layers[5], 0, 'Interrupting the fade keeps its current mixed image');
+  }
+  state.setFlavor(5, 550, false); state.advance(1000, false);
+  tree = render(5);
+  for (const layers of opacities(tree)) {
+    assert.equal(layers[23], .25); assert.equal(layers[31], .25); assert.equal(layers[5], .5);
+  }
+});
+
+test('React renders remap both color and icon opacity by theme ID before a reordered catalog effect runs', () => {
+  const component = backgroundComponent();
+  const state = new rendering.BackgroundRenderState({}, themes);
+  state.setFlavor(23, 0, false); state.advance(450, false);
+  const reordered = [...themes].reverse();
+  const tree = component({ flavorIndex: 8, themes: reordered, renderState: state });
+  const colors = tree.props.children[0], patterns = tree.props.children[1].props.children;
+  assert.equal(colors[8].key, 'flavor-23'); assert.equal(colors[31].key, 'flavor-0');
+  assert.equal(colors[8].props.style.opacity, .5); assert.equal(colors[31].props.style.opacity, .5);
+  assert.equal(patterns[8].props.opacity, .5); assert.equal(patterns[31].props.opacity, .5);
+  assert.equal(colors[0].props.style.opacity, 0); assert.equal(patterns[0].props.opacity, 0);
+  assert.equal(state.themes[0].id, 'flavor-0', 'Rendering must not mutate controller order before its effect');
+});
+
+test('a catalog with no retained visible theme renders its selected color and icon immediately', () => {
+  const component = backgroundComponent();
+  const state = new rendering.BackgroundRenderState({}, themes);
+  const replacement = themes.slice(0, 4).map(theme => ({ ...theme, id: `new-${theme.id}` }));
+  const tree = component({ flavorIndex: 2, themes: replacement, renderState: state });
+  assert.deepEqual(tree.props.children[0].map(layer => layer.props.style.opacity), [0, 0, 1, 0]);
+  assert.deepEqual(tree.props.children[1].props.children.map(layer => layer.props.opacity), [0, 0, 1, 0]);
 });
 
 

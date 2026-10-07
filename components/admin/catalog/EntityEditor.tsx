@@ -6,6 +6,7 @@ import type { CatalogData, CatalogRecord, CollectionName, Flavor, Label, MediaAs
 import { NutritionFields, ExtraDetailFields } from './DetailFields';
 import ProductDetailPanel from '@/components/product-detail/ProductDetailPanel';
 import { catalogProducts } from '@/lib/catalog/storefront';
+import { collectionProducts } from '@/lib/catalog/collection';
 import { heroProductMessages } from '@/lib/catalog/hero-marketing';
 import MediaPicker from '@/components/admin/ui/MediaPicker';
 import FlavorIconField from './FlavorIconField';
@@ -39,7 +40,7 @@ export default function EntityEditor({ collection, record, isNew, data, disabled
   const [slugEdited, setSlugEdited] = useState(!isNew);
   const [detailPreview, setDetailPreview] = useState(false);
   const definition = definitions[collection];
-  const previewProduct = collection === 'productDetails' ? catalogProducts(data, 'catalog').find(product => product.label?.id === draft.labelId) : undefined;
+  const previewProduct = collection === 'productDetails' ? [...collectionProducts(data), ...catalogProducts(data, 'catalog')].find(product => product.label?.id === draft.labelId) : undefined;
   useEffect(() => {
     const dialog = dialogRef.current;
     dialog?.showModal();
@@ -187,6 +188,6 @@ export default function EntityEditor({ collection, record, isNew, data, disabled
       </div>
       <div className={styles.saveBar}><span>{dirty ? 'Có thay đổi chưa lưu' : <><Check size={15} /> {isNew ? 'Dữ liệu mới' : 'Đang xem bản nháp'}</>}</span><div><button type="button" className={styles.secondaryButton} disabled={saving} onClick={close}>Hủy</button><button type="submit" className={styles.primaryButton} disabled={disabled || saving}>{saving ? <LoaderCircle size={17} className={styles.spin} /> : <Save size={17} />}{saving ? 'Đang lưu…' : 'Lưu bản nháp'}</button></div></div>
     </form>
-    {detailPreview && previewProduct && <ProductDetailPanel catalog={data} product={previewProduct} preview={draft as unknown as ProductDetail} onClose={() => setDetailPreview(false)} />}
+    {detailPreview && previewProduct && <ProductDetailPanel catalog={data} product={previewProduct} preview={draft as unknown as ProductDetail} catalogImage={!!previewProduct.catalogItem} onClose={() => setDetailPreview(false)} />}
   </dialog>;
 }

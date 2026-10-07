@@ -227,6 +227,13 @@ test('every catalog collection supports draft deletion with structurally valid r
   for (const collection of validation.CATALOG_COLLECTIONS) {
     const data = fixture();
     if (collection === 'productDetails') data.productDetails.push(detailRecord());
+    if (collection === 'catalogCollections' || collection === 'catalogItems') {
+      data.productDetails.push(detailRecord());
+      data.catalogCollections = [{ ...data.productGroups[0], id: 'collection-2d', slug: 'collection-2d', drinkTypeId: 'juice', position: 0, homeVisible: true, enabled: true }];
+      for (const field of ['description', 'buttonLabel', 'visible']) delete data.catalogCollections[0][field];
+      data.catalogItems = [{ ...data.productVariants[0], id: 'catalog-product', slug: 'catalog-product', collectionId: 'collection-2d', mediaId: null, productDetailId: null, packagingVariantId: data.packagingVariants[0].id, position: 0, enabled: true }];
+      for (const field of ['groupId', 'flavorId', 'code', 'description']) delete data.catalogItems[0][field];
+    }
     const target = data[collection][0], before = structuredClone(data);
     const result = deletion.deleteCatalogRecord(data, collection, target.id, target.revision, now);
     assert.deepEqual(errors(validation.validateCatalog(result)), [], collection);

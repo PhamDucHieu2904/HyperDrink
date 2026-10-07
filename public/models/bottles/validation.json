@@ -1,0 +1,70 @@
+{
+  "passed": true,
+  "sourceUnchanged": true,
+  "decodedJellyVerticesOutside": 0,
+  "roles": [
+    "body",
+    "cap",
+    "inclusions",
+    "label",
+    "liquid"
+  ],
+  "evaluatedSourceTriangles": {
+    "body": 38736,
+    "cap": 32000,
+    "label": 4800,
+    "liquid": 35640,
+    "inclusions": 2488
+  },
+  "derivedTriangles": {
+    "body": 38736,
+    "cap": 32000,
+    "label": 4800,
+    "liquid": 35734,
+    "inclusions": 2488
+  },
+  "labelUv": true,
+  "authoredModifierSettings": {
+    "Body": [
+      {
+        "name": "Subdivision",
+        "type": "SUBSURF",
+        "levels": 1,
+        "renderLevels": 2
+      }
+    ],
+    "PlasticCap": [
+      {
+        "name": "Subdivision",
+        "type": "SUBSURF",
+        "levels": 1,
+        "renderLevels": 2
+      },
+      {
+        "name": "Solidify",
+        "type": "SOLIDIFY",
+        "levels": null,
+        "renderLevels": null
+      }
+    ],
+    "Label": [
+      {
+        "name": "Subdivision",
+        "type": "SUBSURF",
+        "levels": 1,
+        "renderLevels": 2
+      }
+    ],
+    "Water": [
+      {
+        "name": "Subdivision",
+        "type": "SUBSURF",
+        "levels": 1,
+        "renderLevels": 2
+      }
+    ],
+    "Nata de coco": []
+  },
+  "decimationApplied": false,
+  "authoredSmoothingPreserved": true
+}

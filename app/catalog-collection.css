@@ -28,7 +28,7 @@
 .collection-card-link { height:100%; display:flex; flex-direction:column; color:#143c3e; padding:18px; }
 .collection-card-link:focus-visible { outline:3px solid #28664e; outline-offset:-4px; border-radius:32px; }
 .collection-card-image { aspect-ratio:1; width:100%; display:grid; place-items:center; border:1px solid #2f51484a; border-radius:23px; overflow:hidden; background:radial-gradient(ellipse at 50% 40%,#fff 20%,color-mix(in srgb,var(--card-accent,#bfdec9) 9%,#fff)); }
-.collection-card-image img { display:block; width:100%; height:100%; object-fit:contain; padding:8px; filter:drop-shadow(0 12px 9px #13382b1a); }
+.collection-card-image img { display:block; width:100%; height:100%; object-fit:contain; }
 .collection-card-image svg { color:#779186; }
 .collection-card-copy { padding:21px 3px 0; }
 .collection-card-copy h3 { margin:0 0 8px; text-transform:uppercase; font:800 clamp(20px,2.15vw,30px)/1.06 'Be Vietnam Pro',sans-serif; letter-spacing:-.04em; overflow-wrap:anywhere; }

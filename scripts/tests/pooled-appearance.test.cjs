@@ -11,6 +11,7 @@ function load(file, importer) {
   const loaded = { exports: {} }; new Function('require', 'module', 'exports', js)(importer, loaded, loaded.exports); return loaded.exports;
 }
 const urls = load('lib/public-url.ts', require), config = load('lib/viewer-config.ts', require);
+const bottleMaterials = load('lib/viewer/bottle-materials.ts', require);
 const appearance = id => ({ id, requiredSlots: ['label'], slots: { label: { baseColorMap: `/labels/${id}.webp`, roughness: .15 } } });
 function fixture(context, options = {}) {
   const { importedTexture, ...poolOptions } = options;
@@ -27,9 +28,10 @@ function fixture(context, options = {}) {
     if (name === 'three') return { ...THREE, TextureLoader };
     if (name === '../public-url') return urls;
     if (name === '../viewer-config') return config;
+    if (name === './bottle-materials') return bottleMaterials;
     throw new Error(name);
   });
-  const pooling = load('lib/viewer/pooled-appearance.ts', name => name === 'three' ? THREE : legacy);
+  const pooling = load('lib/viewer/pooled-appearance.ts', name => name === 'three' ? THREE : name === './bottle-materials' ? bottleMaterials : legacy);
   const root = new THREE.Group(), original = new THREE.MeshPhysicalMaterial(); original.name = 'print';
   if (importedTexture) original.normalMap = importedTexture;
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(), original); root.add(mesh);

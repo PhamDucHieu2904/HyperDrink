@@ -453,6 +453,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
   const pooledAppearance = loadSource('lib/viewer/pooled-appearance.ts', name => {
     if (name === 'three') return THREE;
     if (name === './appearance') return appearanceBoundary;
+    if (name === './bottle-materials') return loadSource('lib/viewer/bottle-materials.ts');
     throw new Error(`Unexpected pooled appearance dependency: ${name}`);
   });
   const resourcePrefetch = loadSource('lib/viewer/resource-prefetch.ts', name => {

@@ -14,11 +14,13 @@ import { disposeProduct } from '../viewer/appearance';
 import { createPooledAppearanceHandle, type PooledAppearanceHandle } from '../viewer/pooled-appearance';
 import { createResourcePrefetcher } from '../viewer/resource-prefetch';
 import { createDaylightEnvironment } from '../viewer/environment';
-import { fitMockupCamera, mockupCameraDirection, mockupOrbitBounds, normalizeMockupAspect, orbitMockupCamera } from './camera';
+import { createProductHitRegion, hitVisibleProduct, visibleProductMeshes } from '../viewer/product-hit-region';
+import { fitMockupCamera, mockupCameraDirection, mockupOrbitBounds, mockupShowcaseBounds, normalizeMockupAspect } from './camera';
+import { MOCKUP_FOCAL_FOV } from './focal-length';
 import { createMockupCaptureGate, encodeMockupPng, mockupAbortError, mockupCaptureSize } from './capture';
 import { disposeMockupDetachedTextures, neutralizeMockupLabelArtwork } from './appearance';
 import { mockupModelKey, mockupSelectionKey } from './selection';
-import type { MockupAnimation, MockupBackground, MockupCameraPreset, MockupRuntime, MockupRuntimeOptions, MockupStatus } from './contracts';
+import type { MockupAnimation, MockupBackground, MockupCameraPreset, MockupFocalPreset, MockupRuntime, MockupRuntimeOptions, MockupStatus } from './contracts';
 
 type LoadedModel = {
   root: THREE.Group; content: THREE.Group; asset: ProductAsset; key: string;
@@ -45,7 +47,7 @@ const abortable = <T>(promise: Promise<T>, signal: AbortSignal, timeoutMs: numbe
 
 /**
  * Studio owns its camera and motion. Shared appearance/environment modules own
- * their resources; no hero choreography, decorative scene or global events run here.
+ * their resources. Showcase shares the homepage pose/input without its decorations.
  */
 export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntimeOptions): MockupRuntime {
   const settings = DEFAULT_VIEWER_PRESENTATION;
@@ -66,7 +68,19 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, 1, 0.0001, 100);
   camera.position.set(0, 0.01, 0.4);
+  // Three caches transmission buffers per camera ID; reuse one export camera
+  // so repeated PNG captures do not retain another full-size buffer each time.
+  const captureCamera = camera.clone();
   const product = new THREE.Group(); scene.add(product);
+  const hitRegion = createProductHitRegion(host);
+  const rest = new THREE.Quaternion().setFromEuler(new THREE.Euler(...settings.pose, 'YXZ'));
+  const pose = new THREE.Quaternion(), targetPose = new THREE.Quaternion();
+  const spin = new THREE.Quaternion(), dragStep = new THREE.Quaternion(), candidatePose = new THREE.Quaternion();
+  const yawAxis = new THREE.Vector3(0, 1, 0), dragAxis = new THREE.Vector3(), up = new THREE.Vector3();
+  const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
+  const pointers = new Map<number, { x: number; y: number }>();
+  let dragging = false, motionTime = 0, lastInputAt = -Infinity, returnElapsed = 0;
+  let returnFrom: THREE.Quaternion | null = null;
   const controls = new OrbitControls(camera, canvas);
   controls.enablePan = false;
   controls.enableDamping = false;
@@ -105,6 +119,7 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
   let aspect = 1;
   let fitDistance = 0.4;
   let animation: MockupAnimation = { mode: 'off', speed: 1, playing: false };
+  let focal: MockupFocalPreset = 'standard';
   let raf = 0;
   let dirty = true;
   let lastTime = performance.now();
@@ -151,15 +166,18 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     if (!disposed) options.onStatus({ phase, assetId: desired?.asset.id ?? '', appearanceId: desired?.appearance?.id ?? '', selectionKey: desiredKey, revision, hasProduct: Boolean(active), error, message });
   };
   const isVisible = () => !disposed && !contextLost && visible && !document.hidden;
-  const moving = () => animation.playing && animation.mode !== 'off' && Boolean(active) && !captureGate.busy;
+  const moving = () => Boolean(active) && !captureGate.busy && (animation.playing && animation.mode !== 'off'
+    || animation.mode === 'showcase' && (dragging || Boolean(returnFrom) || pose.angleTo(targetPose) > 0.00001 && Number.isFinite(lastInputAt)));
   const requestRender = () => {
     dirty = true;
     if (!raf && isVisible() && !captureGate.busy) raf = requestAnimationFrame(frame);
   };
   const pauseFromInteraction = (manual = true) => {
     const wasPlaying = animation.playing;
-    if (wasPlaying) animation = { ...animation, playing: false };
-    if (manual || wasPlaying) options.onInteraction?.();
+    if (animation.mode !== 'showcase') {
+      if (wasPlaying) animation = { ...animation, playing: false };
+      if (manual || wasPlaying) options.onInteraction?.();
+    }
     lastTime = performance.now(); requestRender();
   };
   const createLinearTarget = (width: number, height: number) => new THREE.WebGLRenderTarget(width, height, {
@@ -178,13 +196,27 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     if (!isVisible() || captureGate.busy) return;
     const dt = Math.min(0.06, Math.max(0, (now - lastTime) / 1000)); lastTime = now;
     if (moving()) {
-      const radians = dt * animation.speed * 0.65;
-      if (animation.mode === 'turntable') product.rotation.y = (product.rotation.y + radians) % (Math.PI * 2);
-      else { orbitMockupCamera(camera.position, controls.target, radians); camera.lookAt(controls.target); controls.update(); }
+      if (animation.mode === 'showcase') {
+        motionTime += dt;
+        if (dragging) pose.slerp(targetPose, 1 - Math.exp(-dt * 14));
+        else if (returnFrom) {
+          returnElapsed += dt;
+          const t = Math.min(1, returnElapsed / settings.motion.settleSeconds);
+          pose.copy(returnFrom).slerp(rest, t * t * t * (10 + t * (-15 + 6 * t)));
+          if (t === 1) { returnFrom = null; lastInputAt = -Infinity; targetPose.copy(pose); }
+        } else if (animation.playing && Number.isFinite(lastInputAt) && motionTime - lastInputAt >= settings.motion.returnDelay) {
+          returnFrom = pose.clone(); returnElapsed = 0;
+        } else if (animation.playing && !Number.isFinite(lastInputAt)) {
+          pose.multiply(spin.setFromAxisAngle(yawAxis, dt * animation.speed * settings.motion.idleSpeed));
+        } else pose.slerp(targetPose, 1 - Math.exp(-dt * 10));
+        product.quaternion.copy(pose);
+      } else product.rotation.y = (product.rotation.y + dt * animation.speed * 0.65) % (Math.PI * 2);
       dirty = true;
     }
     if (dirty && previewTarget && now - lastDraw >= 1000 / (mobile ? 30 : 60)) {
-      const started = performance.now(); renderTo(previewTarget, null, camera);
+      const started = performance.now();
+      hitRegion.update(animation.mode === 'showcase' ? active?.root ?? null : null, camera, host.clientWidth, host.clientHeight, now, dragging);
+      renderTo(previewTarget, null, camera);
       lastFrameMs = performance.now() - started; renderFrames++;
       if (now - diagnosticsAt >= 1000) sampleDiagnostics();
       lastDraw = now; dirty = false;
@@ -195,9 +227,12 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
   }
   const fit = (preset?: MockupCameraPreset) => {
     if (!active) return;
-    const direction = preset ? mockupCameraDirection(preset).applyAxisAngle(new THREE.Vector3(0, 1, 0), product.rotation.y)
+    const direction = preset === 'front' && animation.mode === 'showcase' ? new THREE.Vector3(0, 0, 1)
+      : preset ? mockupCameraDirection(preset).applyAxisAngle(yawAxis, product.rotation.y)
       : camera.position.clone().sub(controls.target).normalize();
-    const nextDistance = fitMockupCamera(mockupOrbitBounds(active.bounds), direction, aspect, camera.fov);
+    const tilted = animation.mode === 'showcase' || Math.abs(product.rotation.x) + Math.abs(product.rotation.z) > 0.00001;
+    const bounds = tilted ? mockupShowcaseBounds(active.bounds, animation.mode === 'showcase' ? rest : product.quaternion) : mockupOrbitBounds(active.bounds);
+    const nextDistance = fitMockupCamera(bounds, direction, aspect, camera.fov);
     const ratio = preset ? 1 : camera.position.distanceTo(controls.target) / Math.max(fitDistance, 0.0001);
     fitDistance = nextDistance;
     controls.target.copy(active.bounds.getCenter(new THREE.Vector3()));
@@ -280,6 +315,7 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     const nextKey = mockupSelectionKey(asset, appearance, frontYaw);
     if (nextKey === desiredKey && readyRevision === revision && statusPhase === 'ready') { emit('ready'); return; }
     desired = { asset, appearance, frontYaw: Number.isFinite(frontYaw) ? frontYaw : 0 }; desiredKey = nextKey;
+    if (pointers.size) cancelPointers();
     const thisRevision = ++revision;
     request?.abort(); request = new AbortController(); const signal = request.signal;
     // Invalidate an older label request on the outgoing model. Its stable cached
@@ -354,10 +390,17 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
         if (!current()) { if (candidate !== active) discard(candidate); return; }
         emit('preparing');
         const changingModel = candidate !== active;
-        if (changingModel) { recycle(active); active = candidate; candidates.delete(candidate); product.add(candidate.root); product.rotation.y = 0; }
+        if (changingModel) {
+          recycle(active); active = candidate; candidates.delete(candidate); product.add(candidate.root);
+          product.quaternion.copy(animation.mode === 'showcase' ? rest : new THREE.Quaternion());
+          pose.copy(product.quaternion); targetPose.copy(pose); lastInputAt = -Infinity; returnFrom = null;
+        }
         candidate.asset = asset; candidate.root.rotation.y = desired!.frontYaw; candidate.committedAppearance = appearance;
-        // Recompute after the Studio-only front correction, without tilting +Y.
-        candidate.root.updateMatrixWorld(true); candidate.bounds = new THREE.Box3().setFromObject(candidate.root);
+        // Bounds belong to the upright model, not its currently animated parent.
+        // Otherwise a label switch would bake today's tilt/yaw into future lens fits.
+        candidate.root.removeFromParent(); candidate.root.updateMatrixWorld(true);
+        candidate.bounds = new THREE.Box3().setFromObject(candidate.root);
+        product.add(candidate.root); product.updateMatrixWorld(true);
         lights.forEach((light, index) => light.position.set(...settings.lights[index].position).multiplyScalar(candidate!.radius));
         if (changingModel) fit('front'); else requestRender();
         // The shared pool prepared textures and shaders against the ready studio
@@ -386,11 +429,71 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     if (disposed || captureGate.busy) return;
     pauseFromInteraction(); fit(preset);
   };
+  const rotateProduct = (axis: THREE.Vector3, angle: number) => {
+    candidatePose.copy(targetPose).premultiply(dragStep.setFromAxisAngle(axis, angle)).normalize();
+    up.set(0, 1, 0).applyQuaternion(candidatePose);
+    if (up.y >= -0.25) targetPose.copy(candidatePose);
+    lastInputAt = motionTime; returnFrom = null; requestRender();
+  };
+  const pointerDown = (event: PointerEvent) => {
+    if (animation.mode !== 'showcase' || !active || captureGate.busy || contextLost || event.button !== 0 || pointers.has(event.pointerId)) return;
+    if ((event.pointerType === 'touch' || event.pointerType === 'pen') && event.target !== hitRegion.element) return;
+    const rect = canvas.getBoundingClientRect();
+    if (!(rect.width > 0 && rect.height > 0)) return;
+    pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2);
+    product.updateWorldMatrix(true, true); camera.updateMatrixWorld(); raycaster.setFromCamera(pointer, camera);
+    if (!hitVisibleProduct(raycaster, visibleProductMeshes(active.root))) return;
+    targetPose.copy(pose); returnFrom = null;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    try { canvas.setPointerCapture(event.pointerId); } catch { pointers.delete(event.pointerId); return; }
+    dragging = true; hitRegion.element.style.cursor = canvas.style.cursor = 'grabbing';
+    lastInputAt = motionTime; requestRender();
+  };
+  const pointerMove = (event: PointerEvent) => {
+    const previous = pointers.get(event.pointerId);
+    if (!previous) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size > 1) return;
+    const dx = event.clientX - previous.x, dy = event.clientY - previous.y, distance = Math.hypot(dx, dy);
+    if (distance < 0.1) return;
+    rotateProduct(dragAxis.set(dy, dx, 0).normalize(), Math.min(distance * 0.008, 0.24));
+  };
+  const pointerUp = (event: PointerEvent) => {
+    if (!pointers.delete(event.pointerId)) return;
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    dragging = pointers.size > 0;
+    if (!dragging) { hitRegion.element.style.cursor = canvas.style.cursor = 'grab'; lastInputAt = motionTime; }
+    requestRender();
+  };
+  const cancelPointers = () => {
+    const ids = [...pointers.keys()]; pointers.clear(); dragging = false;
+    for (const id of ids) if (canvas.hasPointerCapture(id)) {
+      try { canvas.releasePointerCapture(id); } catch { /* The browser may have cancelled capture already. */ }
+    }
+    hitRegion.element.style.cursor = canvas.style.cursor = 'grab'; lastInputAt = motionTime;
+  };
+  const zoomCamera = (factor: number) => {
+    if (disposed || captureGate.busy || !Number.isFinite(factor) || factor <= 0) return;
+    pauseFromInteraction();
+    const direction = camera.position.clone().sub(controls.target);
+    direction.setLength(THREE.MathUtils.clamp(direction.length() / factor, controls.minDistance, controls.maxDistance));
+    camera.position.copy(controls.target).add(direction); controls.update(); requestRender();
+  };
+  const wheel = (event: WheelEvent) => {
+    if (animation.mode !== 'showcase' || !active || !isVisible() || captureGate.busy || event.ctrlKey) return;
+    event.preventDefault();
+    const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? host.clientHeight : 1);
+    zoomCamera(Math.exp(THREE.MathUtils.clamp(-pixels * 0.001 * controls.zoomSpeed, -0.5, 0.5)));
+  };
+  host.addEventListener('pointerdown', pointerDown); host.addEventListener('pointermove', pointerMove);
+  host.addEventListener('pointerup', pointerUp); host.addEventListener('pointercancel', pointerUp);
+  canvas.addEventListener('lostpointercapture', pointerUp);
+  host.addEventListener('wheel', wheel, { passive: false });
   const onControlsStart = () => { if (!captureGate.busy) pauseFromInteraction(); };
   const onControlsChange = () => requestRender();
   controls.addEventListener('start', onControlsStart); controls.addEventListener('change', onControlsChange);
   const syncVisibility = () => {
-    if (!isVisible()) { if (raf) cancelAnimationFrame(raf); raf = 0; prefetch.setEnabled(false); }
+    if (!isVisible()) { cancelPointers(); hitRegion.clear(); if (raf) cancelAnimationFrame(raf); raf = 0; prefetch.setEnabled(false); }
     else { lastTime = performance.now(); prefetch.setEnabled(readyRevision === revision); requestRender(); }
   };
   const lostContext = (event: Event) => {
@@ -414,11 +517,29 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
   return {
     select,
     setCamera: manualCamera,
+    setFocalLength(preset) {
+      if (disposed || captureGate.busy || !(preset in MOCKUP_FOCAL_FOV)) return;
+      focal = preset; camera.fov = MOCKUP_FOCAL_FOV[focal]; camera.updateProjectionMatrix();
+      host.dataset.focalLength = focal; host.dataset.cameraFov = String(camera.fov);
+      fit(); requestRender();
+    },
     setBackground,
     setAnimation(value) {
       if (disposed || captureGate.busy) return;
+      const previousMode = animation.mode;
+      const changed = value.mode !== animation.mode;
       animation = { mode: value.mode, playing: value.mode !== 'off' && value.playing,
         speed: Number.isFinite(value.speed) ? Math.min(3, Math.max(0.2, value.speed)) : 1 };
+      if (changed) {
+        cancelPointers(); hitRegion.clear();
+        controls.enableRotate = animation.mode !== 'showcase';
+        controls.enableZoom = animation.mode !== 'showcase';
+        if (animation.mode === 'showcase') product.quaternion.copy(rest);
+        else if (previousMode === 'showcase' && animation.mode === 'turntable') product.quaternion.identity();
+        pose.copy(product.quaternion); targetPose.copy(pose); lastInputAt = -Infinity; returnFrom = null;
+        if (animation.mode === 'showcase' || previousMode === 'showcase' && animation.mode === 'turntable') fit('front');
+      }
+      host.dataset.motionMode = animation.mode;
       lastTime = performance.now(); requestRender();
     },
     setAspect(value) {
@@ -427,6 +548,10 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     },
     orbitView(yawRadians, pitchRadians) {
       if (disposed || captureGate.busy || !Number.isFinite(yawRadians) || !Number.isFinite(pitchRadians)) return;
+      if (animation.mode === 'showcase') {
+        targetPose.copy(pose); rotateProduct(yawAxis, yawRadians);
+        rotateProduct(new THREE.Vector3(1, 0, 0), pitchRadians); return;
+      }
       pauseFromInteraction();
       const relative = camera.position.clone().sub(controls.target);
       const spherical = new THREE.Spherical().setFromVector3(relative);
@@ -435,16 +560,14 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
       camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(spherical));
       camera.lookAt(controls.target); controls.update(); requestRender();
     },
-    zoom(factor) {
-      if (disposed || captureGate.busy || !Number.isFinite(factor) || factor <= 0) return;
-      pauseFromInteraction();
-      const direction = camera.position.clone().sub(controls.target);
-      direction.setLength(THREE.MathUtils.clamp(direction.length() / factor, controls.minDistance, controls.maxDistance));
-      camera.position.copy(controls.target).add(direction); controls.update(); requestRender();
-    },
+    zoom: zoomCamera,
     resetView() {
       if (disposed || captureGate.busy) return;
-      pauseFromInteraction(); product.rotation.y = 0; fit('front');
+      cancelPointers(); pauseFromInteraction();
+      product.quaternion.copy(animation.mode === 'showcase' ? rest : new THREE.Quaternion());
+      pose.copy(product.quaternion); targetPose.copy(pose); lastInputAt = -Infinity; returnFrom = null;
+      focal = 'standard'; camera.fov = MOCKUP_FOCAL_FOV[focal]; camera.updateProjectionMatrix();
+      host.dataset.focalLength = focal; host.dataset.cameraFov = String(camera.fov); fit('front');
     },
     async capture(captureOptions) {
       if (disposed || contextLost || !active || readyRevision !== revision || statusPhase !== 'ready') throw new Error('The selected scene is not ready for export');
@@ -464,6 +587,7 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
         exportAbort = new AbortController(); const signal = exportAbort.signal;
         captureOptions.signal?.addEventListener('abort', abortExport, { once: true });
         if (captureOptions.signal?.aborted) exportAbort.abort();
+        if (pointers.size) cancelPointers();
         if (raf) cancelAnimationFrame(raf); raf = 0; controls.enabled = false; emit('exporting');
         const gl = renderer.getContext();
         const maxSize = Math.min(renderer.capabilities.maxTextureSize, gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
@@ -472,8 +596,8 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
         if (signal.aborted) throw mockupAbortError();
         linear = createLinearTarget(size.width, size.height);
         output = new THREE.WebGLRenderTarget(size.width, size.height, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, depthBuffer: false });
-        const snapshotCamera = camera.clone(); snapshotCamera.aspect = exportAspect; snapshotCamera.updateProjectionMatrix();
-        renderTo(linear, output, snapshotCamera);
+        captureCamera.copy(camera, false); captureCamera.aspect = exportAspect; captureCamera.updateProjectionMatrix();
+        renderTo(linear, output, captureCamera);
         const pixels = new Uint8Array(size.width * size.height * 4);
         // r180 supplies an asynchronous PBO readback. No permanent drawing buffer
         // or preview resize is needed; PNG encoding only touches a temporary 2D canvas.
@@ -507,11 +631,16 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     },
     dispose() {
       if (disposed) return;
+      cancelPointers(); hitRegion.dispose();
       disposed = true; revision++; environmentRevision++; queuedSelection = null; request?.abort(); exportAbort?.abort();
       if (raf) cancelAnimationFrame(raf); raf = 0;
       resizeObserver.disconnect(); intersection.disconnect();
       document.removeEventListener('visibilitychange', syncVisibility);
       canvas.removeEventListener('webglcontextlost', lostContext); canvas.removeEventListener('webglcontextrestored', restoredContext);
+      host.removeEventListener('pointerdown', pointerDown); host.removeEventListener('pointermove', pointerMove);
+      host.removeEventListener('pointerup', pointerUp); host.removeEventListener('pointercancel', pointerUp);
+      canvas.removeEventListener('lostpointercapture', pointerUp);
+      host.removeEventListener('wheel', wheel);
       controls.removeEventListener('start', onControlsStart); controls.removeEventListener('change', onControlsChange); controls.dispose();
       discard(active); active = null; discard(cached); cached = null; [...candidates].forEach(discard);
       prefetch.dispose(); previewTarget?.dispose(); environmentTarget?.dispose();

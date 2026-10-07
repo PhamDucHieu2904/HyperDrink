@@ -1,9 +1,10 @@
 import type { ProductAppearance, ProductAsset } from '../viewer-config';
 
 export type MockupCameraPreset = 'front' | 'three-quarter' | 'left' | 'right' | 'back' | 'top';
+export type MockupFocalPreset = 'ultraWide' | 'wide' | 'standard' | 'long' | 'telephoto';
 export type MockupBackgroundType = 'white' | 'gray' | 'dark' | 'color' | 'gradient' | 'transparent';
 export interface MockupBackground { type: MockupBackgroundType; color?: string; colorEnd?: string }
-export interface MockupAnimation { mode: 'off' | 'turntable' | 'camera-orbit'; speed: number; playing: boolean }
+export interface MockupAnimation { mode: 'off' | 'turntable' | 'showcase'; speed: number; playing: boolean }
 export interface MockupCaptureOptions { longEdge: 1024 | 2048; aspect?: number; signal?: AbortSignal }
 export interface MockupStatus {
   phase: 'loading-model' | 'loading-label' | 'preparing' | 'ready' | 'exporting' | 'error';
@@ -17,12 +18,14 @@ export interface MockupStatus {
 }
 export interface MockupRuntimeOptions {
   onStatus(value: MockupStatus): void;
-  /** Called on manual camera input, which also pauses a playing animation. */
+  /** Manual input pauses turntable; showcase resumes after releasing the product. */
   onInteraction?(): void;
 }
 export interface MockupRuntime {
   select(asset: ProductAsset, appearance?: ProductAppearance, frontYaw?: number): void;
   setCamera(preset: MockupCameraPreset): void;
+  /** Changes perspective and compensates camera distance to retain the framing. */
+  setFocalLength(preset: MockupFocalPreset): void;
   setBackground(background: MockupBackground): void;
   setAnimation(animation: MockupAnimation): void;
   /** Numeric width/height ratio; the host should display the same frame. */

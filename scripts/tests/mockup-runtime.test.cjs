@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 require('../register-admin-typescript.cjs');
 const THREE = require('three');
 const camera = require('../../lib/mockup/camera.ts');
+const focal = require('../../lib/mockup/focal-length.ts');
+const { DEFAULT_VIEWER_PRESENTATION } = require('../../lib/viewer-config.ts');
 const capture = require('../../lib/mockup/capture.ts');
 const selection = require('../../lib/mockup/selection.ts');
 const neutral = require('../../lib/mockup/appearance.ts');
@@ -25,14 +27,18 @@ function runtimeHarness({ floatingPoint = true, reducedMotion = false } = {}) {
   const statuses = []; const parses = new Map(); const models = new Map(); const pools = []; const rafs = new Map();
   const draws = []; let nextRaf = 0; let interactions = 0; let observer; let renderReadback; let outputMaterial;
   class Element extends EventTarget {
-    constructor() { super(); this.style = {}; this.dataset = {}; this.removed = false; }
+    constructor() { super(); this.style = {}; this.dataset = {}; this.removed = false; this.captured = new Set(); }
     setAttribute() {}
+    getBoundingClientRect() { return { left: 0, top: 0, width: 700, height: 700 }; }
+    setPointerCapture(id) { this.captured.add(id); }
+    hasPointerCapture(id) { return this.captured.has(id); }
+    releasePointerCapture(id) { this.captured.delete(id); }
     remove() { this.removed = true; }
   }
   const host = new Element(); host.clientWidth = 700; host.clientHeight = 700;
-  host.appendChild = canvas => { host.canvas = canvas; };
+  host.appendChild = element => { if (element.dataset.productHitRegion) host.hitRegion = element; else host.canvas = element; };
   const document = new EventTarget(); document.hidden = false;
-  document.createElement = () => ({ width: 0, height: 0, getContext: () => ({ putImageData() {} }), toBlob: callback => callback(new Blob(['PNG'], { type: 'image/png' })) });
+  document.createElement = tag => tag === 'div' ? new Element() : ({ width: 0, height: 0, getContext: () => ({ putImageData() {} }), toBlob: callback => callback(new Blob(['PNG'], { type: 'image/png' })) });
   const motionQuery = new EventTarget(); motionQuery.matches = reducedMotion;
   const window = { devicePixelRatio: 2, matchMedia: query => query.includes('reduced-motion') ? motionQuery : { matches: false } };
   class Renderer {
@@ -59,7 +65,7 @@ function runtimeHarness({ floatingPoint = true, reducedMotion = false } = {}) {
     setScissorTest(value) { this.scissorTest = value; }
     getContext() { return { MAX_RENDERBUFFER_SIZE: 1, getParameter: () => 4096 }; }
     clear() {}
-    render(scene, camera) { draws.push({ scene, camera: camera.clone(), target: this.target }); }
+    render(scene, camera) { draws.push({ scene, camera: camera.clone(), cameraId: camera.id, target: this.target }); }
     compileAsync() { return Promise.resolve(); }
     compile() { return new Set(); }
     initTexture() {}
@@ -142,6 +148,11 @@ function runtimeHarness({ floatingPoint = true, reducedMotion = false } = {}) {
     },
     finishLabel(id) { for (const pool of pools) pool.finish(id); },
     finishReadback() { assert.ok(renderReadback); renderReadback.resolve(); },
+    pointer(type, x = 350, y = 350, pointerType = 'mouse', target) {
+      const event = new Event(type);
+      for (const [key, value] of Object.entries({ clientX: x, clientY: y, pointerId: 1, pointerType, button: 0, ...(target ? { target } : {}) })) Object.defineProperty(event, key, { value });
+      host.dispatchEvent(event);
+    },
     runFrame(now = performance.now() + 100) { const queued = [...rafs]; rafs.clear(); queued.forEach(([, work]) => work(now)); },
     hide(value) { document.hidden = value; document.dispatchEvent(new Event('visibilitychange')); },
     intersect(value) { observer([{ isIntersecting: value }]); },
@@ -349,6 +360,31 @@ test('capture locks the committed revision, matches preview aspect and restores 
   } finally { h.close(); }
 });
 
+test('successive PNG captures reuse a distinct camera ID while copying each current view and lens', async () => {
+  const h = runtimeHarness();
+  try {
+    await makeReady(h);
+    const previewId = h.controls.camera.id;
+    const captures = [];
+    for (const [aspect, preset, lens] of [[1, 'front', 'standard'], [0.8, 'three-quarter', 'wide'], [16 / 9, 'back', 'telephoto']]) {
+      h.runtime.setAspect(aspect); h.runtime.setCamera(preset); h.runtime.setFocalLength(lens);
+      const expected = h.controls.camera.clone();
+      const exporting = h.runtime.capture({ longEdge: 1024, aspect });
+      const draw = h.draws.at(-1); captures.push(draw);
+      assert.notEqual(draw.cameraId, previewId, 'Capture retains a separate snapshot from the interactive camera');
+      assert.equal(draw.camera.aspect, aspect); assert.equal(draw.camera.fov, focal.MOCKUP_FOCAL_FOV[lens]);
+      assert.ok(draw.camera.position.distanceTo(expected.position) < 1e-12);
+      assert.ok(draw.camera.quaternion.angleTo(expected.quaternion) < 1e-7);
+      assert.deepEqual(draw.camera.projectionMatrix.elements, expected.projectionMatrix.elements);
+      h.finishReadback(); await flush(); await exporting;
+      assert.equal(h.statuses.at(-1).phase, 'ready');
+      assert.equal(h.controls.camera.id, previewId); assert.equal(h.renderer.getRenderTarget(), null);
+    }
+    assert.equal(new Set(captures.map(draw => draw.cameraId)).size, 1, 'Native transmission caches one export buffer instead of one per PNG');
+    assert.equal(new Set(captures.map(draw => draw.camera.fov)).size, 3, 'Reusing the camera cannot freeze a previous focal setting');
+  } finally { h.close(); }
+});
+
 test('aborted capture restores the preview and context loss never publishes a false ready', async () => {
   const h = runtimeHarness();
   try {
@@ -370,13 +406,14 @@ test('mockup animation runs with OS reduced motion while stationary scenes and h
   const h = runtimeHarness({ reducedMotion: true });
   try {
     await makeReady(h); h.runFrame(); assert.equal(h.rafs.size, 0);
-    h.runtime.setAnimation({ mode: 'camera-orbit', speed: 1, playing: true });
+    h.runtime.setAnimation({ mode: 'turntable', speed: 1, playing: true });
     assert.equal(h.rafs.size, 1);
     for (let frame = 1; frame < 10; frame++) { h.runFrame(performance.now() + frame * 100); assert.equal(h.rafs.size, 1); }
-    const before = h.draws.at(-1).camera.position.clone();
+    const product = h.pools[0].content.parent.parent;
+    const before = product.quaternion.clone();
     for (const matches of [false, true]) { h.motionQuery.matches = matches; h.motionQuery.dispatchEvent(new Event('change')); }
     h.runFrame(performance.now() + 1500);
-    assert.equal(h.rafs.size, 1); assert.ok(h.draws.at(-1).camera.position.distanceTo(before) > 0.001);
+    assert.equal(h.rafs.size, 1); assert.ok(product.quaternion.angleTo(before) > 0.001);
     h.hide(true); assert.equal(h.rafs.size, 0); h.hide(false); assert.equal(h.rafs.size, 1);
     h.controls.dispatchEvent({ type: 'start' }); h.runFrame(performance.now() + 2000);
     assert.equal(h.rafs.size, 0); assert.equal(h.interactions, 1);
@@ -505,4 +542,151 @@ test('blank Studio surfaces remove baked label artwork while retaining other imp
   assert.equal(labelDisposals, 0); neutral.disposeMockupDetachedTextures(detached); neutral.disposeMockupDetachedTextures(detached);
   assert.equal(labelDisposals, 1); assert.equal(capDisposals, 0);
   geometry.dispose(); label.dispose(); cap.dispose(); capMap.dispose(); normalMap.dispose();
+});
+
+
+test('five focal levels preserve the standard lens and fit the tilted spinning package in every export frame', () => {
+  assert.deepEqual(focal.MOCKUP_FOCAL_PRESETS, ['ultraWide', 'wide', 'standard', 'long', 'telephoto']);
+  assert.equal(focal.MOCKUP_FOCAL_FOV.standard, 30);
+  const geometry = new THREE.CylinderGeometry(0.033, 0.033, 0.146, 48);
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial());
+  const bounds = new THREE.Box3().setFromObject(mesh);
+  const rest = new THREE.Quaternion().setFromEuler(new THREE.Euler(...DEFAULT_VIEWER_PRESENTATION.pose, 'YXZ'));
+  const envelope = camera.mockupShowcaseBounds(bounds, rest);
+  for (const aspect of [0.8, 1, 16 / 9]) for (const fov of Object.values(focal.MOCKUP_FOCAL_FOV)) {
+    const direction = new THREE.Vector3(0, 0, 1);
+    const view = new THREE.PerspectiveCamera(fov, aspect, 0.00001, 20);
+    view.position.z = camera.fitMockupCamera(envelope, direction, aspect, fov);
+    view.lookAt(0, 0, 0); view.updateMatrixWorld(true);
+    for (const yaw of [0, 0.7, 1.8, 3.4, 4.9, 6.1]) {
+      const pose = rest.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw));
+      for (let index = 0; index < geometry.attributes.position.count; index += 2) {
+        const point = new THREE.Vector3().fromBufferAttribute(geometry.attributes.position, index).applyQuaternion(pose).project(view);
+        assert.ok(Math.abs(point.x) <= 0.800001 && Math.abs(point.y) <= 0.800001, `Clipped at FOV ${fov}, aspect ${aspect}, yaw ${yaw}`);
+      }
+    }
+  }
+  geometry.dispose(); mesh.material.dispose();
+});
+
+test('lens changes compensate distance, preserve view direction and zoom, and reset to Standard', async () => {
+  const h = runtimeHarness();
+  try {
+    await makeReady(h); h.runtime.orbitView(0.4, 0.1);
+    const direction = h.controls.camera.position.clone().sub(h.controls.target).normalize();
+    const product = h.pools[0].content.parent;
+    const bounds = camera.mockupOrbitBounds(new THREE.Box3().setFromObject(product));
+    h.runtime.zoom(1.2);
+    let lastDistance = 0;
+    for (const preset of focal.MOCKUP_FOCAL_PRESETS) {
+      h.runtime.setFocalLength(preset);
+      const view = h.controls.camera, fov = focal.MOCKUP_FOCAL_FOV[preset];
+      const expectedDistance = camera.fitMockupCamera(bounds, direction, view.aspect, fov) / 1.2;
+      assert.equal(view.fov, fov);
+      assert.ok(Math.abs(view.position.distanceTo(h.controls.target) - expectedDistance) < 1e-10);
+      assert.ok(view.position.clone().sub(h.controls.target).normalize().distanceTo(direction) < 1e-10);
+      assert.ok(view.position.distanceTo(h.controls.target) > lastDistance);
+      lastDistance = view.position.distanceTo(h.controls.target);
+    }
+    h.runtime.resetView(); assert.equal(h.controls.camera.fov, 30); assert.equal(h.host.dataset.focalLength, 'standard');
+  } finally { h.close(); }
+});
+
+test('Website mode uses the homepage tilt and idle speed, drags the product, then settles and resumes without moving the camera', async () => {
+  const h = runtimeHarness({ reducedMotion: true });
+  try {
+    await makeReady(h);
+    const product = h.pools[0].content.parent.parent;
+    const rest = new THREE.Quaternion().setFromEuler(new THREE.Euler(...DEFAULT_VIEWER_PRESENTATION.pose, 'YXZ'));
+    h.runtime.setAnimation({ mode: 'showcase', playing: true, speed: 1 });
+    assert.ok(product.quaternion.angleTo(rest) < 1e-7); assert.equal(h.controls.enableRotate, false);
+    const cameraPosition = h.controls.camera.position.clone();
+    let now = performance.now(); h.runFrame(now);
+    const before = product.quaternion.clone(); now += 50; h.runFrame(now);
+    assert.ok(Math.abs(product.quaternion.angleTo(before) - DEFAULT_VIEWER_PRESENTATION.motion.idleSpeed * 0.05) < 1e-7);
+    h.pointer('pointerdown'); assert.equal(h.host.canvas.hasPointerCapture(1), true);
+    h.pointer('pointermove', 430, 390);
+    for (let frame = 0; frame < 8; frame++) { now += 50; h.runFrame(now); }
+    assert.ok(product.quaternion.angleTo(rest) > 0.1);
+    assert.ok(h.controls.camera.position.distanceTo(cameraPosition) < 1e-12);
+    h.pointer('pointerup', 430, 390); assert.equal(h.host.canvas.hasPointerCapture(1), false);
+    for (let frame = 0; frame < 52; frame++) { now += 50; h.runFrame(now); }
+    assert.ok(product.quaternion.angleTo(rest) < 0.06, 'Returns to the homepage tilt after the two-second input delay');
+    const resumed = product.quaternion.clone(); now += 50; h.runFrame(now);
+    assert.ok(product.quaternion.angleTo(resumed) > 0.001); assert.equal(h.interactions, 0);
+    h.hide(true); assert.equal(h.rafs.size, 0); h.hide(false); assert.equal(h.rafs.size, 1);
+    const frozen = product.quaternion.clone();
+    h.runtime.setAnimation({ mode: 'off', playing: false, speed: 1 }); h.runFrame(now + 100);
+    assert.ok(product.quaternion.angleTo(frozen) < 1e-7);
+    assert.equal(h.controls.enableRotate, true); assert.equal(h.rafs.size, 0);
+  } finally { h.close(); }
+});
+
+test('Website mode touch ownership follows the product silhouette and cancellation releases capture', async () => {
+  const h = runtimeHarness();
+  try {
+    await makeReady(h); h.runtime.setAnimation({ mode: 'showcase', playing: true, speed: 1 }); h.runFrame();
+    assert.equal(h.host.hitRegion.style.touchAction, 'none'); assert.equal(h.host.hitRegion.style.display, 'block');
+    h.pointer('pointerdown', 350, 350, 'touch'); assert.equal(h.host.canvas.hasPointerCapture(1), false);
+    h.pointer('pointerdown', 350, 350, 'touch', h.host.hitRegion); assert.equal(h.host.canvas.hasPointerCapture(1), true);
+    h.pointer('pointercancel', 350, 350, 'touch'); assert.equal(h.host.canvas.hasPointerCapture(1), false);
+    h.pointer('pointerdown', 350, 350, 'touch', h.host.hitRegion); assert.equal(h.host.canvas.hasPointerCapture(1), true);
+    h.hide(true); assert.equal(h.host.canvas.hasPointerCapture(1), false); assert.equal(h.host.hitRegion.style.display, 'none');
+  } finally { h.close(); }
+  assert.equal(h.host.hitRegion.removed, true);
+});
+
+test('Website mode stays animated across label/model changes and PNG captures the selected lens and exact current pose', async () => {
+  const h = runtimeHarness();
+  try {
+    await makeReady(h); h.runtime.setAnimation({ mode: 'showcase', playing: true, speed: 1 });
+    h.runtime.setFocalLength('telephoto'); h.runFrame();
+    h.runtime.select(studioAsset('a'), studioLabel('two')); await flush(); h.finishLabel('two'); await flush();
+    assert.equal(h.host.dataset.motionMode, 'showcase'); assert.equal(h.interactions, 0); assert.equal(h.rafs.size, 1);
+    h.runtime.select(studioAsset('b'), studioLabel('three')); await flush(); h.parse('/b.glb'); await flush(); h.finishLabel('three'); await flush();
+    const product = h.pools.at(-1).content.parent.parent;
+    assert.equal(h.controls.camera.fov, 16); assert.equal(h.rafs.size, 1);
+    h.runFrame(); const currentPose = product.quaternion.clone(); const currentCamera = h.controls.camera.clone();
+    const exporting = h.runtime.capture({ longEdge: 2048, aspect: 1 });
+    assert.equal(h.rafs.size, 0); assert.equal(h.draws.at(-1).camera.fov, 16);
+    assert.ok(h.draws.at(-1).camera.position.distanceTo(currentCamera.position) < 1e-12);
+    h.runtime.setFocalLength('wide'); h.runtime.orbitView(1, 1); h.runFrame();
+    assert.ok(product.quaternion.angleTo(currentPose) < 1e-7); assert.equal(h.controls.camera.fov, 16);
+    h.finishReadback(); await flush(); assert.equal((await exporting).type, 'image/png');
+    assert.equal(h.rafs.size, 1); assert.equal(h.controls.enableRotate, false);
+    h.runtime.setAnimation({ mode: 'showcase', playing: false, speed: 1 }); h.runFrame(performance.now() + 1000); assert.equal(h.rafs.size, 0);
+    h.runtime.orbitView(0.16, 0.12);
+    for (let frame = 0; frame < 40; frame++) h.runFrame(performance.now() + 1100 + frame * 50);
+    assert.equal(h.rafs.size, 0, 'Paused showcase remains interactive and stops scheduling when settled');
+  } finally { h.close(); }
+});
+
+
+test('changing labels during showcase never bakes animated parent transforms into the next lens fit', async () => {
+  const h = runtimeHarness();
+  try {
+    await makeReady(h); h.runtime.setAnimation({ mode: 'showcase', playing: true, speed: 1 });
+    const original = h.controls.camera.position.clone();
+    for (let frame = 0; frame < 30; frame++) h.runFrame(performance.now() + frame * 50);
+    h.runtime.select(studioAsset('a'), studioLabel('two')); await flush(); h.finishLabel('two'); await flush();
+    h.runtime.setFocalLength('wide'); h.runtime.setFocalLength('standard');
+    assert.ok(h.controls.camera.position.distanceTo(original) < 1e-10, 'The same lens has identical framing after a label switch');
+  } finally { h.close(); }
+});
+
+test('showcase wheel zoom works over the silhouette while browser Ctrl-zoom stays available', async () => {
+  const h = runtimeHarness();
+  try {
+    await makeReady(h); h.runtime.setAnimation({ mode: 'showcase', playing: true, speed: 1 });
+    const distance = h.controls.camera.position.distanceTo(h.controls.target);
+    const wheel = ctrlKey => {
+      const event = new Event('wheel', { cancelable: true });
+      for (const [key, value] of Object.entries({ deltaY: -120, deltaMode: 0, ctrlKey, target: h.host.hitRegion })) Object.defineProperty(event, key, { value });
+      h.host.dispatchEvent(event); return event;
+    };
+    assert.equal(wheel(false).defaultPrevented, true);
+    const zoomed = h.controls.camera.position.distanceTo(h.controls.target); assert.ok(zoomed < distance);
+    assert.equal(h.interactions, 0); assert.equal(h.rafs.size, 1);
+    assert.equal(wheel(true).defaultPrevented, false); assert.equal(h.controls.camera.position.distanceTo(h.controls.target), zoomed);
+  } finally { h.close(); }
 });

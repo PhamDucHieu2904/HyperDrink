@@ -11,7 +11,7 @@ import CatalogProductImage from './CatalogProductImage';
 export default function CatalogCard({ catalog, product, onView }: { catalog: CatalogData; product: StorefrontProduct; onView?: (product: StorefrontProduct) => void }) {
   const { locale } = useLanguage();
   const copy = collectionCopy(locale);
-  const name = product.flavor.shortName || product.flavor.name;
+  const name = product.catalogItem ? product.variant.name : product.flavor.shortName || product.flavor.name;
   const href = `${publicUrl('/products/')}?group=${encodeURIComponent(product.group.id)}&product=${encodeURIComponent(product.variant.id)}`;
   return <article className="collection-card" style={{ '--card-accent': product.flavor.accentColor } as React.CSSProperties} data-product={product.variant.id}>
     <a className="collection-card-link" href={href} aria-label={`${copy.viewProduct}: ${product.variant.name}`} onClick={event => { if (onView) { event.preventDefault(); onView(product); } }}>

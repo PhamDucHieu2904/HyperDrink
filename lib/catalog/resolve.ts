@@ -25,7 +25,7 @@ export function resolveModelAsset(data: CatalogData, model: Model3D): ProductAss
   const media = data.media.find(item => item.id === model.mediaId);
   if (!packaging || !media || media.role !== 'model' || media.status !== 'ready' || media.lifecycle !== 'active') return null;
   const kind = category?.viewerKind || 'other';
-  return { id: model.id, name: model.name, src: mediaUrl(media), packaging: kind === 'pp' ? 'other' : kind, volumeMl: packaging.volumeMl || undefined, materialSlots: model.materialSlots, textureSamplers: model.layoutProfile === 'can-wrap-v1' ? { label: { wrapS: 'repeat', wrapT: 'clamp' } } : undefined, orientation: model.orientation, poster: mediaUrl(data.media.find(item => item.id === model.posterId)) || undefined };
+  return { id: model.id, name: model.name, src: mediaUrl(media), packaging: kind === 'pp' ? 'other' : kind, volumeMl: packaging.volumeMl || undefined, materialSlots: model.materialSlots, textureSamplers: ['can-wrap-v1', 'pet-wrap-v1'].includes(model.layoutProfile) ? { label: { wrapS: 'repeat', wrapT: 'clamp' } } : undefined, orientation: model.orientation, poster: mediaUrl(data.media.find(item => item.id === model.posterId)) || undefined };
 }
 
 /** Artwork mapping is identical in sales previews and free compatible pairings. */
@@ -33,6 +33,15 @@ export function resolveLabelAppearance(data: CatalogData, label: Label, appearan
   const media = data.media.find(item => item.id === label.mediaId);
   if (!media || media.role !== 'label' || media.status !== 'ready' || media.lifecycle !== 'active') return null;
   return { id: appearanceId, requiredSlots: ['label'], slots: { label: { baseColorMap: mediaUrl(media), metalness: 0, roughness: 0.15, clearcoat: 0.2 } } };
+}
+
+/** Sales and Studio use the same liquid tint; imported PET/cloudiness settings stay intact. */
+export function resolveModelLabelAppearance(data: CatalogData, model: Model3D, label: Label, flavor?: Pick<Flavor, 'accentColor'>, liquidColor?: string | null, appearanceId = `${label.id}:${label.revision}`): ProductAppearance | null {
+  const appearance = resolveLabelAppearance(data, label, appearanceId);
+  if (!appearance || !model.materialSlots.liquid?.length) return appearance;
+  const color = liquidColor ?? flavor?.accentColor;
+  if (!color || color.length !== 7 || !/^#[0-9a-f]{6}$/i.test(color)) return appearance;
+  return { ...appearance, id: `${appearanceId}:liquid:${color.toLowerCase()}`, slots: { ...appearance.slots, liquid: { color } } };
 }
 
 function seeded(seed: string): () => number {
@@ -95,7 +104,7 @@ export function resolveDisplay3D(data: CatalogData, display: Display3D, seed = '
   const labelMedia = data.media.find(item => item.id === label?.mediaId);
   if (!variant || !model || !flavor || !packaging || !modelMedia || !labelMedia || modelMedia.status!=='ready'||labelMedia.status!=='ready'||modelMedia.lifecycle!=='active'||labelMedia.lifecycle!=='active'||modelMedia.role!=='model'||labelMedia.role!=='label') return null;
   const asset = resolveModelAsset(data, model);
-  const appearance = label && resolveLabelAppearance(data, label, `${display.id}:${label.revision}`);
+  const appearance = label && resolveModelLabelAppearance(data, model, label, flavor, display.liquidColor, `${display.id}:${label.id}:${label.revision}`);
   if (!asset || !appearance) return null;
   return {
     variant, flavor,

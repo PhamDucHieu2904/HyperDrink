@@ -26,6 +26,7 @@ function deletionPlan(data: CatalogData, collection: CollectionName, id: string,
     if (!records.some(item => item.collection === collection && item.id === record.id)) records.push({ collection, id: record.id, name: record.name });
   };
   // Only owned records cascade. Shared models, artwork and media remain in their libraries.
+  if (collection === 'catalogCollections') (data.catalogItems ?? []).filter(item => item.collectionId === id).forEach(item => include('catalogItems', item));
   if (collection === 'productGroups') {
     data.packagingSlots.filter(item => item.groupId === id).forEach(item => include('packagingSlots', item));
     data.productVariants.filter(item => item.groupId === id).forEach(item => include('productVariants', item));

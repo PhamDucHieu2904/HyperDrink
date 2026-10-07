@@ -275,10 +275,22 @@ export function inspectGlb(buffer: Buffer): GLBInspection {
   for (const materialValue of materials) {
     const material = object(materialValue), explicit = object(material.extras).materialSlot;
     const name = typeof material.name === 'string' ? material.name : '';
-    const slot = typeof explicit === 'string' && /^(body|label|cap|tab|liquid|shell)$/.test(explicit) ? explicit : /label/i.test(name) ? 'label' : '';
+    const slot = typeof explicit === 'string' && /^(body|label|cap|tab|liquid|shell|inclusions)$/.test(explicit) ? explicit : /label/i.test(name) ? 'label' : '';
     if (slot && name) (materialSlots[slot] ??= []).push(name);
   }
-  return { materialNames, meshNames: meshes.map((value, index) => String(object(value).name ?? `mesh-${index}`)), materialSlots, hasUv, triangleCount: triangles, layoutProfile: '' };
+  // A profile is an authored UV contract, so only trust a consistent explicit
+  // hint on the rendered scene; packaging or material names cannot infer it.
+  const layoutProfiles = new Set<string>(), layoutNodes = new Set<number>();
+  const readLayout = (index: number) => {
+    if (layoutNodes.has(index)) return;
+    layoutNodes.add(index);
+    const node = object(nodes[index]), profile = object(node.extras).layoutProfile;
+    if (typeof profile === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(profile)) layoutProfiles.add(profile);
+    for (const child of list(node.children)) readLayout(Number(child));
+  };
+  for (const node of list(object(scenes[Number(json.scene ?? 0)]).nodes)) readLayout(Number(node));
+  const layoutProfile = layoutProfiles.size === 1 ? [...layoutProfiles][0] : '';
+  return { materialNames, meshNames: meshes.map((value, index) => String(object(value).name ?? `mesh-${index}`)), materialSlots, hasUv, triangleCount: triangles, layoutProfile };
 }
 
 export function inspectMedia(buffer: Buffer, role: MediaRole): MediaInspection {

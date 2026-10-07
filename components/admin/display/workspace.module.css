@@ -57,6 +57,10 @@
 .field input,.field select,.field textarea,.toolbar input,.toolbar select { border:1px solid #c9d8ce; border-radius:8px; min-height:44px; padding:10px 12px; width:100%; background:#fff; color:var(--ink); font:inherit; font-size:14px; }
 .field textarea { min-height:88px; resize:vertical; line-height:1.55; }
 .field small { color:var(--muted); line-height:1.5; font-size:12px; }
+.liquidSettings { margin-bottom:16px; padding:16px; border:1px solid var(--border); border-radius:9px; background:#f7faf8; }
+.liquidColorControls { display:grid; grid-template-columns:minmax(96px,.6fr) minmax(0,1fr); gap:16px; }
+.liquidColorControls input[type=color] { padding:5px; cursor:pointer; }
+.liquidColorControls input:disabled { opacity:.7; cursor:default; }
 .check { display:flex; align-items:center; gap:9px; min-height:36px; font-size:14px; }
 .check input { width:17px; height:17px; accent-color:var(--accent); }
 .actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:20px; }

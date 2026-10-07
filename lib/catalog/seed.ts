@@ -27,6 +27,6 @@ export function createSeedCatalog(): CatalogData {
     productGroups: [{ ...entity('Juice 30%', 'juice-30'), drinkTypeId: 'juice', description: 'Dòng mẫu để cấu hình; chưa xuất bản.', buttonLabel: 'Juice 30%', position: 0, visible: false }],
     productVariants: [], packagingSlots: [], media, labels: [],
     models3d: canManifest.assets.map(model => ({ ...entity(`Alu can ${packagingVariants.find(item=>item.id===model.id)?.name||model.label}`, `registry-${model.id}`), packagingVariantId: model.id, mediaId: `model-${model.id}`, posterId: null, layoutProfile: 'can-wrap-v1', materialSlots: model.materialSlots, orientation: [0, 0, 0] })),
-    assets2d: [], displays3d: [], displays2d: [], productDetails: [],
+    assets2d: [], displays3d: [], displays2d: [], productDetails: [], catalogCollections: [], catalogItems: [],
   };
 }

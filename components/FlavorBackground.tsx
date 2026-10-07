@@ -12,6 +12,12 @@ export default function FlavorBackground({ flavorIndex, themes = backgroundTheme
   const settings = useMemo(() => normalizeBackgroundConfig(config), [config]);
   const normalizedThemes = useMemo(() => normalizeBackgroundThemes(themes), [themes]);
   const period = settings.cellSize * settings.iconSpacing;
+  // React must preserve the painted blend; the controller advances selection on RAF.
+  // Stable IDs also preserve that blend before a reordered catalog effect runs.
+  const weightsById = new Map(renderState.themes.map((theme, i) => [theme.id, renderState.weights[i]]));
+  const visibleWeights = normalizedThemes.map(theme => weightsById.get(theme.id) ?? 0);
+  const hasVisibleTheme = visibleWeights.some(weight => weight > 0);
+  const opacity = (i: number) => hasVisibleTheme ? visibleWeights[i] : flavorIndex === i ? 1 : 0;
 
   useEffect(() => {
     const now = performance.now();
@@ -116,9 +122,9 @@ export default function FlavorBackground({ flavorIndex, themes = backgroundTheme
   }, [settings, period, renderState, normalizedThemes]);
 
   return <div ref={rootRef} className="flavor-background" aria-hidden="true">
-    {normalizedThemes.map((theme, i) => <div key={theme.id} className="flavor-background-color" style={{ backgroundColor: theme.color, opacity: flavorIndex === i ? 1 : 0 }} />)}
+    {normalizedThemes.map((theme, i) => <div key={theme.id} className="flavor-background-color" style={{ backgroundColor: theme.color, opacity: opacity(i) }} />)}
     <div ref={trackRef} className="flavor-background-track" style={{ inset: -period }}>
-      {normalizedThemes.map((theme, i) => <BackgroundPattern key={theme.id} className="flavor-background-pattern" theme={theme} config={settings} opacity={flavorIndex === i ? 1 : 0} />)}
+      {normalizedThemes.map((theme, i) => <BackgroundPattern key={theme.id} className="flavor-background-pattern" theme={theme} config={settings} opacity={opacity(i)} />)}
     </div>
     <div className="flavor-background-light" />
     <div className="product-backlight" />

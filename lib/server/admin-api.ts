@@ -6,7 +6,7 @@ import { processUpload, getMediaPath } from './media/upload';
 import { OperationsStore, analyticsFilter, logFilter, parseUsageBatch, trafficScope } from './operations';
 import { RequestMonitor, readAdminJson, type RequestContext } from './request-monitor';
 
-const collections = new Set<CollectionName>(['drinkTypes','packagingCategories','packagingVariants','flavors','flavorAssets','productGroups','productVariants','packagingSlots','media','labels','models3d','assets2d','displays3d','displays2d','productDetails']);
+const collections = new Set<CollectionName>(['drinkTypes','packagingCategories','packagingVariants','flavors','flavorAssets','productGroups','productVariants','packagingSlots','media','labels','models3d','assets2d','displays3d','displays2d','productDetails','catalogCollections','catalogItems']);
 const cookieName = 'vinut_admin_session';
 function sessionToken(request: Request) { return request.headers.get('cookie')?.split(';').map(value => value.trim()).find(value => value.startsWith(`${cookieName}=`))?.slice(cookieName.length+1) || ''; }
 function json(data: unknown, status=200, headers: HeadersInit={}) { return Response.json({ data },{status,headers:{'Cache-Control':'no-store',...headers}}); }

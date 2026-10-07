@@ -3,6 +3,14 @@ import type { MockupCameraPreset } from './contracts';
 
 export const MOCKUP_ASPECTS = { square: 1, portrait: 4 / 5, landscape: 16 / 9 } as const;
 
+/** Reserve the homepage tilt throughout local yaw, without resizing every frame. */
+export function mockupShowcaseBounds(bounds: THREE.Box3, pose: THREE.Quaternion): THREE.Box3 {
+  const center = bounds.getCenter(new THREE.Vector3());
+  const envelope = mockupOrbitBounds(bounds).translate(center.clone().negate());
+  const rotated = envelope.clone().applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(pose));
+  return rotated.union(envelope).translate(center);
+}
+
 export function normalizeMockupAspect(aspect: number): number {
   return Number.isFinite(aspect) ? Math.min(3, Math.max(0.4, aspect)) : 1;
 }

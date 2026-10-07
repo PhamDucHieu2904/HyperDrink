@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "id": "pet-320-nata",
+      "name": "PET 320 ml · Nata De Coco",
+      "src": "/models/bottles/pet-320-nata.glb",
+      "volumeMl": 320,
+      "packaging": "pet",
+      "layoutProfile": "pet-wrap-v1",
+      "materialSlots": {
+        "body": [
+          "pet-shell",
+          "pet-ring"
+        ],
+        "cap": [
+          "pet-cap"
+        ],
+        "label": [
+          "printed-label"
+        ],
+        "liquid": [
+          "nata-liquid"
+        ],
+        "inclusions": [
+          "nata-jelly"
+        ]
+      },
+      "labelUv": {
+        "frontU": 0.5,
+        "seam": "rear",
+        "wrapS": "repeat",
+        "wrapT": "clamp"
+      },
+      "dimensionsMeters": {
+        "width": 0.06345248222351074,
+        "depth": 0.06345247849822044,
+        "height": 0.14980702102184296
+      },
+      "triangles": 113758,
+      "trianglesByRole": {
+        "body": 38736,
+        "cap": 32000,
+        "label": 4800,
+        "liquid": 35734,
+        "inclusions": 2488
+      },
+      "bytes": 1240124,
+      "sha256": "a64bc5bd802ec4d9d59dc3e381d3743e9c8cf7d088052aa9f92f2eb803787a0f",
+      "source": "D:\\3D model\\Model Bottle Can\\Blender Model 1\\Pet 320ml Model - for web.blend",
+      "sourceSha256": "c432b17ad92ec472f2ff4fffa4dfe997a31045272bc9f24249e36c7905f05b45",
+      "compression": "KHR_draco_mesh_compression",
+      "bottleProfile": "nata-pet-v1",
+      "jellyPieces": 22,
+      "adjustedJellyPieces": 2,
+      "ringBasemap": {
+        "source": "D:\\UnityHubData\\Unity_3D_Mockup_Project\\Assets\\Data\\3D Model\\Plastic.png",
+        "sha256": "dbc71e51983c19819bc0c4978fbf8caff46f0ce95047733bd6cc3b1a31bb32d8",
+        "embedded": true,
+        "usesAlpha": true
+      }
+    }
+  ]
+}
