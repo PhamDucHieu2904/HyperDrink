@@ -1,0 +1,150 @@
+/* Keep the desktop composition, but budget its size using both viewport axes.
+   All rules start above the existing mobile breakpoint. Native dimensions also
+   let the viewer's ResizeObserver keep rendering and pointer coordinates aligned. */
+@media (min-width:761px) {
+  .catalog-showcase {
+    --hero-unit:clamp(.45px,min(.0520833vw,.1svh),1.2px);
+    /* Match the original scene at the 950px reference viewport and above.
+       The camera already fits its geometry to the available column width. */
+    --hero-scene-unit:min(1px,.1052632svh);
+    /* Taller packages need a little clearance on short or very wide windows;
+       the original scene footprint stays intact at the reference ratio. */
+    --hero-scene-clearance:calc(clamp(0px,calc(100px - 12.5svh),35px) + clamp(0px,calc(12.5vw - 26.25svh),50px));
+    --hero-height:max(520px,100svh);
+    --hero-top:clamp(80px,calc(140 * var(--hero-unit)),175px);
+    --hero-bottom:clamp(20px,calc(48 * var(--hero-unit)),64px);
+    --hero-gap:calc(16 * var(--hero-unit));
+    height:auto;
+    min-height:var(--hero-height);
+    max-height:none;
+    padding-top:var(--hero-top);
+    padding-bottom:var(--hero-bottom);
+    row-gap:var(--hero-gap);
+  }
+
+  .catalog-showcase .showcase-copy .eyebrow {
+    margin-bottom:calc(16 * var(--hero-unit));
+    font-size:clamp(10px,calc(15 * var(--hero-unit)),18px);
+  }
+  .catalog-showcase .showcase-copy h1 {
+    font-size:clamp(26px,calc(61 * var(--hero-unit)),76px);
+  }
+  .catalog-showcase .showcase-tagline {
+    font-size:clamp(13px,calc(22 * var(--hero-unit)),26px);
+    margin:calc(8 * var(--hero-unit)) 0 calc(25 * var(--hero-unit));
+  }
+  .catalog-showcase .showcase-actions { gap:calc(10 * var(--hero-unit)); }
+  .catalog-showcase .showcase-actions .btn {
+    min-height:clamp(36px,calc(56 * var(--hero-unit)),68px);
+    padding-inline:calc(22 * var(--hero-unit));
+    font-size:clamp(12px,calc(18 * var(--hero-unit)),21px);
+    gap:calc(10 * var(--hero-unit));
+  }
+  .catalog-showcase .showcase-actions .btn svg { width:calc(20 * var(--hero-unit)); height:calc(20 * var(--hero-unit)); }
+
+  .catalog-showcase .notes-stack { gap:calc(12 * var(--hero-unit)); }
+  .catalog-showcase .notes-card {
+    gap:calc(14 * var(--hero-unit));
+    padding:calc(10 * var(--hero-unit));
+    border-radius:calc(22 * var(--hero-unit));
+  }
+  .catalog-showcase .notes-card>img,
+  .catalog-showcase .notes-card>.catalog-image-placeholder,
+  .catalog-showcase .notes-card>.catalog-notes-symbol {
+    width:20%;
+    max-width:calc(78 * var(--hero-unit));
+    border-radius:calc(17 * var(--hero-unit));
+  }
+  .catalog-showcase .notes-card strong {
+    font-size:clamp(12px,calc(20 * var(--hero-unit)),24px);
+    margin-bottom:calc(7 * var(--hero-unit));
+  }
+  .catalog-showcase .catalog-notes-symbol svg { width:calc(38 * var(--hero-unit)); height:calc(38 * var(--hero-unit)); }
+  .catalog-showcase .notes-card span span { font-size:clamp(11px,calc(16 * var(--hero-unit)),19px); }
+  .catalog-showcase .notes-card>svg { width:calc(30 * var(--hero-unit)); height:calc(30 * var(--hero-unit)); padding:calc(4 * var(--hero-unit)); }
+  .catalog-showcase .showcase-stats { flex-wrap:nowrap; gap:calc(10 * var(--hero-unit)); margin-top:calc(12 * var(--hero-unit)); }
+  .catalog-showcase .showcase-stats>div,
+  .catalog-showcase .showcase-stats>.showcase-mockup-link {
+    gap:calc(10 * var(--hero-unit));
+    min-height:44px;
+    padding:calc(14 * var(--hero-unit)) calc(12 * var(--hero-unit));
+    border-radius:calc(21 * var(--hero-unit));
+  }
+  .catalog-showcase .showcase-stats svg { width:calc(44 * var(--hero-unit)); height:calc(44 * var(--hero-unit)); padding:calc(10 * var(--hero-unit)); }
+  .catalog-showcase .showcase-stats strong { font-size:clamp(21px,calc(32 * var(--hero-unit)),38px); line-height:1.15; }
+  .catalog-showcase .showcase-stats small { font-size:clamp(10px,calc(15 * var(--hero-unit)),18px); }
+  .catalog-showcase .showcase-stats span span { font-size:clamp(10px,calc(12 * var(--hero-unit)),14px); }
+  .catalog-showcase .model-picker-label { font-size:clamp(9px,calc(10 * var(--hero-unit)),12px); margin-bottom:calc(9 * var(--hero-unit)); }
+  .catalog-showcase .model-options { gap:calc(6 * var(--hero-unit)); }
+  .catalog-showcase .model-options button {
+    min-height:clamp(30px,calc(44 * var(--hero-unit)),53px);
+    padding:calc(8 * var(--hero-unit)) calc(12 * var(--hero-unit));
+    font-size:clamp(10px,calc(11 * var(--hero-unit)),13px);
+  }
+
+  /* Preserve the original scene footprint: the transparent canvas is larger
+     than the visible product. Reserving a full dock row inside it shrinks the
+     camera framing, including the can, splash and every decoration. */
+  .catalog-showcase .showcase-product {
+    height:calc(var(--hero-height) - 245 * var(--hero-scene-unit) - var(--hero-scene-clearance));
+    min-height:0;
+    max-height:none;
+  }
+  .catalog-showcase .showcase-product .scene-shell {
+    top:calc(-28.375 * var(--hero-scene-unit) - 7.5%);
+    bottom:calc(-23.375 * var(--hero-scene-unit) - 7.5%);
+    min-height:0;
+  }
+  .catalog-showcase .catalog-flavor-dock { bottom:var(--hero-bottom); width:min(28%,calc(520 * var(--hero-unit))); padding:calc(12 * var(--hero-unit)) 0 calc(4 * var(--hero-unit)); }
+  .catalog-showcase .catalog-carousel-viewport { padding:calc(5 * var(--hero-unit)) 0; }
+  .catalog-showcase .catalog-flavor-dock .flavor-track { --flavor-gap:calc(27 * var(--hero-unit)); }
+  .catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice {
+    gap:calc(10 * var(--hero-unit));
+    min-width:calc(64 * var(--hero-unit));
+    min-height:calc(94 * var(--hero-unit));
+    max-width:calc(130 * var(--hero-unit));
+    padding:calc(5 * var(--hero-unit)) calc(2 * var(--hero-unit));
+    font-size:clamp(10px,calc(12 * var(--hero-unit)),14px);
+  }
+  .catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice>span { width:calc(64 * var(--hero-unit)); height:calc(64 * var(--hero-unit)); }
+  .catalog-showcase .catalog-flavor-dock img { width:calc(46 * var(--hero-unit)); height:calc(46 * var(--hero-unit)); }
+
+  .catalog-showcase .showcase-feature {
+    min-height:calc(var(--hero-height) - var(--hero-top) - var(--hero-bottom));
+    padding:calc(52 * var(--hero-unit)) calc(26 * var(--hero-unit)) calc(24 * var(--hero-unit));
+    border-radius:calc(42 * var(--hero-unit));
+  }
+  .catalog-showcase .showcase-badge { top:calc(18 * var(--hero-unit)); right:calc(22 * var(--hero-unit)); padding:calc(8 * var(--hero-unit)) calc(16 * var(--hero-unit)); font-size:clamp(9px,calc(11 * var(--hero-unit)),13px); }
+  .catalog-showcase .flavor-portrait-ring { max-width:calc(247 * var(--hero-unit)); padding:calc(9 * var(--hero-unit)); border-width:calc(3 * var(--hero-unit)); }
+  .catalog-showcase .showcase-feature h2 { font-size:clamp(18px,calc(31 * var(--hero-unit)),37px); margin:calc(14 * var(--hero-unit)) 0 calc(4 * var(--hero-unit)); }
+  .catalog-showcase .feature-subtitle { font-size:clamp(10px,calc(15 * var(--hero-unit)),18px); }
+  .catalog-showcase .showcase-product-messages { min-height:calc(76 * var(--hero-unit)); margin:calc(18 * var(--hero-unit)) 0; }
+  .catalog-showcase .showcase-product-messages>span { padding-inline:calc(7 * var(--hero-unit)); }
+  .catalog-showcase .showcase-metrics strong { font-size:clamp(21px,calc(32 * var(--hero-unit)),38px); margin-bottom:calc(5 * var(--hero-unit)); }
+  .catalog-showcase .showcase-metrics small { font-size:clamp(10px,calc(13 * var(--hero-unit)),16px); }
+  .catalog-showcase .showcase-product-message { gap:calc(8 * var(--hero-unit)); }
+  .catalog-showcase .showcase-product-message svg { width:calc(24 * var(--hero-unit)); height:calc(24 * var(--hero-unit)); }
+  .catalog-showcase .showcase-product-message bdi { font-size:clamp(10px,calc(12 * var(--hero-unit)),14px); }
+  .catalog-showcase .feature-description { padding-top:calc(14 * var(--hero-unit)); margin-bottom:calc(16 * var(--hero-unit)); font-size:clamp(10px,calc(12 * var(--hero-unit)),14px); }
+  .catalog-showcase .feature-description span { margin-top:calc(5 * var(--hero-unit)); }
+  .catalog-showcase .showcase-feature .btn { min-height:clamp(36px,calc(52 * var(--hero-unit)),62px); padding:calc(12 * var(--hero-unit)) calc(14 * var(--hero-unit)); font-size:clamp(11px,calc(14 * var(--hero-unit)),17px); }
+  .catalog-showcase .quick-rail { gap:calc(12 * var(--hero-unit)); padding:calc(10 * var(--hero-unit)) calc(8 * var(--hero-unit)); }
+  .catalog-showcase .quick-rail button { width:clamp(32px,calc(48 * var(--hero-unit)),58px); height:clamp(32px,calc(48 * var(--hero-unit)),58px); }
+}
+
+@media (min-width:761px) and (max-width:1150px) {
+  .catalog-showcase .showcase-metrics strong { font-size:clamp(16px,2.1vw,21px); white-space:nowrap; }
+  .catalog-showcase .showcase-product-messages>span { padding-inline:3px; }
+}
+
+/* Keep the same cards and actions on short laptop windows. Only excerpts and
+   spacing become more compact; their complete copy stays in the detail panels. */
+@media (min-width:761px) and (max-height:700px) {
+  .site-shell:has(.catalog-showcase) .site-header { padding-top:14px; }
+  .site-shell:has(.catalog-showcase) .site-header .nav-link { padding-block:8px; }
+  .site-shell:has(.catalog-showcase) .header-actions .icon-btn { width:36px; height:36px; }
+  .catalog-showcase .showcase-tagline,
+  .catalog-showcase .notes-card span span { -webkit-line-clamp:2; }
+  .catalog-showcase .showcase-stats>div,
+  .catalog-showcase .showcase-stats>.showcase-mockup-link { padding-block:calc(10 * var(--hero-unit)); }
+}

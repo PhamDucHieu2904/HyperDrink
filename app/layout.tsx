@@ -5,6 +5,7 @@ import './globals.css';
 import './showcase.css';
 import './catalog-showcase.css';
 import './flavor-carousel.css';
+import './desktop-showcase.css';
 import './storefront-catalog.css';
 import './catalog-collection.css';
 import './contact.css';
