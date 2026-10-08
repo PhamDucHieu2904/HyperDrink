@@ -48,6 +48,8 @@ export function createWaterBackdropPass(
       const previousBackground = scene.background;
       const previousProductVisibility = productGroup.visible;
       const hiddenGlass: Array<{ mesh: THREE.Mesh; visible: boolean }> = [];
+      const captureSplashes: Array<{ mesh: THREE.Mesh; visible: boolean; material: THREE.ShaderMaterial;
+        backdrop: THREE.Texture | null; resolution: THREE.Vector2 }> = [];
       scene.traverse(object => {
         if (!(object instanceof THREE.Mesh)) return;
         const materials = Array.isArray(object.material) ? object.material : [object.material];
@@ -55,17 +57,35 @@ export function createWaterBackdropPass(
           && ['colorless-water-droplet', 'colorless-refractive-ice'].includes(material.name))) {
           hiddenGlass.push({ mesh: object, visible: object.visible });
         }
+        for (const material of materials) {
+          if (object.userData.hardLightCapture && material instanceof THREE.ShaderMaterial
+            && material.name === 'rear-hard-light-capture') {
+            captureSplashes.push({ mesh: object, visible: object.visible, material,
+              backdrop: material.uniforms.backdrop.value, resolution: material.uniforms.resolution.value.clone() });
+          }
+        }
       });
       try {
         scene.background = background;
         productGroup.visible = false;
         hiddenGlass.forEach(({ mesh }) => { mesh.visible = false; });
+        captureSplashes.forEach(({ mesh, material }) => {
+          // Sample the source CSS canvas, never this render target's texture.
+          material.uniforms.backdrop.value = background;
+          material.uniforms.resolution.value.set(width, height);
+          mesh.visible = true;
+        });
         renderer.setRenderTarget(target);
         renderer.render(scene, camera);
       } finally {
         scene.background = previousBackground;
         productGroup.visible = previousProductVisibility;
         hiddenGlass.forEach(({ mesh, visible }) => { mesh.visible = visible; });
+        captureSplashes.forEach(({ mesh, visible, material, backdrop, resolution }) => {
+          mesh.visible = visible;
+          material.uniforms.backdrop.value = backdrop;
+          material.uniforms.resolution.value.copy(resolution);
+        });
         renderer.setRenderTarget(previousTarget, previousCubeFace, previousMipmapLevel);
       }
     },

@@ -145,6 +145,8 @@ export function createPooledAppearanceHandle(root: THREE.Object3D, asset: Produc
     return entry.promise;
   };
   return {
+    materialValues() { return activeKey === undefined ? {} : entries.get(activeKey)?.handle.materialValues() ?? {}; },
+    setLiveOverrides(overrides) { if (activeKey !== undefined) entries.get(activeKey)?.handle.setLiveOverrides(overrides); },
     setWindow(appearances) {
       requested = [...new Set(appearances.map(keyOf))].slice(0, capacity);
       for (const key of deferredBytes.keys()) if (!requested.includes(key)) deferredBytes.delete(key);

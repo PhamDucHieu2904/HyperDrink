@@ -55,7 +55,9 @@ export function createBackdropTexture(
   };
   let texture = makeTexture();
 
-  const hero = mount.closest<HTMLElement>('.showcase-hero');
+  // Both consumers crop the same live FlavorBackground in their own surface
+  // coordinates. Never capture unrelated page content into a liquid sampler.
+  const hero = mount.closest<HTMLElement>('.showcase-hero, [data-refraction-backdrop]');
   const light = hero?.querySelector<HTMLElement>('.product-backlight');
   const tileSize = config.cellSize * config.iconSpacing;
   let layout: Layout = { hero: { x: 0, y: 0, width: 1, height: 1 }, crop: { x: 0, y: 0, width: 1, height: 1 } };

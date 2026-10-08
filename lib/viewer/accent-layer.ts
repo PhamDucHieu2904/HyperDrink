@@ -7,7 +7,7 @@ import { advanceAccentMotion, createAccentMotion, sampleAccentNode } from './acc
 import { accentImageExtent, accentImageSize, adaptAccentFrame } from './accent-layout';
 import { createDropletMaterial, updateDropletMaterial } from './droplet-material';
 import { createIceMaterial, updateIceMaterial } from './ice-material';
-import { createBlendedAccentHost } from './blended-accent';
+import { createBlendedAccentHost, createHardLightCaptureProxy } from './blended-accent';
 
 type BlendedHost = NonNullable<ReturnType<typeof createBlendedAccentHost>>;
 type AccentObject = { node: ProductAccentNode; group: THREE.Group; materials: THREE.Material[]; resources: Array<{ dispose(): void }>; imageSize: [number, number]; ready: boolean; blended?: ReturnType<BlendedHost['add']> };
@@ -190,6 +190,11 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       }
     }
     item.group.add(mesh);
+    if (item.blended) {
+      const proxy = createHardLightCaptureProxy(map, geometry, item.node.imageZoom ?? 1);
+      trackMaterial(item, proxy.material as THREE.ShaderMaterial);
+      item.group.add(proxy);
+    }
   };
   const build = (flavor: AccentFlavor) => {
     clear();
@@ -314,7 +319,9 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
         item.materials.forEach(material => {
           const opacity = sample.opacity * (config!.opacity ?? 1) * material.userData.accentOpacity;
           material.opacity = opacity;
-          if (material instanceof THREE.ShaderMaterial && material.name === 'colorless-water-droplet') {
+          if (material instanceof THREE.ShaderMaterial && material.name === 'rear-hard-light-capture') {
+            material.uniforms.opacity.value = opacity;
+          } else if (material instanceof THREE.ShaderMaterial && material.name === 'colorless-water-droplet') {
             updateDropletMaterial(material, { opacity, blur: item.node.blur,
               resolution: frame.resolution ?? [1, 1], background: backdrop });
           } else if (material instanceof THREE.ShaderMaterial && material.name === 'colorless-refractive-ice') {

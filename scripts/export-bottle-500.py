@@ -8,6 +8,10 @@ import hashlib
 import json
 import pathlib
 import traceback
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from bottle_500_liquid import seal_water_top
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / '.tmp' / 'bottle-500'
@@ -24,6 +28,7 @@ try:
     bpy.context.view_layer.update()
     graph = bpy.context.evaluated_depsgraph_get()
     rows, points, evaluated = [], [], []
+    water_top_repair = None
     for obj in meshes:
         mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(graph), depsgraph=graph)
         mesh.calc_loop_triangles()
@@ -36,7 +41,13 @@ try:
         # Capture the saved subdivision/triangulation result BEFORE changing UV
         # layers. A UV edit can invalidate Blender's modifier normal cache near
         # tiny base faces. Explicit evaluated corner normals preserve that form.
-        evaluated.append((mesh, [n.vector.copy() for n in mesh.corner_normals]))
+        normals = [n.vector.copy() for n in mesh.corner_normals]
+        if ROLES[obj.name] == 'liquid':
+            mesh, normals, water_top_repair = seal_water_top(mesh, obj)
+            row = rows[-1]
+            row['triangles'] = water_top_repair['repairedTriangles'] if water_top_repair else row['triangles']
+            row['evaluatedVertices'] = len(mesh.vertices)
+        evaluated.append((mesh, normals))
     minimum = [min(p[i] for p in points) for i in range(3)]
     maximum = [max(p[i] for p in points) for i in range(3)]
     center = [(a+b)/2 for a, b in zip(minimum, maximum)]
@@ -103,6 +114,7 @@ try:
         normalMapSource=str(normal_path), normalMapSourceSha256=hashlib.sha256(normal_path.read_bytes()).hexdigest(),
         sourceBounds=dict(minimum=minimum, maximum=maximum, center=center),
         exportScale=0.1, meshes=rows, triangleCount=sum(r['triangles'] for r in rows),
+        waterTopRepair=water_top_repair,
         draco=dict(level=10, positionBits=14, liquidPositionBits=16, normalBits=10, uvBits=12))
 except Exception:
     result = dict(state='failed', error=traceback.format_exc())

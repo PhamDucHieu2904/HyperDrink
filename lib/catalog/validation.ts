@@ -26,7 +26,7 @@ const fields: Record<CollectionName, readonly string[]> = {
   labels: ['drinkTypeId', 'flavorId', 'mediaId', 'compatibilities', 'mockupVisible', 'mockupPosition'],
   models3d: ['packagingVariantId', 'mediaId', 'posterId', 'layoutProfile', 'materialSlots', 'orientation', 'mockupVisible', 'mockupPosition', 'mockupFrontYaw'],
   assets2d: ['packagingVariantId', 'drinkTypeId', 'flavorId', 'mediaId', 'galleryIds', 'description'],
-  displays3d: ['productVariantId', 'modelId', 'labelId', 'liquidColor', 'enabled'],
+  displays3d: ['productVariantId', 'modelId', 'labelId', 'liquidColor', 'capColor', 'labelOffset', 'enabled'],
   displays2d: ['productVariantId', 'assetId', 'alt', 'enabled'],
   productDetails: ['labelId', 'posterId', 'eyebrow', 'headline', 'subtitle', 'introduction', 'ingredients', 'allergens', 'servingSize', 'nutrition', 'companyName', 'companyAddress', 'countryOfOrigin', 'netContent', 'storage', 'shelfLife', 'sections', 'enabled'],
 };
@@ -141,8 +141,10 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
     case 'catalogItems': ref('collectionId', false, publishing); ref('mediaId', true, publishing); ref('productDetailId', true, publishing); ref('packagingVariantId', false, publishing); num('position', 0, 100000, true); bool('enabled'); break;
     case 'assets2d': ref('packagingVariantId', false, publishing); ref('drinkTypeId', false, publishing); ref('flavorId', true); ref('mediaId', true, publishing); refsArray('galleryIds'); str('description', 5000); break;
     case 'displays3d':
+      if (record.labelOffset !== undefined && (typeof record.labelOffset !== 'number' || !Number.isFinite(record.labelOffset) || record.labelOffset < -50 || record.labelOffset > 50)) add('labelOffset', 'Offset nhãn phải là số từ -50 đến 50%.');
       ref('productVariantId', false, publishing); ref('modelId', true, publishing); ref('labelId', true, publishing); bool('enabled');
       if (record.liquidColor !== undefined && record.liquidColor !== null && (typeof record.liquidColor !== 'string' || record.liquidColor.length !== 7 || !/^#[0-9a-f]{6}$/i.test(record.liquidColor))) add('liquidColor', 'Màu nước phải có định dạng #RRGGBB, hoặc dùng màu hương vị.');
+      if (record.capColor !== undefined && record.capColor !== null && (typeof record.capColor !== 'string' || record.capColor.length !== 7 || !/^#[0-9a-f]{6}$/i.test(record.capColor))) add('capColor', 'Màu nắp phải có định dạng #RRGGBB, hoặc dùng màu mặc định của model.');
       break;
     case 'displays2d': ref('productVariantId', false, publishing); ref('assetId', true, publishing); str('alt', 300, publishing); bool('enabled'); break;
     case 'productDetails': {

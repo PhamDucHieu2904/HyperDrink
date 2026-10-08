@@ -25,7 +25,8 @@ function runtimeHarness({ floatingPoint = true, reducedMotion = false } = {}) {
   const globals = ['window', 'document', 'fetch', 'requestAnimationFrame', 'cancelAnimationFrame', 'ResizeObserver', 'IntersectionObserver', 'ImageData'];
   const saved = new Map(globals.map(key => [key, Object.getOwnPropertyDescriptor(global, key)]));
   const statuses = []; const parses = new Map(); const models = new Map(); const pools = []; const rafs = new Map();
-  const draws = []; let nextRaf = 0; let interactions = 0; let observer; let renderReadback; let outputMaterial;
+  const draws = []; const backdropPainters = [], backdropBindings = [];
+  let nextRaf = 0; let interactions = 0; let observer; let renderReadback; let outputMaterial;
   class Element extends EventTarget {
     constructor() { super(); this.style = {}; this.dataset = {}; this.removed = false; this.captured = new Set(); }
     setAttribute() {}
@@ -93,6 +94,9 @@ function runtimeHarness({ floatingPoint = true, reducedMotion = false } = {}) {
     let revision = 0; let disposed = false; const entries = new Map();
     const pool = {
       content, asset, disposed: false, window: [],
+      edits: [],
+      setLiveOverrides(value) { this.edits.push(value); content.userData.materialOverrides = value; },
+      materialValues() { return { label: { roughness: .15, metalness: 0, textureOffsetX: 0 } }; },
       setWindow(values) { this.window = values; },
       has(value) { return entries.get(value?.id ?? 'blank')?.ready ?? false; },
       async apply(value) {
@@ -127,6 +131,13 @@ function runtimeHarness({ floatingPoint = true, reducedMotion = false } = {}) {
     'three/examples/jsm/postprocessing/Pass.js': { FullScreenQuad: class { constructor(material) { outputMaterial = material; } render() {} dispose() {} } },
     'three/examples/jsm/shaders/OutputShader.js': require('three/examples/jsm/shaders/OutputShader.js'),
     '../viewer/pooled-appearance': { createPooledAppearanceHandle: makePool },
+    '../viewer/backdrop-texture': { createBackdropTexture(state, config, mount) {
+      const texture = new THREE.Texture({ width: 512, height: 512 });
+      const painter = { texture, state, config, mount, disposed: false,
+        update() { texture.needsUpdate = true; }, dispose() { this.disposed = true; texture.dispose(); } };
+      backdropPainters.push(painter); return painter;
+    } },
+    '../viewer/aloe-bottle-materials': { setAloeBottleBackdrop(root, texture) { backdropBindings.push({ root, texture }); } },
     '../viewer/resource-prefetch': { createResourcePrefetcher: () => ({ acquireUrl: url => ({ url, release() {} }), setEnabled() {}, configure() {}, dispose() {} }) },
     '../public-url': { publicUrl: url => url },
   };
@@ -136,7 +147,7 @@ function runtimeHarness({ floatingPoint = true, reducedMotion = false } = {}) {
   new Function('require', 'module', 'exports', output)(request => replacements[request] ?? require(path.resolve(path.dirname(filename), request)), loaded, loaded.exports);
   const runtime = loaded.exports.createMockupRuntime(host, { onStatus: status => statuses.push(status), onInteraction: () => interactions++ });
   return {
-    runtime, host, statuses, pools, draws, rafs, motionQuery, outputMaterial, controls: Controls.instance, renderer: Renderer.instance,
+    runtime, host, statuses, pools, draws, rafs, motionQuery, outputMaterial, backdropPainters, backdropBindings, controls: Controls.instance, renderer: Renderer.instance,
     get interactions() { return interactions; },
     parse(url) {
       assert.ok(parses.has(url), `Expected parse request for ${url}`);
@@ -171,6 +182,58 @@ async function makeReady(harness, modelId = 'a', labelId = 'one') {
   harness.finishLabel(labelId); await flush();
   assert.equal(harness.statuses.at(-1).phase, 'ready'); return model;
 }
+
+test('Studio uniform edits preserve selection readiness/camera and apply pending edits after label commit', async context => {
+  const h = runtimeHarness(); context.after(() => h.close());
+  await makeReady(h);
+  const pool = h.pools[0], count = h.pools.length, revision = h.statuses.at(-1).revision, statusCount = h.statuses.length;
+  const cameraBefore = h.controls.camera.position.toArray();
+  const edit = { label: { textureOffsetX: -.125, roughness: .06 }, cap: { color: '#008b28' } };
+  h.runtime.setMaterialOverrides(edit);
+  assert.equal(pool.edits.at(-1), edit); assert.equal(h.pools.length, count); assert.equal(h.statuses.length, statusCount);
+  assert.equal(h.statuses.at(-1).revision, revision); assert.deepEqual(h.controls.camera.position.toArray(), cameraBefore);
+  h.runtime.select(studioAsset('a'), studioLabel('two')); await flush();
+  h.runtime.setMaterialOverrides({}); h.finishLabel('two'); await flush();
+  assert.equal(h.statuses.at(-1).phase, 'ready'); assert.deepEqual(pool.edits.at(-1), {});
+  assert.equal(h.statuses.at(-1).materials.label.roughness, .15);
+});
+
+test('Aloe transparent Studio preview refracts the live surface but PNG remains free of the decorative grid', async context => {
+  const h = runtimeHarness(); context.after(() => h.close());
+  const backdrop = { state: {}, config: {} };
+  h.runtime.setBackdrop(backdrop);
+  h.runtime.setBackground({ type: 'transparent' });
+  h.runtime.select({ ...studioAsset('aloe'), packaging: 'pet', materialSlots: { liquid: ['Aloe Vera Water'] } }, studioLabel('one'));
+  await flush(); h.parse('/aloe.glb'); await flush(); h.finishLabel('one'); await flush();
+  assert.equal(h.statuses.at(-1).phase, 'ready');
+  assert.equal(h.backdropPainters.length, 1);
+  assert.equal(h.backdropBindings.at(-1).texture, h.backdropPainters[0].texture);
+  assert.equal(h.draws.at(-1).target, null, 'Live preview uses the same final color-space composition as the hero');
+  const bindingCount = h.backdropBindings.length;
+  const exporting = h.runtime.capture({ longEdge: 2048 }); await flush();
+  assert.ok(h.backdropBindings.slice(bindingCount).every(binding => binding.texture === null),
+    'The PNG render must detach live CSS before the asynchronous GPU readback');
+  assert.ok(h.draws.at(-1).target !== null, 'Native transparent PNG retains its linear/MSAA export stage');
+  h.finishReadback(); await exporting; await flush(); h.runFrame(performance.now() + 1000);
+  assert.equal(h.backdropBindings.at(-1).texture, h.backdropPainters[0].texture, 'Preview refraction resumes after export');
+  h.runtime.setBackground({ type: 'white' }); h.runFrame(performance.now() + 2000);
+  assert.equal(h.backdropBindings.at(-1).texture, null);
+  assert.equal(h.backdropPainters[0].disposed, true, 'Solid backgrounds release the optional live sampler');
+  assert.ok(h.draws.at(-1).target !== null, 'White beauty preview continues to share its output stage with PNG');
+  h.runtime.setBackground({ type: 'transparent' }); h.runFrame(performance.now() + 3000);
+  assert.equal(h.backdropPainters.length, 2);
+  h.runtime.select(studioAsset('can'), studioLabel('one')); await flush(); h.parse('/can.glb'); await flush(); h.finishLabel('one'); await flush();
+  assert.equal(h.backdropPainters[1].disposed, true, 'Switching packages cannot leave a borrowed texture on the cached bottle');
+  assert.equal(h.backdropBindings.at(-1).texture, null);
+});
+
+test('ordinary Studio models do not allocate a refraction painter or a continuous still-preview loop', async context => {
+  const h = runtimeHarness(); context.after(() => h.close());
+  h.runtime.setBackdrop({ state: {}, config: {} }); h.runtime.setBackground({ type: 'transparent' });
+  await makeReady(h); h.runFrame(performance.now() + 1000);
+  assert.equal(h.backdropPainters.length, 0);
+  assert.equal(h.rafs.size, 0);
+});
 
 test('Studio presets fit actual package geometry at portrait, square and landscape aspect', () => {
   let checked = 0;

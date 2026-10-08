@@ -116,6 +116,12 @@ looks solid and occludes the bottle correctly, while staying out of Three's opaq
 transmission capture. The band disappears while HDRI highlights remain. This avoids
 an additional render target and preserves the accepted liquid/jelly optics.
 
+The 2026-10-08 cap review applies the same exclusion to `pet-cap`: opacity 1,
+transmission 0, depthWrite/depthTest true and renderOrder 30 in the final
+transparent queue. The cap retains its solid `#f6f5ed` plastic and roughness 0.29,
+but its white radiance cannot be refracted into the exposed neck. This is scoped
+to the explicit Nata profile and also survives pooled flavor switches.
+
 ## Reproduce the export
 
 ```powershell

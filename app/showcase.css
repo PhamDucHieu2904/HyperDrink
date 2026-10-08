@@ -4,6 +4,18 @@
 .site-header { position:absolute; top:0; left:2.4%; width:95.2%; max-width:none; padding-top:24px; grid-template-columns:4.5% 25% minmax(0,1fr) auto; gap:1.6%; }
 .main-nav { justify-self:start; width:100%; gap:0; }
 .site-header .nav-link { flex:1; min-width:0; padding:11px 8px; font-size:clamp(10px,.75vw,14px); white-space:nowrap; }
+/* Fit the official artwork in the existing logo column without moving the menu. */
+.site-header .brand-mark { display:grid; place-items:center; width:min(96px,100%); height:46px; }
+.brand-logo { position:relative; display:block; width:100%; aspect-ratio:968/492; }
+.brand-logo > img { display:block; width:100%; height:auto; filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 7px #ffffffcc); }
+.brand-logo-shine { position:absolute; inset:0; pointer-events:none; -webkit-mask-image:var(--brand-logo-mask); mask-image:var(--brand-logo-mask); -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; mask-mode:alpha; }
+.brand-logo-shine::after { content:''; position:absolute; inset:-25% auto -25% -65%; width:42%; opacity:0; background:linear-gradient(105deg,transparent 28%,#ffffffeb 48%,transparent 68%); transform:translateX(-150%) skewX(-18deg); animation:vinut-logo-glass 5s cubic-bezier(.2,.7,.2,1) 5s infinite; }
+@keyframes vinut-logo-glass {
+  0% { opacity:0; transform:translateX(-150%) skewX(-18deg); }
+  1% { opacity:1; }
+  16% { opacity:1; transform:translateX(520%) skewX(-18deg); }
+  17%,100% { opacity:0; transform:translateX(520%) skewX(-18deg); }
+}
 /* Language selection shares the header's light glass, with readable dark copy. */
 .language-selector { display:flex; }
 .language-trigger-code { font-size:13px; font-weight:700; letter-spacing:.04em; line-height:1; }
@@ -196,7 +208,7 @@
 /* Product first: secondary information follows the viewer on small screens. */
 @media(max-width:760px) {
  .site-header { grid-template-columns:1fr auto; gap:10px; padding-top:12px; }
- .site-header .brand-mark { display:flex; width:auto; justify-content:flex-start; gap:8px; }
+ .site-header .brand-mark { width:88px; justify-self:start; }
  .site-header .brand-word { display:inline; }
  .header-actions { grid-column:2; grid-row:1; gap:7px; }
  .header-actions .icon-btn { width:44px; height:44px; }

@@ -1,0 +1,67 @@
+{
+  "labels": [
+    {
+      "key": "original",
+      "name": "Original",
+      "sourceFile": "Aloe Vera (7).webp",
+      "url": "/assets/labels/aloe-vera/original-3fd26be35f2d.webp",
+      "sha256": "3fd26be35f2dcb9476e530d88b1fe7637b736737c058080cf9c530968afa7e10"
+    },
+    {
+      "key": "strawberry",
+      "name": "Strawberry",
+      "sourceFile": "Aloe Vera (3).webp",
+      "url": "/assets/labels/aloe-vera/strawberry-38dfb55a18b0.webp",
+      "sha256": "38dfb55a18b07771414d1321e637a9f3be49cbcd823e0f2db8b87e745cd793a2"
+    },
+    {
+      "key": "mango",
+      "name": "Mango",
+      "sourceFile": "Aloe Vera (8).webp",
+      "url": "/assets/labels/aloe-vera/mango-e9dce909679b.webp",
+      "sha256": "e9dce909679b9b2ce1f6dbef48b54d6daa1f9117d5e6b5cef81a35b6358b51e5"
+    },
+    {
+      "key": "pineapple",
+      "name": "Pineapple",
+      "sourceFile": "Aloe Vera (9).webp",
+      "url": "/assets/labels/aloe-vera/pineapple-3b44e4cbef06.webp",
+      "sha256": "3b44e4cbef060799a0ce8e1141de45040d8679fc94870665486c96b8ac985315"
+    },
+    {
+      "key": "passion-fruit",
+      "name": "Passion Fruit",
+      "sourceFile": "Aloe Vera (2).webp",
+      "url": "/assets/labels/aloe-vera/passion-fruit-ed2e21d672f9.webp",
+      "sha256": "ed2e21d672f9e9ce42b80196bcd7d147135f3e23f2431d068b061f8362a3453a"
+    },
+    {
+      "key": "lychee",
+      "name": "Lychee",
+      "sourceFile": "Aloe Vera (1).webp",
+      "url": "/assets/labels/aloe-vera/lychee-70ca17db0535.webp",
+      "sha256": "70ca17db05359eff4cdfc090223199dc2c930a64e6f3fd98b63ee05fa5d4c61d"
+    },
+    {
+      "key": "coconut",
+      "name": "Coconut",
+      "sourceFile": "Aloe Vera (4).webp",
+      "url": "/assets/labels/aloe-vera/coconut-035ed058a12e.webp",
+      "sha256": "035ed058a12ea09220bec726df0143fba09fdfe2fb33071dda2f1ef51fd6b812"
+    },
+    {
+      "key": "watermelon",
+      "name": "Watermelon",
+      "sourceFile": "Aloe Vera (5).webp",
+      "url": "/assets/labels/aloe-vera/watermelon-b51212972ab7.webp",
+      "sha256": "b51212972ab7a3677d714f90b0b9f123d771534c160e70d3cd5ae19b9d0e9255"
+    },
+    {
+      "key": "pomegranate",
+      "name": "Pomegranate",
+      "sourceFile": "Aloe Vera (6).webp",
+      "url": "/assets/labels/aloe-vera/pomegranate-d4a797756f60.webp",
+      "sha256": "d4a797756f60910068b172f9006f677edbaa353ed71b3b80ace52ecf4f43c7f4"
+    }
+  ]
+}

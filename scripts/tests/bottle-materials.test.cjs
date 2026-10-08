@@ -6,13 +6,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const ts = require('typescript');
 const THREE = require('three');
+require('../register-admin-typescript.cjs');
+const materialAdjustments = require('../../lib/viewer/material-adjustments.ts');
 function load(file, importer = require) {
   const source = fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const loaded = { exports: {} }; new Function('require', 'module', 'exports', js)(importer, loaded, loaded.exports); return loaded.exports;
+  const loaded = { exports: {} }; new Function('require', 'module', 'exports', js)(name => name === './material-adjustments' ? materialAdjustments : importer(name), loaded, loaded.exports); return loaded.exports;
 }
 const config = load('lib/viewer-config.ts'), urls = load('lib/public-url.ts');
-const bottles = load('lib/viewer/bottle-materials.ts');
+const aloe = load('lib/viewer/aloe-bottle-materials.ts');
+const bottles = load('lib/viewer/bottle-materials.ts', name => name === './aloe-bottle-materials' ? aloe : require(name));
 const appearances = load('lib/viewer/appearance.ts', name => ({ three: THREE, '../viewer-config': config, '../public-url': urls, './bottle-materials': bottles })[name]);
 const pooling = load('lib/viewer/pooled-appearance.ts', name => name === 'three' ? THREE : name === './bottle-materials' ? bottles : appearances);
 const asset = { id: 'pet', name: 'PET', src: '/pet.glb', packaging: 'pet', materialSlots: {
@@ -31,6 +34,27 @@ function fixture(context) {
   return { root, meshes, originals };
 }
 
+test('pooled green cap stays local to its appearance and restores the default cap when switching flavor', async context => {
+  const f = fixture(context);
+  const handle = pooling.createPooledAppearanceHandle(f.root, asset);
+  context.after(() => handle.dispose());
+  const original = { id: 'original', slots: { liquid: { color: '#119d25' }, cap: { color: '#008b28' } } };
+  const strawberry = { id: 'strawberry', slots: { liquid: { color: '#e84a3c' } } };
+  handle.setWindow([original, strawberry]);
+  await handle.apply(original);
+  const greenCap = f.meshes.cap.material;
+  assert.equal(greenCap.color.getHexString(), '008b28');
+  assert.equal(greenCap.opacity, 1);
+  await handle.prepare(strawberry);
+  assert.equal(f.meshes.cap.material, greenCap, 'Neighbor warmup must not retint the visible cap');
+  await handle.apply(strawberry);
+  assert.equal(f.meshes.cap.material.color.getHexString(), 'f6f5ed');
+  await handle.apply(original);
+  assert.equal(f.meshes.cap.material, greenCap, 'Returning to a pooled appearance restores its own green cap');
+  handle.dispose();
+  assert.equal(f.meshes.cap.material, f.originals.cap);
+});
+
 test('Ring keeps its embedded alpha basemap and frosted bulk independently of the opaque cap', async context => {
   const f = fixture(context), map = new THREE.Texture();
   const original = new THREE.MeshStandardMaterial({ map, transparent: true, opacity: 1 });
@@ -45,7 +69,7 @@ test('Ring keeps its embedded alpha basemap and frosted bulk independently of th
   assert.equal(ring.material.map, map, 'The GLB RGBA map must survive appearance preparation');
   assert.equal(ring.material.transparent, true); assert.equal(ring.material.depthWrite, false);
   assert.equal(ring.material.color.getHexString(), 'fff9ed');
-  assert.equal(f.meshes.cap.material.transparent, false); assert.equal(f.meshes.cap.material.opacity, 1);
+  assert.equal(f.meshes.cap.material.transparent, true); assert.equal(f.meshes.cap.material.opacity, 1);
   assert.match(compile(ring.material).fragmentShader, /1.0 - diffuseColor.a/);
   assert.match(compile(ring.material).fragmentShader, /exp\(-nataRingOpticalDepth \/ ringCosine\)/);
   assert.match(compile(ring.material).fragmentShader, /totalSpecular/);
@@ -64,28 +88,93 @@ test('molded Ring stays partly translucent face-on, gains haze at the rim and pr
   assert.equal(bottles.nataRingHaze(1, 1), 1);
 });
 
-test('printed sleeve stays solid and ordered after PET while being excluded from the opaque refraction capture', async context => {
+test('printed sleeve and cap stay solid and ordered after PET while excluded from the opaque refraction capture', async context => {
   const f = fixture(context), map = new THREE.Texture(); f.originals.label.map = map;
   context.after(() => map.dispose());
   const handle = pooling.createPooledAppearanceHandle(f.root, asset);
   context.after(() => handle.dispose());
   for (const color of ['#ff4430', '#ffc440']) {
     await handle.apply({ id: color, slots: { liquid: { color } } });
-    const label = f.meshes.label.material;
-    assert.equal(label.map, map, 'Existing printed artwork must be retained');
-    assert.equal(label.transparent, true, 'Three excludes this final queue from its opaque transmission capture');
-    assert.equal(label.opacity, 1); assert.equal(label.transmission, 0);
-    assert.equal(label.depthWrite, true); assert.equal(label.depthTest, true);
-    assert.ok(f.meshes.label.renderOrder > f.meshes.body.renderOrder);
-    assert.ok(f.meshes.label.renderOrder > f.meshes.liquid.renderOrder);
+    assert.equal(f.meshes.label.material.map, map, 'Existing printed artwork must be retained');
+    for (const role of ['label', 'cap']) {
+      const material = f.meshes[role].material;
+      assert.equal(material.transparent, true, 'Three excludes this final queue from its opaque transmission capture');
+      assert.equal(material.opacity, 1); assert.equal(material.transmission, 0);
+      assert.equal(material.depthWrite, true); assert.equal(material.depthTest, true);
+      assert.ok(f.meshes[role].renderOrder > f.meshes.body.renderOrder);
+      assert.ok(f.meshes[role].renderOrder > f.meshes.liquid.renderOrder);
+    }
+    assert.equal(f.meshes.cap.material.color.getHexString(), 'f6f5ed');
+    assert.equal(f.meshes.cap.material.roughness, 0.29);
     assertScatteringBaseline(f, color);
   }
-  handle.dispose(); assert.equal(f.meshes.label.material, f.originals.label);
+  handle.dispose();
+  for (const role of ['label', 'cap']) assert.equal(f.meshes[role].material, f.originals[role]);
 });
 function compile(material) {
   const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.physical.vertexShader, fragmentShader: THREE.ShaderLib.physical.fragmentShader };
   material.onBeforeCompile(shader, {}); return shader;
 }
+
+test('Aloe appearance uses its separate optical profile with the shared solid print/cap exclusion', async context => {
+  const f = fixture(context);
+  for (const material of Object.values(f.originals)) material.userData.bottleProfile = 'aloe-pet-v1';
+  const handle = pooling.createPooledAppearanceHandle(f.root, asset);
+  context.after(() => handle.dispose());
+  for (const color of ['#ef6828', '#df405b']) {
+    await handle.apply({ id: color, slots: { liquid: { color } } });
+    assert.equal(f.meshes.liquid.material.transmission, 1);
+    assert.match(f.meshes.inclusions.material.customProgramCacheKey(), /aloe-pet-v1/);
+    assert.equal(f.meshes.liquid.children.filter(child => child.userData.aloeLiquidBack).length, 1);
+    assert.equal(f.meshes.liquid.children[0].renderOrder, 0);
+    assert.equal(f.meshes.inclusions.renderOrder, 1, 'Aloe gel filters the reservoir after its capture draw');
+    for (const role of ['cap', 'label']) {
+      assert.equal(f.meshes[role].material.transparent, true);
+      assert.equal(f.meshes[role].material.opacity, 1);
+      assert.equal(f.meshes[role].material.transmission, 0);
+      assert.equal(f.meshes[role].material.depthWrite, true);
+      assert.equal(f.meshes[role].renderOrder, 30);
+    }
+    const gel = compile(f.meshes.inclusions.material).uniforms.aloeScatteringColor.value;
+    const back = compile(f.meshes.liquid.children[0].material).uniforms.aloeScatteringColor.value;
+    assert.ok(Math.abs(gel.r - back.r) + Math.abs(gel.g - back.g) + Math.abs(gel.b - back.b) < 1e-9);
+  }
+  handle.dispose();
+  for (const role of ['cap', 'label', 'body', 'liquid', 'inclusions']) assert.equal(f.meshes[role].material, f.originals[role]);
+});
+test('Aloe Ring reduces haze and refracts through a polished metric rim while keeping basemap and solid cap', async context => {
+  const f = fixture(context), map = new THREE.Texture();
+  for (const material of Object.values(f.originals)) material.userData.bottleProfile = 'aloe-pet-v1';
+  const original = new THREE.MeshPhysicalMaterial({ map, transparent: true, opacity: 1 });
+  original.name = 'aloe-ring'; original.userData = { bottleProfile: 'aloe-pet-v1', aloeRing: true };
+  const ring = new THREE.Mesh(new THREE.BoxGeometry(), original);
+  ring.scale.set(0.029, 0.105, 0.029); f.root.add(ring);
+  context.after(() => { ring.geometry.dispose(); original.dispose(); map.dispose(); });
+  const ringAsset = { ...asset, materialSlots: { ...asset.materialSlots, body: ['pet-shell', 'aloe-ring'] } };
+  const handle = pooling.createPooledAppearanceHandle(f.root, ringAsset);
+  context.after(() => handle.dispose());
+  await handle.apply({ id: 'red', slots: { liquid: { color: '#e84a3c' } } });
+  assert.equal(ring.material.map, map);
+  assert.equal(ring.material.transmission, 0.93); assert.equal(ring.material.ior, 1.47);
+  assert.ok(ring.material.roughness < bottles.NATA_PET_RING.roughness);
+  assert.ok(bottles.aloeRingHaze(1) > 0.04 && bottles.aloeRingHaze(1) < 0.1);
+  assert.ok(bottles.aloeRingHaze(0) > bottles.aloeRingHaze(1) && bottles.aloeRingHaze(0) < 0.3);
+  assert.equal(bottles.aloeRingHaze(1, 1), 1, 'Opaque basemap markings retain their coverage');
+  const shader = compile(ring.material);
+  assert.match(shader.fragmentShader, /transmission \* \(1.0 - diffuseColor.a\)/);
+  assert.match(shader.fragmentShader, /return normalize\( refractionVector \) \* aloeRingWorldThickness/);
+  assert.match(shader.fragmentShader, /transmittedLight.a \* 2.0 - 1.0/, 'Native transparent capture clear colour must not whiten the Ring');
+  f.root.scale.setScalar(2); f.root.rotation.y = 0.8; f.root.updateMatrixWorld(true);
+  ring.material.onBeforeRender({}, {}, new THREE.PerspectiveCamera(), ring.geometry, ring, {});
+  assert.ok(Math.abs(shader.uniforms.aloeRingWorldThickness.value - 0.0016) < 1e-10, 'Physical Ring thickness follows the pooled model scale, without Blender anisotropy');
+  for (const premultipliedAlpha of [true, false]) {
+    ring.material.onBeforeRender({ getContextAttributes: () => ({ premultipliedAlpha }) }, {}, new THREE.PerspectiveCamera(), ring.geometry, ring, {});
+    assert.equal(shader.uniforms.aloeClearRadiance.value, premultipliedAlpha ? 0.5 : 1, 'Ring uses the same actual clear packing as water/gel');
+  }
+  for (const role of ['cap', 'label']) assert.equal(f.meshes[role].material.transmission, 0);
+  handle.dispose(); assert.equal(ring.material, original);
+});
+
 function assertScatteringBaseline(f, color) {
   const expected = bottles.nataScatteringColor(new THREE.Color(color)), front = f.meshes.liquid.material.color;
   const back = f.meshes.liquid.children[0].material.color;

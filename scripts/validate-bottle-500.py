@@ -5,8 +5,12 @@ import json
 import math
 import pathlib
 import traceback
+import sys
 from mathutils import Vector, Matrix
 from mathutils.kdtree import KDTree
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from bottle_500_liquid import seal_water_top
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DIRECTORY = ROOT / 'public' / 'models' / 'bottles'
@@ -41,6 +45,10 @@ try:
         if obj.type != 'MESH' or obj.name not in ROLES:
             continue
         mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(graph), depsgraph=graph)
+        if ROLES[obj.name] == 'liquid' and manifest.get('waterTopRepair'):
+            mesh, _, repair = seal_water_top(mesh, obj)
+            if repair != manifest['waterTopRepair']:
+                raise ValueError('Water-top repair differs from the certified export')
         mesh.calc_loop_triangles()
         points = [obj.matrix_world @ v.co * manifest['exportScale'] - center for v in mesh.vertices]
         normals, uv = [[] for v in mesh.vertices], [[] for v in mesh.vertices]
@@ -121,7 +129,8 @@ try:
         sourceUnchanged=source_hash_before == manifest['sourceSha256'] == hashlib.sha256(source.read_bytes()).hexdigest(),
         sourceSha256=source_hash_before, assetSha256=hashlib.sha256(glb.read_bytes()).hexdigest(),
         assetHashMatches=hashlib.sha256(glb.read_bytes()).hexdigest() == manifest['sha256'],
-        meshes=rows, method='Bidirectional vertex check, explicit GPU normal comparison, triangle and body/label UV checks')
+        meshes=rows, waterTopRepair=manifest.get('waterTopRepair'),
+        method='Bidirectional vertex check against retained source and explicit water-top closure, GPU normal comparison, triangle and body/label UV checks')
     report['passed'] = report['passed'] and report['sourceUnchanged'] and report['assetHashMatches']
     OUT.write_text(json.dumps(report, indent=2)+'\n', encoding='utf8')
     if not report['passed']:

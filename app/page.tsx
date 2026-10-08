@@ -17,14 +17,18 @@ import { useStorefrontTelemetry } from '@/components/useStorefrontTelemetry';
 import { randomStorefrontEntry, resolveStorefrontSelection, type StorefrontSelectionRequest } from '@/lib/catalog/storefront';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Menu, Search, X } from 'lucide-react';
+import Image from 'next/image';
 
 
 function BrandMark() {
   const { t } = useLanguage();
+  const logo = publicUrl('/assets/branding/vinut-logo.svg');
   return (
     <a className="brand-mark" href="#top" aria-label={t('nav.backToTop')}>
-      <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M9 28.8C12.1 12.3 22.3 7.8 33.8 7.3c-1.7 10.7-7.5 19.2-19.2 21.3 3.4-4.4 6.6-7.4 12.4-10.9" stroke="currentColor" strokeWidth="4.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-      <span className="brand-word">VINUT</span>
+      <span className="brand-logo" aria-hidden="true" style={{ '--brand-logo-mask': `url("${logo}")` } as React.CSSProperties}>
+        <Image src={logo} alt="" width={968} height={492} unoptimized />
+        <span className="brand-logo-shine" />
+      </span>
     </a>
   );
 }

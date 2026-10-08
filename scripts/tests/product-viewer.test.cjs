@@ -6,6 +6,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const ts = require('typescript');
 const THREE = require('three');
+require('../register-admin-typescript.cjs');
+const materialAdjustments = require('../../lib/viewer/material-adjustments.ts');
 
 const projectRoot = path.resolve(__dirname, '../..');
 
@@ -16,7 +18,7 @@ function loadSource(relativePath, requireModule = require) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   });
   const loaded = { exports: {} };
-  new Function('require', 'module', 'exports', outputText)(requireModule, loaded, loaded.exports);
+  new Function('require', 'module', 'exports', outputText)(name => name === './material-adjustments' ? materialAdjustments : requireModule(name), loaded, loaded.exports);
   return loaded.exports;
 }
 
@@ -331,6 +333,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
   const backdropResources = [];
   const backdropBindings = [];
   const waterPassResources = [];
+  const bottleBackdropBindings = [];
   const renderEvents = [];
   const statuses = [];
   const environment = deferred();
@@ -426,6 +429,8 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
   const appearanceBoundary = {
     createAppearanceHandle(root, asset) {
       return {
+        setLiveOverrides() {},
+        materialValues() { return {}; },
         apply(value) {
           appearanceCalls.push({ root, assetId: asset.id, asset, value });
           if (immediateAppearance) {
@@ -453,7 +458,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
   const pooledAppearance = loadSource('lib/viewer/pooled-appearance.ts', name => {
     if (name === 'three') return THREE;
     if (name === './appearance') return appearanceBoundary;
-    if (name === './bottle-materials') return loadSource('lib/viewer/bottle-materials.ts');
+    if (name === './bottle-materials') return loadSource('lib/viewer/bottle-materials.ts', dependency => dependency === './aloe-bottle-materials' ? loadSource('lib/viewer/aloe-bottle-materials.ts') : require(dependency));
     throw new Error(`Unexpected pooled appearance dependency: ${name}`);
   });
   const resourcePrefetch = loadSource('lib/viewer/resource-prefetch.ts', name => {
@@ -505,6 +510,12 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
         return resource;
       },
     };
+    if (name === './aloe-bottle-materials') return {
+      setAloeBottleBackdrop(root, texture) {
+        bottleBackdropBindings.push({ root, texture });
+        if (texture) renderEvents.push({ type: 'bottle-backdrop', root, texture });
+      },
+    };
     if (name === './accent-layer') return { createAccentLayer: () => ({
       configure() {},
       setBackdrop(texture) { backdropBindings.push(texture); },
@@ -535,7 +546,7 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
       renderers[0].frame(frameTime);
     }
   };
-  return { viewer, mount, canvas, hitRegion: mount.children.find(child => child.dataset.productHitRegion), renderer: renderers[0], geometryRequests, appearanceRequests, appearanceCalls, labelTextures, idleCallbacks, disposedProducts, accentFrames, backdropResources, backdropBindings, waterPassResources, renderEvents, environment, statuses,
+  return { viewer, mount, canvas, hitRegion: mount.children.find(child => child.dataset.productHitRegion), renderer: renderers[0], geometryRequests, appearanceRequests, appearanceCalls, labelTextures, idleCallbacks, disposedProducts, accentFrames, backdropResources, backdropBindings, bottleBackdropBindings, waterPassResources, renderEvents, environment, statuses,
     tickIdleTimers: milliseconds => context.mock.timers.tick(milliseconds),
     releaseIdle() { const next = idleCallbacks.entries().next().value; assert.ok(next, 'An idle task must actually be queued'); idleCallbacks.delete(next[0]); next[1]({ didTimeout: false, timeRemaining: () => 50 }); },
     advanceFrames(timestamps) { for (const timestamp of timestamps) { frameTime = timestamp; renderers[0].frame(frameTime); } },
@@ -934,7 +945,7 @@ test('image-cutout storefront without a backdrop allocates no painter or capture
 });
 
 test('viewer backdrop shares live background state, avoids identical recreation and owns replacement/disposal', (context) => {
-  const { viewer, mount, backdropResources, backdropBindings, waterPassResources, advance } = runtimeFixture(context, true);
+  const { viewer, mount, backdropResources, backdropBindings, bottleBackdropBindings, waterPassResources, advance } = runtimeFixture(context, true);
   const state = new backgroundRender.BackgroundRenderState();
   const settings = { ...backgrounds.backgroundConfig };
   viewer.backdrop({ state, config: settings });
@@ -977,6 +988,7 @@ test('viewer backdrop shares live background state, avoids identical recreation 
   assert.equal(second.disposals, 1);
   assert.equal(waterPassResources[1].disposals, 1);
   assert.equal(backdropBindings.at(-1), null, 'Clearing the optional source removes the disposed sampler from droplet materials');
+  assert.equal(bottleBackdropBindings.at(-1).texture, null, 'Liquid drops its borrowed sampler before the old capture is disposed');
   const bindingsAfterClear = backdropBindings.length;
   viewer.backdrop(undefined);
   assert.equal(backdropBindings.length, bindingsAfterClear, 'Clearing twice is a no-op');
@@ -1008,8 +1020,12 @@ test('water composition renders once before each actual main draw using the same
   for (const [index, call] of pass.renders.entries()) {
     assert.equal(call.background, backdropResources[0].texture);
     assert.equal(call.camera, renderer.draws[index].camera);
-    assert.equal(renderEvents[index * 2].type, 'water-pass', 'The complete backdrop is available before water is drawn');
-    assert.equal(renderEvents[index * 2 + 1].type, 'main');
+    const events = renderEvents.slice(index * 3, index * 3 + 3);
+    assert.equal(events[0].type, 'water-pass', 'The complete backdrop is available before water is drawn');
+    assert.equal(events[1].type, 'bottle-backdrop');
+    assert.equal(events[1].texture, pass.texture, 'Liquid borrows the exact accent capture without another render target');
+    assert.equal(events[1].root, pass.product);
+    assert.equal(events[2].type, 'main');
   }
   viewer.pause(true); advance(0.05);
   const atRest = renderer.draws.length;

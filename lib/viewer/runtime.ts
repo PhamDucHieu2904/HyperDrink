@@ -9,6 +9,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { ProductAppearance, ProductAsset, ViewerPresentation, assetUrl } from '../viewer-config';
 import { AppearanceHandle, createAppearanceHandle, disposeProduct } from './appearance';
 import { createPooledAppearanceHandle, type AppearanceWarmupPriority, type PooledAppearanceHandle } from './pooled-appearance';
+import type { LiveMaterialOverrides } from './material-adjustments';
 import { createResourcePrefetcher, type ViewerResourceWindow } from './resource-prefetch';
 import { createProductFramingFrames, createRadialProductEnvelope, fitProductCamera, interpolatePackageAim } from './framing';
 import { packageCapPose, packageEntryScale, packageExitProgress, packageMaximumScale, packageSpinProgress, smoothstep } from './package-motion';
@@ -17,6 +18,7 @@ import { createAccentLayer } from './accent-layer';
 import type { AccentFlavor, ProductAccentSceneInput } from './accent-config';
 import { createBackdropTexture, type ProductViewerBackdropInput } from './backdrop-texture';
 import { createWaterBackdropPass } from './water-backdrop-pass';
+import { setAloeBottleBackdrop } from './aloe-bottle-materials';
 import { createProductHitRegion, hitVisibleProduct, visibleProductMeshes } from './product-hit-region';
 
 export interface ViewerStatus {
@@ -27,6 +29,7 @@ export interface ViewerStatus {
   hasProduct?: boolean;
 }
 export interface ProductViewerController {
+  materials(overrides?: LiveMaterialOverrides): void;
   select(asset: ProductAsset, appearance?: ProductAppearance): void;
   resources(window?: ViewerResourceWindow): void;
   configure(presentation: ViewerPresentation): void;
@@ -83,6 +86,7 @@ export function createProductViewer(
   let visible = true;
   let dragging = false;
   let dirty = true;
+  let liveMaterialOverrides: LiveMaterialOverrides = {};
   let animationTime = 0;
   let lastTime = performance.now();
   let lastDrawTime = 0;
@@ -240,6 +244,7 @@ export function createProductViewer(
     const signature = JSON.stringify(source?.config ?? null);
     if (source?.state === backdropSource?.state && signature === backdropSignature) return;
     accents.setBackdrop(null);
+    setAloeBottleBackdrop(product, null);
     backdrop?.dispose();
     waterBackdrop?.dispose(); waterBackdrop = undefined;
     backdrop = undefined; backdropSource = source; backdropSignature = signature;
@@ -430,6 +435,7 @@ export function createProductViewer(
     if (!pendingProduct) return;
     recycle(active);
     active = pendingProduct;
+    active.appearance.setLiveOverrides?.(liveMaterialOverrides);
     pendingProduct = null;
     product.add(active.root);
     appearanceReady = appearanceReadiness.get(active) ?? true;
@@ -450,6 +456,7 @@ export function createProductViewer(
     updatePrefetch();
     try {
       await loaded.appearance.apply(appearance);
+      loaded.appearance.setLiveOverrides?.(liveMaterialOverrides);
       if (disposed || thisRevision !== appearanceRevisions.get(loaded)) return;
       rememberLoaded(loaded.asset, appearance);
       appearanceReadiness.set(loaded, true);
@@ -611,6 +618,7 @@ export function createProductViewer(
         }
         if (disposed || thisRevision !== assetRevision) { discard(loaded); return; }
       } while (appliedAppearanceKey !== JSON.stringify(desiredAppearance ?? null));
+      loaded.appearance.setLiveOverrides?.(liveMaterialOverrides);
       appearanceReadiness.set(loaded, true);
       appliedAppearanceIds.set(loaded, desiredAppearance?.id ?? '');
       rememberLoaded(asset, desiredAppearance);
@@ -856,6 +864,9 @@ export function createProductViewer(
     if (dirty && sinceDraw >= frameInterval) {
       hitRegion.update(active && !packageTransition ? active.root : null, camera, mount.clientWidth, mount.clientHeight, now, dragging);
       if (backdrop && waterBackdrop) waterBackdrop.render(backdrop.texture, camera);
+      // Reuse the product-free capture for liquid refraction. CSS artwork and
+      // transparent accents are absent from Three's native opaque capture.
+      setAloeBottleBackdrop(product, waterBackdrop?.texture ?? null);
       renderer.render(scene, camera);
       mount.dataset.viewerReady = active ? 'true' : 'false';
       sampleDraws++;
@@ -901,6 +912,11 @@ export function createProductViewer(
 
   return {
     select,
+    materials(overrides = {}) {
+      liveMaterialOverrides = overrides;
+      active?.appearance.setLiveOverrides?.(overrides);
+      dirty = true;
+    },
     resources(value) {
       resourceWindow = value;
       prefetch.configure(value?.files ?? []);

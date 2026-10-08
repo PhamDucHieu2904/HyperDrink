@@ -8,6 +8,7 @@ import { createProductViewer, ProductViewerController, ViewerStatus } from '@/li
 import type { AccentFlavor, ProductAccentSceneInput } from '@/lib/viewer/accent-config';
 import type { ProductViewerBackdropInput } from '@/lib/viewer/backdrop-texture';
 import type { ViewerResourceWindow } from '@/lib/viewer/resource-prefetch';
+import type { LiveMaterialOverrides } from '@/lib/viewer/material-adjustments';
 import { useLanguage } from './LanguageProvider';
 import { trackUsage } from '@/lib/operations/client';
 
@@ -25,16 +26,17 @@ export interface ProductViewerProps {
   loadingFallback?: React.ReactNode;
   /** Homepage neighbors; callers without this prop keep on-demand loading. */
   resourceWindow?: ViewerResourceWindow;
+  materialOverrides?: LiveMaterialOverrides;
 }
 
 /** Generic container: geometry, appearance and lighting are independent data contracts. */
-export default function ProductViewer({ asset, appearance, presentation, paused = false, resetKey, onStatus, accentScene, accentFlavor = 'citrus', backdrop, loadingFallback, resourceWindow }: ProductViewerProps) {
+export default function ProductViewer({ asset, appearance, presentation, paused = false, resetKey, onStatus, accentScene, accentFlavor = 'citrus', backdrop, loadingFallback, resourceWindow, materialOverrides }: ProductViewerProps) {
   const { t } = useLanguage();
   const mountRef = useRef<HTMLDivElement>(null);
   const lastInteraction = useRef(0);
   const reportInteraction = () => {if(Date.now()-lastInteraction.current<3000)return;lastInteraction.current=Date.now();trackUsage('model_interact',asset.id);};
   const controller = useRef<ProductViewerController | null>(null);
-  const latest = useRef({ asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop, resourceWindow });
+  const latest = useRef({ asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop, resourceWindow, materialOverrides });
   const [status, setStatus] = useState<ViewerStatus>({ phase: 'loading', assetId: asset.id });
   // Plain JSON signatures prevent reinitializing WebGL when parents rebuild objects.
   const assetSignature = JSON.stringify(asset);
@@ -44,8 +46,9 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
   const accentKey = `${asset.id}:${appearance?.id ?? ''}`;
   const backdropSignature = JSON.stringify(backdrop?.config ?? null);
   const resourceSignature = JSON.stringify(resourceWindow ?? null);
+  const materialSignature = JSON.stringify(materialOverrides ?? {});
 
-  useEffect(() => { latest.current = { asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop, resourceWindow }; });
+  useEffect(() => { latest.current = { asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop, resourceWindow, materialOverrides }; });
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -58,6 +61,7 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
     };
     try {
       controller.current = createProductViewer(mount, resolveViewerPresentation(latest.current.presentation), publish);
+      controller.current.materials(latest.current.materialOverrides);
       controller.current.backdrop(latest.current.backdrop);
       controller.current.accents(latest.current.accentScene, `${latest.current.asset.id}:${latest.current.appearance?.id ?? ''}`, latest.current.accentFlavor);
       controller.current.pause(latest.current.paused);
@@ -78,6 +82,7 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
     controller.current?.select(latest.current.asset, latest.current.appearance);
   }, [assetSignature, appearanceSignature]);
   useEffect(() => { controller.current?.resources(latest.current.resourceWindow); }, [resourceSignature]);
+  useEffect(() => { controller.current?.materials(materialOverrides); }, [materialSignature, materialOverrides]);
   useEffect(() => {
     controller.current?.configure(resolveViewerPresentation(latest.current.presentation));
   }, [presentationSignature]);

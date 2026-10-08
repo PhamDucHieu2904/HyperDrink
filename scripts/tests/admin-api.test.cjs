@@ -89,7 +89,7 @@ async function createVisible2DProduct(context) {
   return { media, bytes, group, flavor, variant, asset, display, slot };
 }
 
-test('liquidColor survives record and display API saves, preflight and backend restart across nine draft displays', async () => withBackend(async context => {
+test('liquidColor, capColor and horizontal labelOffset survive record/display API saves, preflight and backend restart across nine draft displays', async () => withBackend(async context => {
   await context.setup();
   const product = await createVisible2DProduct(context);
   const colors = [null, null, '#ff3e68', '#ff4430', '#ffb52e', '#ffb52e', '#5144ad', '#f783ad', '#f9a4be'];
@@ -97,21 +97,31 @@ test('liquidColor survives record and display API saves, preflight and backend r
   for (const [index, liquidColor] of colors.entries()) {
     const flavor = await context.save('flavors', { ...product.flavor, ...newEntity(`Liquid flavor ${index}`, `liquid-flavor-${index}`) });
     const variant = await context.save('productVariants', { ...product.variant, ...newEntity(`Liquid product ${index}`, `liquid-product-${index}`), flavorId: flavor.id, code: `LIQUID-${index}`, enabled: false });
-    const display = await context.save('displays3d', { ...newEntity(`Liquid display ${index}`, `liquid-display-${index}`), productVariantId: variant.id, modelId: null, labelId: null, enabled: false, liquidColor });
+    const capColor = index === 0 ? '#008b28' : null;
+    const labelOffset = index * 2.5;
+    const display = await context.save('displays3d', { ...newEntity(`Liquid display ${index}`, `liquid-display-${index}`), productVariantId: variant.id, modelId: null, labelId: null, enabled: false, liquidColor, capColor, labelOffset });
     assert.equal(display.liquidColor, liquidColor);
+    assert.equal(display.capColor, capColor);
+    assert.equal(display.labelOffset, labelOffset);
     displays.push({ variant, display });
   }
   const target = displays[2];
   const saved = await context.request('/api/admin/v1/display', { method: 'POST', body: {
     mode: '3d', variant: target.variant, expectedVariantRevision: target.variant.revision,
-    display: { ...target.display, liquidColor: '#ef315f' }, expectedDisplayRevision: target.display.revision,
+    display: { ...target.display, liquidColor: '#ef315f', capColor: '#008b28', labelOffset: -12.5 }, expectedDisplayRevision: target.display.revision,
     slot: null, expectedSlotRevision: null,
   } });
   assert.equal(saved.response.status, 200, JSON.stringify(saved.payload));
   assert.equal(saved.payload.data.display.liquidColor, '#ef315f');
+  assert.equal(saved.payload.data.display.capColor, '#008b28');
+  assert.equal(saved.payload.data.display.labelOffset, -12.5);
   const before = await context.repository.readDraft();
   const invalid = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'displays3d', record: { ...saved.payload.data.display, liquidColor: 'pink' }, expectedRevision: saved.payload.data.display.revision } });
   assert.equal(invalid.response.status, 422);
+  const invalidCap = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'displays3d', record: { ...saved.payload.data.display, capColor: 'green' }, expectedRevision: saved.payload.data.display.revision } });
+  assert.equal(invalidCap.response.status, 422);
+  const invalidOffset = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'displays3d', record: { ...saved.payload.data.display, labelOffset: 51 }, expectedRevision: saved.payload.data.display.revision } });
+  assert.equal(invalidOffset.response.status, 422);
   assert.deepEqual(await context.repository.readDraft(), before);
   context.reopen();
   assert.deepEqual(await context.repository.readDraft(), before);

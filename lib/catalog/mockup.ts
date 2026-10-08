@@ -68,6 +68,6 @@ export function resolveMockupProduct(data: CatalogData, selection: Pick<MockupSe
   const display = selection.display ? getMockupLibrary(data).displays.find(item => item.id === selection.display?.id && item.modelId === resolved.model?.id && item.labelId === resolved.label?.id) : resolved.display;
   const variant = data.productVariants.find(item => item.id === display?.productVariantId);
   const flavor = data.flavors.find(item => item.id === (variant?.flavorId ?? resolved.label?.flavorId));
-  const appearance = resolved.label ? resolveModelLabelAppearance(data, resolved.model, resolved.label, flavor, display?.liquidColor) : { id: `mockup-bare:${resolved.model.id}:${resolved.model.revision}`, slots: {} };
+  const appearance = resolved.label ? resolveModelLabelAppearance(data, resolved.model, resolved.label, flavor, display?.liquidColor, undefined, display?.capColor, display?.labelOffset) : { id: `mockup-bare:${resolved.model.id}:${resolved.model.revision}`, slots: {} };
   return asset && appearance ? { asset, appearance } : null;
 }

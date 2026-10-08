@@ -137,6 +137,10 @@ export interface Display3D extends Entity {
   labelId: EntityId | null;
   /** Null/absent follows the flavor accent; an explicit hex affects only the liquid slot. */
   liquidColor?: string | null;
+  /** Null/absent keeps the bottle's default cap; an explicit hex affects only the cap. */
+  capColor?: string | null;
+  /** Horizontal label alignment, percent of one UV wrap (-50…50). */
+  labelOffset?: number;
   enabled: boolean;
 }
 export interface Display2D extends Entity {

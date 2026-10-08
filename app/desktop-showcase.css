@@ -1,6 +1,23 @@
 /* Keep the desktop composition, but budget its size using both viewport axes.
    All rules start above the existing mobile breakpoint. Native dimensions also
    let the viewer's ResizeObserver keep rendering and pointer coordinates aligned. */
+@media (min-width:1151px) {
+  .site-shell { --home-content-shift:calc(-1 * clamp(10px,1.05vw,24px)); }
+  /* Match the shortcut rail's 1.8% gutter; the header starts at 2.4%. */
+  .site-header .brand-mark { translate:-.6vw 0; }
+  /* Move the composition together without changing track or canvas dimensions. */
+  .site-header > .main-nav,
+  .site-header > .category-rail,
+  .site-header > .header-actions,
+  .site-header > .search-popover,
+  .catalog-showcase > .showcase-intro,
+  .catalog-showcase > .showcase-details,
+  .catalog-showcase > .model-picker,
+  .catalog-showcase > .showcase-product,
+  .catalog-showcase > .catalog-flavor-dock,
+  .catalog-showcase > .showcase-feature { translate:var(--home-content-shift) 0; }
+}
+
 @media (min-width:761px) {
   .catalog-showcase {
     --hero-unit:clamp(.45px,min(.0520833vw,.1svh),1.2px);

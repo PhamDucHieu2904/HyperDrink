@@ -44,7 +44,10 @@ export default function ProductVisual({ catalog, releaseId, seed, slot, variant,
     return { ready: window.ready.flatMap(candidateFor), files: window.files.flatMap(candidateFor) };
   }, [catalog, display3d, releaseId, resourceDisplays, scene, seed, slot.mode, variant.id]);
   const canUse3d = slot.mode !== '2d' && scene && failedDisplay !== renderKey;
-  const needsBackdrop = scene?.accentScene.enabled && scene.accentScene.nodes.some(node => node.enabled && !node.assetUrl && (node.kind === 'droplet' || node.kind === 'ice'));
+  // The registered Aloe liquid is also a consumer of the external scene,
+  // even when every decorative water accent is an image cutout.
+  const needsLiquidBackdrop = scene?.asset.materialSlots?.liquid?.includes('Aloe Vera Water');
+  const needsBackdrop = needsLiquidBackdrop || (scene?.accentScene.enabled && scene.accentScene.nodes.some(node => node.enabled && !node.assetUrl && (node.kind === 'droplet' || node.kind === 'ice')));
   const poster = model ? catalog.media.find(item => item.id === model.posterId && item.role === 'poster' && item.lifecycle === 'active' && item.status === 'ready') : undefined;
   const candidates = [image2d, ...(slot.mode !== '2d' ? [poster] : [])].filter((item): item is MediaAsset => Boolean(item));
   const fallback = candidates.find(item => !failedImages.includes(mediaUrl(item)));

@@ -73,7 +73,33 @@ async function harness(run, mount) {
   }
 }
 
-const { projectAccentImage } = loadSource('lib/viewer/blended-accent.ts');
+const { projectAccentImage, createHardLightCaptureProxy } = loadSource('lib/viewer/blended-accent.ts');
+test('hard-light capture proxy shares source resources, keeps exact zoom and uses CSS blending only inside the capture', () => {
+  const map = fakeTexture(3, 2), geometry = new THREE.PlaneGeometry(1, 2 / 3);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const proxy = createHardLightCaptureProxy(map, geometry, 1.5);
+  assert.equal(proxy.geometry, geometry);
+  assert.equal(proxy.material.uniforms.splashMap.value, map);
+  assert.equal(proxy.material.uniforms.splashMapTransform.value, map.matrix);
+  assert.equal(proxy.visible, false, 'Warmup and normal hero rendering cannot show a second splash');
+  assert.equal(proxy.renderOrder, -10);
+  assert.equal(proxy.userData.hardLightCapture, true);
+  assert.equal(proxy.scale.x, 1.5);
+  assert.equal(proxy.material.toneMapped, false);
+  assert.equal(proxy.material.depthWrite, false);
+  assert.match(proxy.material.fragmentShader, /sRGBTransferOETF/);
+  assert.match(proxy.material.fragmentShader, /sRGBTransferEOTF\(vec4\(cssComposite, 1\.0\)\)/);
+  assert.match(proxy.material.fragmentShader, /mix\(base, hardLight, clamp\(source\.a \* opacity/);
+  const intersections = [];
+  proxy.raycast(new THREE.Raycaster(), intersections);
+  assert.equal(intersections.length, 0, 'Hidden capture proxy is never an interaction surface');
+  let geometryDisposals = 0, mapDisposals = 0;
+  geometry.addEventListener('dispose', () => { geometryDisposals += 1; });
+  map.addEventListener('dispose', () => { mapDisposals += 1; });
+  proxy.material.dispose();
+  assert.equal(geometryDisposals, 0); assert.equal(mapDisposals, 0, 'Only the accent layer owns shared source media');
+  geometry.dispose(); map.dispose();
+});
 test('CSS splash projection is invertible and matches real Three perspective at every image corner', () => {
   for (const [width, height] of [[390, 560], [800, 700]]) for (const zoom of [1, 1.5]) for (const imageSize of [[1, 1], [1, 2 / 3], [2 / 3, 1]]) {
     const camera = new THREE.PerspectiveCamera(30, width / height, 0.01, 40);
@@ -128,6 +154,11 @@ test('Hard Light shares product readiness, fades continuously, resizes and dispo
       assert.equal(image.style.display, 'block');
       assert.equal(Number(image.style.opacity), 0.4);
       assert.equal(root.children[0].children[0].visible, false, 'Splash is composited only once');
+      const normalSplash = root.children[0].children[0], captureProxy = root.children[0].children[1];
+      assert.equal(captureProxy.geometry, normalSplash.geometry);
+      assert.equal(captureProxy.material.uniforms.splashMap.value, normalSplash.material.map);
+      assert.equal(captureProxy.visible, false);
+      assert.equal(captureProxy.material.uniforms.opacity.value, Number(image.style.opacity), 'Proxy shares the DOM fade and admin opacity');
       const oldTransform = image.style.transform;
       size = { left: 25, top: 110, width: 390, height: 560 }; observer.callback(); update();
       assert.equal(host.style.left, '5px'); assert.equal(host.style.top, '100px');

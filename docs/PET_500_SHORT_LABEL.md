@@ -23,7 +23,7 @@ Subdivision giữ đúng thiết lập nguồn: Body và Water **viewport/export
 - Normal map vẫn đủ 668 × 668 và strength 0,35. Đổi PNG có alpha trắng hoàn toàn sang WebP quality 95, smartSubsample. Đây là nén texture có mất dữ liệu, không đổi màu hoặc giảm độ phân giải. Sai lệch hướng normal theo pixel sau khi áp strength 0,35: trung bình khoảng 0,77°, p95 khoảng 1,79°.
 - Chuẩn hóa đồng đều scale 0,1 và đặt tâm tại origin theo quy ước asset chai trong project. Không thay đổi tỷ lệ các phần. glTF Y-up; chiều cao tổng thể sau chuẩn hóa khoảng 209 mm.
 
-Các material nguồn và phân chia Ring, Body, Cap, Label, Water, Aloe Pulp được giữ. Model này chưa gắn profile Nata hoặc đăng ký vào catalog; đây là bước tối ưu asset 500 ml có Aloe Pulp của nguồn.
+Các material nguồn và phân chia Ring, Body, Cap, Label, Water, Aloe Pulp được giữ ở bước tối ưu hình học. Bản hoàn thiện tiếp theo dùng profile Aloe riêng và đã được đăng ký vào catalog; xem [ALOE_PET_500.md](ALOE_PET_500.md). Sau thiết lập material và sửa mặt đỉnh nước bị hở, GLB hiện tại là **1.128.836 bytes**, **246.960 tam giác**. Mặt bịt nước thêm một vertex và 192 tam giác sau subdivision, giữ các vị trí/mặt/normals nước cũ; các dòng Draco của Body, Cap, Label và Pulp không đổi. Các số liệu bảng trên ghi lại bước tối ưu trước khi thiết lập material và bịt đỉnh nước.
 
 ## Kiểm chứng
 
@@ -51,6 +51,7 @@ Chạy lần lượt tại thư mục project, với Blender launcher đang cài
 node scripts/pack-bottle-500.cjs
 node scripts/decode-bottle-500.cjs
 & 'C:/Users/thietke06.VINUT/AppData/Local/Microsoft/WindowsApps/blender-launcher.exe' --background --factory-startup --disable-autoexec --python 'D:/program project/3d display product website/scripts/validate-bottle-500.py'
+node scripts/configure-aloe-500.cjs
 ```
 
 Đợi `export-report.json` báo `state: complete` trước bước pack nếu launcher trả về sớm. Báo cáo validation phải `passed: true`. Thay đổi file nguồn/texture cần chạy đủ chuỗi và kiểm tra lại; pipeline chặn GLB vượt 1.150.000 bytes hoặc sai lệch hình học vượt ngưỡng kiểm chứng.

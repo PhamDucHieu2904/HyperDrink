@@ -1,4 +1,6 @@
 import type { ProductAppearance, ProductAsset } from '../viewer-config';
+import type { ProductViewerBackdropInput } from '../viewer/backdrop-texture';
+import type { LiveMaterialOverrides } from '../viewer/material-adjustments';
 
 export type MockupCameraPreset = 'front' | 'three-quarter' | 'left' | 'right' | 'back' | 'top';
 export type MockupFocalPreset = 'ultraWide' | 'wide' | 'standard' | 'long' | 'telephoto';
@@ -13,6 +15,7 @@ export interface MockupStatus {
   selectionKey?: string;
   revision: number;
   hasProduct: boolean;
+  materials?: LiveMaterialOverrides;
   message?: string;
   error?: 'model' | 'label' | 'webgl' | 'export';
 }
@@ -23,10 +26,13 @@ export interface MockupRuntimeOptions {
 }
 export interface MockupRuntime {
   select(asset: ProductAsset, appearance?: ProductAppearance, frontYaw?: number): void;
+  setMaterialOverrides(overrides?: LiveMaterialOverrides): void;
   setCamera(preset: MockupCameraPreset): void;
   /** Changes perspective and compensates camera distance to retain the framing. */
   setFocalLength(preset: MockupFocalPreset): void;
   setBackground(background: MockupBackground): void;
+  /** Live decorative surface used only for refractive transparent previews. */
+  setBackdrop(backdrop?: ProductViewerBackdropInput): void;
   setAnimation(animation: MockupAnimation): void;
   /** Numeric width/height ratio; the host should display the same frame. */
   setAspect(aspect: number): void;

@@ -6,6 +6,9 @@
   --studio-selected: #fffde9;
   --studio-selected-ink: #713b41;
   --studio-shadow: inset 0 1px 0 #ffffffb8, inset 0 0 0 1px #ffffff12, 0 18px 48px #0002;
+  --studio-library-width: clamp(280px, 18vw, 340px);
+  --studio-export-width: clamp(260px, 16vw, 300px);
+  --studio-column-gap: clamp(18px, 1.8vw, 34px);
   position: relative;
   isolation: isolate;
   display: flex;
@@ -46,7 +49,7 @@
 .headerDownload, .downloadButton { display: flex; justify-content: center; align-items: center; gap: 9px; min-height: 48px; padding: 0 20px; border: 1px solid #fff4c9; border-radius: 99px; color: #fff !important; background: linear-gradient(30deg, #ff655f, #ffa56c 75%, #ffdb8d); box-shadow: 0 0 0 3px #ffde9c20, 0 0 25px #ffba7670, inset 0 1px 8px #ffffaa66; font-size: 13px !important; font-weight: 600 !important; }
 .headerDownload:hover:not(:disabled), .downloadButton:hover:not(:disabled) { transform: translateY(-2px); background: linear-gradient(30deg, #ff756d, #ffaf77 75%, #ffe8a6); box-shadow: 0 0 0 3px #ffde9c38, 0 0 32px #ffba7699, inset 0 1px 8px #ffffaa88; }
 
-.workspace { position: relative; z-index: 1; display: grid; grid-template-columns: clamp(280px, 18vw, 340px) minmax(0, 1fr) clamp(260px, 16vw, 300px); gap: clamp(18px, 1.8vw, 34px); flex: 1; min-height: 0; width: 100%; align-items: stretch; }
+.workspace { position: relative; z-index: 1; display: grid; grid-template-columns: var(--studio-library-width) minmax(0, 1fr) var(--studio-export-width); gap: var(--studio-column-gap); flex: 1; min-height: 0; width: 100%; align-items: stretch; }
 .libraryColumn, .exportColumn { display: flex; flex-direction: column; justify-content: center; min-width: 0; min-height: 0; }
 .previewPanel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .library, .exportPanel, .previewExport { position: relative; overflow: hidden; border: 1px solid #ffffffa6; border-radius: 28px; background: var(--studio-glass); box-shadow: var(--studio-shadow); backdrop-filter: blur(28px) saturate(148%) brightness(1.04); -webkit-backdrop-filter: blur(28px) saturate(148%) brightness(1.04); background-clip: padding-box; }
@@ -219,9 +222,8 @@
   .exportPanel { flex: none; }
 }
 @media (min-width: 1150px) and (max-width: 1499px) {
-  .studio { padding-inline: 24px; }
+  .studio { padding-inline: 24px; --studio-library-width:270px; --studio-export-width:244px; --studio-column-gap:20px; }
   .header { min-height: 86px; }
-  .workspace { grid-template-columns: 270px minmax(0, 1fr) 244px; gap: 20px; }
   .backgroundBar { flex-wrap: wrap; justify-content: center; gap: 4px; padding: 7px; border-radius: 24px; }
   .backgroundBar > .toolLabel { display: none; }
   .backgroundChoices button { padding-inline: 7px; font-size: 11px; }
@@ -322,4 +324,87 @@
   syntax: '<color>';
   inherits: true;
   initial-value: #dc4875;
+}
+
+/* One header row leaves the scene clear. The existing three-column stage stays intact. */
+.header { grid-template-columns: var(--studio-library-width) minmax(0,1fr) var(--studio-export-width); column-gap:var(--studio-column-gap); row-gap:16px; }
+.headerStart { display:flex; align-items:center; gap:16px; }
+.headerStart > * { flex:none; }
+.brand { padding:5px; gap:0; min-height:52px; }
+.brand h1 { padding:12px 18px; }
+.header > .backgroundBar { position:static; transform:none; justify-self:center; width:fit-content; flex-wrap:nowrap; border-radius:99px; gap:6px; }
+.header .backgroundChoices { flex-wrap:nowrap; }
+.exportColumn { justify-content:flex-start; gap:16px; padding-block:20px; overscroll-behavior:contain; }
+.exportPanel { padding:18px 18px 20px; }
+.exportPanel .exportHeading { margin-bottom:8px; }
+.exportPanel .exportHeading h2 { font-size:17px; line-height:1.3; }
+.exportSettings { border-top:1px solid #ffffff40; margin-bottom:10px; }
+.exportSettings summary { display:flex; align-items:center; gap:8px; min-height:44px; list-style:none; cursor:pointer; font-size:11px; }
+.exportSettings summary::-webkit-details-marker { display:none; }
+.exportSettings summary > span:first-child { flex:1; }
+.exportSettings summary > span:nth-child(2) { white-space:nowrap; font-size:10px; color:var(--studio-muted); }
+.exportSettings summary svg { flex:none; transition:transform .2s; }
+.exportSettings[open] summary svg { transform:rotate(180deg); }
+.exportPanel .frameChoices, .exportPanel .resolutionChoices { margin-bottom:16px; }
+.exportPanel .frameChoices button { min-height:76px; gap:5px; }
+.exportPanel .transparentNote { margin-bottom:12px; padding:10px 12px; line-height:1.5; }
+.materialPanel { flex:none; padding:12px 18px 8px; }
+.materialHeading { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.materialHeading h2 { flex:1; margin:0; font-size:16px; line-height:1.35; font-weight:650; }
+.materialHeading > button { display:grid; place-items:center; width:44px; height:44px; flex:none; border:1px solid var(--studio-stroke); border-radius:50%; background:#ffffff12; }
+.materialRange > label { display:block; font-size:12px; font-weight:600; }
+.rangeInputs { display:flex; align-items:center; gap:10px; min-height:44px; }
+.rangeInputs input[type=range] { min-width:0; width:100%; min-height:44px; padding:0; accent-color:var(--studio-selected); cursor:ew-resize; }
+.rangeInputs input[type=range]:disabled { cursor:default; opacity:.45; }
+.rangeNumber { display:flex; align-items:center; width:76px; flex:none; border:1px solid #ffffff7a; background:#ffffff12; border-radius:10px; }
+.rangeNumber input { width:100%; min-width:0; min-height:38px; padding:6px 2px 6px 8px; border:0; background:transparent; font-size:12px; appearance:textfield; -moz-appearance:textfield; }
+.rangeNumber input::-webkit-inner-spin-button { -webkit-appearance:none; }
+.rangeNumber span { padding-inline-end:8px; font-size:11px; opacity:.85; }
+.materialHint { margin:0 0 10px; color:var(--studio-muted); font-size:10px; line-height:1.5; }
+.materialGroup, .waterControl { border-top:1px solid #ffffff40; }
+.materialGroup summary { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; cursor:pointer; list-style:none; font-size:12px; font-weight:600; }
+.materialGroup summary::-webkit-details-marker { display:none; }
+.materialGroup summary:hover { color:var(--studio-selected); }
+.materialGroup summary svg { transition:transform .2s; }
+.materialGroup[open] summary svg { transform:rotate(180deg); }
+.materialGroupContent { padding-bottom:10px; }
+.materialColor { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:52px; }
+.materialColor > label { font-size:12px; font-weight:600; }
+.materialColor > div { display:flex; align-items:center; gap:8px; }
+.materialColor code { font-size:10px; font-family:inherit; color:var(--studio-muted); }
+.materialColor input { width:44px; height:36px; padding:4px; border:1px solid #ffffff80; border-radius:10px; background:#ffffff12; cursor:pointer; }
+.materialColor input:disabled { opacity:.4; cursor:default; }
+@media (min-width:1150px) and (max-width:1499px) {
+  .headerStart { gap:12px; }
+  .backLink { font-size:12px; }
+  .brand h1 { font-size:12px; padding-inline:14px; }
+  .header > .backgroundBar { padding:5px; }
+  .header .backgroundChoices button { gap:5px; padding-inline:7px; }
+  .header .swatch { width:18px; height:18px; }
+  .materialPanel { padding-inline:14px; }
+  .materialHeading h2 { font-size:15px; }
+}
+@media (max-width:1149px) {
+  .header { grid-template-columns:auto minmax(0,1fr) auto; padding-block:12px; column-gap:16px; row-gap:12px; }
+  .headerStart { display:contents; }
+  .brand { justify-self:start; }
+  .headerActions { grid-column:3; grid-row:1; }
+  .header > .backgroundBar { grid-column:1/-1; grid-row:2; justify-self:center; }
+  .exportColumn { padding-block:0; }
+}
+@media (min-width:768px) and (max-width:1149px) {
+  .header { grid-template-columns:270px minmax(0,1fr); column-gap:20px; }
+  .headerStart { display:flex; grid-column:1/-1; grid-row:1; }
+  .headerActions { grid-column:2; justify-self:end; }
+  .header > .backgroundBar { grid-column:2; flex-wrap:wrap; border-radius:24px; }
+  .header .backgroundChoices { flex-wrap:wrap; justify-content:center; }
+}
+@media (max-width:767px) {
+  .header { grid-template-columns:44px minmax(0,1fr) 44px; gap:10px; }
+  .brand h1 { font-size:13px; padding:12px 16px; }
+  .header > .backgroundBar { width:100%; border-radius:22px; padding:6px; justify-content:center; }
+  .header .backgroundChoices { flex-wrap:wrap; justify-content:center; }
+  .header > .backgroundBar { flex-wrap:wrap; }
+  .rangeNumber input { min-height:44px; }
+  .materialColor input { height:44px; }
 }

@@ -28,10 +28,63 @@ export function projectAccentImage(world: THREE.Matrix4, camera: THREE.Camera, w
   return result;
 }
 
+/** A hidden counterpart of the CSS splash, enabled only by the backdrop pass.
+ * Geometry and the transformed image map stay owned by the normal accent layer.
+ * Hard Light and image opacity are evaluated in CSS/sRGB space before returning
+ * linear radiance to the existing backdrop target. */
+export function createHardLightCaptureProxy(map: THREE.Texture, geometry: THREE.BufferGeometry, imageZoom = 1): THREE.Mesh {
+  map.updateMatrix();
+  const material = new THREE.ShaderMaterial({
+    name: 'rear-hard-light-capture',
+    uniforms: {
+      splashMap: { value: map }, splashMapTransform: { value: map.matrix },
+      backdrop: { value: null }, resolution: { value: new THREE.Vector2(1, 1) }, opacity: { value: 1 },
+    },
+    vertexShader: /* glsl */`
+      uniform mat3 splashMapTransform;
+      varying vec2 vSplashUv;
+      void main() {
+        vSplashUv = (splashMapTransform * vec3(uv, 1.0)).xy;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform sampler2D splashMap;
+      uniform sampler2D backdrop;
+      uniform vec2 resolution;
+      uniform float opacity;
+      varying vec2 vSplashUv;
+      void main() {
+        vec4 source = texture2D(splashMap, vSplashUv);
+        vec2 screenUv = gl_FragCoord.xy / resolution;
+        vec3 base = sRGBTransferOETF(vec4(texture2D(backdrop, screenUv).rgb, 1.0)).rgb;
+        vec3 blend = sRGBTransferOETF(vec4(source.rgb, 1.0)).rgb;
+        vec3 low = 2.0 * base * blend;
+        vec3 high = 1.0 - 2.0 * (1.0 - base) * (1.0 - blend);
+        vec3 hardLight = mix(low, high, step(vec3(0.5), blend));
+        vec3 cssComposite = mix(base, hardLight, clamp(source.a * opacity, 0.0, 1.0));
+        gl_FragColor = sRGBTransferEOTF(vec4(cssComposite, 1.0));
+        #include <colorspace_fragment>
+      }
+    `,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
+  });
+  const proxy = new THREE.Mesh(geometry, material);
+  proxy.name = 'rear-hard-light-capture-proxy';
+  proxy.userData.hardLightCapture = true;
+  proxy.renderOrder = -10;
+  proxy.scale.setScalar(imageZoom);
+  proxy.visible = false;
+  // Capture-only decoration is never a product interaction surface.
+  proxy.raycast = () => {};
+  return proxy;
+}
+
 /** Real CSS Hard Light against the authored DOM background, beneath WebGL.
  * The clip wrapper deliberately creates NO stacking context: isolating it
  * would prevent its child from blending with the flavor background.
- * No additional WebGL render, capture, texture upload or animation loop. */
+ * A hidden mesh counterpart can join the existing water backdrop capture;
+ * the visible hero still uses only this DOM image. */
 export function createBlendedAccentHost(mount: HTMLDivElement) {
   const parent = mount.closest<HTMLElement>('.showcase-hero');
   if (!parent) return undefined;

@@ -18,15 +18,15 @@
     "test:translation": "node scripts/tests/catalog-translation.test.cjs",
     "test:resources": "node scripts/tests/admin-resources.test.cjs",
     "test:operations": "node scripts/tests/operations.test.cjs && node scripts/tests/operations-api.test.cjs",
-    "test:viewer": "node scripts/tests/product-viewer.test.cjs && node scripts/tests/appearance-required.test.cjs && node scripts/tests/product-viewer-loading.test.cjs && node scripts/tests/hero-resource-window.test.cjs && node scripts/tests/pooled-appearance.test.cjs && node scripts/tests/viewer-prefetch.test.cjs && node scripts/tests/bottle-materials.test.cjs",
+    "test:viewer": "node scripts/tests/product-viewer.test.cjs && node scripts/tests/appearance-required.test.cjs && node scripts/tests/product-viewer-loading.test.cjs && node scripts/tests/hero-resource-window.test.cjs && node scripts/tests/pooled-appearance.test.cjs && node scripts/tests/viewer-prefetch.test.cjs && node scripts/tests/bottle-materials.test.cjs && node scripts/tests/aloe-bottle-materials.test.cjs",
     "test:background": "node scripts/tests/background-motion.test.cjs && node scripts/tests/background-themes.test.cjs",
     "test:framing": "node scripts/tests/framing.test.cjs",
-    "test:mockup": "node scripts/tests/mockup-catalog.test.cjs && node scripts/tests/mockup-runtime.test.cjs",
+    "test:mockup": "node scripts/tests/mockup-catalog.test.cjs && node scripts/tests/mockup-runtime.test.cjs && node scripts/tests/material-adjustments.test.cjs",
     "test:accents": "node scripts/tests/accent-scene.test.cjs && node scripts/tests/accent-layer.test.cjs && node scripts/tests/clear-accent-assets.test.cjs",
     "test:environment": "node scripts/tests/viewer-environment.test.cjs",
     "test:water": "node scripts/tests/droplet-material.test.cjs && node scripts/tests/ice-material.test.cjs && node scripts/tests/backdrop-texture.test.cjs && node scripts/tests/water-backdrop-pass.test.cjs",
     "convert:model": "node scripts/convert-can-obj-to-glb.mjs",
-    "test:pet": "node scripts/tests/pet-model-media.test.cjs && node scripts/tests/liquid-color.test.cjs"
+    "test:pet": "node scripts/tests/pet-model-media.test.cjs && node scripts/tests/liquid-color.test.cjs && node scripts/tests/aloe-model-media.test.cjs && node scripts/tests/aloe-catalog.test.cjs && node scripts/tests/aloe-production.test.cjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",

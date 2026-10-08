@@ -42,6 +42,8 @@ export interface ProductAsset {
 }
 
 export interface MaterialOverride {
+  /** Horizontal UV turns; zero retains the authored alignment. */
+  textureOffsetX?: number;
   color?: string;
   metalness?: number;
   roughness?: number;
@@ -220,6 +222,7 @@ export function resolveViewerPresentation(input: ViewerPresentationInput = {}): 
 
 export function resolveMaterialOverride(input: MaterialOverride): MaterialOverride {
   const result: MaterialOverride = {};
+  if (input.textureOffsetX !== undefined) result.textureOffsetX = number(input.textureOffsetX, 0, -0.5, 0.5);
   if (input.color !== undefined) result.color = color(input.color, '#ffffff');
   for (const key of ['metalness', 'roughness', 'clearcoat', 'clearcoatRoughness', 'transmission', 'opacity'] as const) {
     if (input[key] !== undefined) result[key] = number(input[key], 0, 0, 1);

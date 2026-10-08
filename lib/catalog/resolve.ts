@@ -36,12 +36,25 @@ export function resolveLabelAppearance(data: CatalogData, label: Label, appearan
 }
 
 /** Sales and Studio use the same liquid tint; imported PET/cloudiness settings stay intact. */
-export function resolveModelLabelAppearance(data: CatalogData, model: Model3D, label: Label, flavor?: Pick<Flavor, 'accentColor'>, liquidColor?: string | null, appearanceId = `${label.id}:${label.revision}`): ProductAppearance | null {
+export function resolveModelLabelAppearance(data: CatalogData, model: Model3D, label: Label, flavor?: Pick<Flavor, 'accentColor'>, liquidColor?: string | null, appearanceId = `${label.id}:${label.revision}`, capColor?: string | null, labelOffset = 0): ProductAppearance | null {
   const appearance = resolveLabelAppearance(data, label, appearanceId);
-  if (!appearance || !model.materialSlots.liquid?.length) return appearance;
+  if (!appearance) return null;
+  appearance.slots ??= {};
+  if (Number.isFinite(labelOffset) && labelOffset !== 0) {
+    const offset = Math.max(-50, Math.min(50, labelOffset));
+    appearance.id += `:offset:${offset}`;
+    appearance.slots.label.textureOffsetX = offset / 100;
+  }
   const color = liquidColor ?? flavor?.accentColor;
-  if (!color || color.length !== 7 || !/^#[0-9a-f]{6}$/i.test(color)) return appearance;
-  return { ...appearance, id: `${appearanceId}:liquid:${color.toLowerCase()}`, slots: { ...appearance.slots, liquid: { color } } };
+  if (model.materialSlots.liquid?.length && color?.length === 7 && /^#[0-9a-f]{6}$/i.test(color)) {
+    appearance.id += `:liquid:${color.toLowerCase()}`;
+    appearance.slots.liquid = { color };
+  }
+  if (model.materialSlots.cap?.length && capColor?.length === 7 && /^#[0-9a-f]{6}$/i.test(capColor)) {
+    appearance.id += `:cap:${capColor.toLowerCase()}`;
+    appearance.slots.cap = { color: capColor };
+  }
+  return appearance;
 }
 
 function seeded(seed: string): () => number {
@@ -104,7 +117,7 @@ export function resolveDisplay3D(data: CatalogData, display: Display3D, seed = '
   const labelMedia = data.media.find(item => item.id === label?.mediaId);
   if (!variant || !model || !flavor || !packaging || !modelMedia || !labelMedia || modelMedia.status!=='ready'||labelMedia.status!=='ready'||modelMedia.lifecycle!=='active'||labelMedia.lifecycle!=='active'||modelMedia.role!=='model'||labelMedia.role!=='label') return null;
   const asset = resolveModelAsset(data, model);
-  const appearance = label && resolveModelLabelAppearance(data, model, label, flavor, display.liquidColor, `${display.id}:${label.id}:${label.revision}`);
+  const appearance = label && resolveModelLabelAppearance(data, model, label, flavor, display.liquidColor, `${display.id}:${label.id}:${label.revision}`, display.capColor, display.labelOffset);
   if (!asset || !appearance) return null;
   return {
     variant, flavor,

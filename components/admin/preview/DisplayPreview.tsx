@@ -14,7 +14,8 @@ export default function DisplayPreview({ catalog, display3d, display2d }: { cata
   const [mobile, setMobile] = useState(false);
   const [seed, setSeed] = useState(0);
   const [reset, setReset] = useState(0);
-  const resolved = useMemo(() => display3d ? resolveDisplay3D(catalog, display3d, `preview-${seed}`) : null, [catalog, display3d, seed]);
+  // The live offset changes UVs only; it must not reload artwork while dragging.
+  const resolved = useMemo(() => display3d ? resolveDisplay3D(catalog, { ...display3d, labelOffset: 0 }, `preview-${seed}`) : null, [catalog, display3d, seed]);
   const variant = catalog.productVariants.find(item => item.id === (display3d ?? display2d)?.productVariantId);
   const flavor = resolved?.flavor ?? catalog.flavors.find(item => item.id === variant?.flavorId);
   const asset2d = catalog.assets2d.find(item => item.id === display2d?.assetId);
@@ -23,7 +24,7 @@ export default function DisplayPreview({ catalog, display3d, display2d }: { cata
     <div className={styles.surface}>
       <h3>Xem trước {display3d ? '3D' : '2D'}</h3>
       <div className={`${styles.stage} ${mobile ? styles.mobileStage : ''}`} style={flavor ? { backgroundColor: flavor.backgroundColor } : undefined}>
-        {resolved ? <ProductViewer asset={resolved.asset} appearance={resolved.appearance} accentScene={resolved.accentScene} resetKey={reset} />
+        {resolved ? <ProductViewer asset={resolved.asset} appearance={resolved.appearance} materialOverrides={{ label: { textureOffsetX: (display3d?.labelOffset ?? 0) / 100 } }} accentScene={resolved.accentScene} resetKey={reset} />
           : image && image.status === 'ready' ? <img src={mediaUrl(image)} alt={display2d?.alt || asset2d?.name || 'Ảnh sản phẩm'} />
           : <div className={styles.empty}>Chọn {display3d ? 'model, nhãn và hương vị' : 'ảnh sản phẩm'} để xem trước. Tài nguyên phải sẵn sàng.</div>}
       </div>

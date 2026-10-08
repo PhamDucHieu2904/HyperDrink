@@ -49,11 +49,18 @@ function fixture(floatSupported = true) {
   // A similarly named ordinary material is not a water sampler and must remain visible.
   const ordinary = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial({ name: 'colorless-water-droplet' }));
   scene.add(water, hiddenWater, ice, ordinary);
+  const oldSplashBackdrop = new THREE.Texture();
+  const splashMaterial = new THREE.ShaderMaterial({ name: 'rear-hard-light-capture', uniforms: {
+    backdrop: { value: oldSplashBackdrop }, resolution: { value: new THREE.Vector2(17, 23) },
+  } });
+  const splash = new THREE.Mesh(new THREE.PlaneGeometry(), splashMaterial);
+  splash.userData.hardLightCapture = true; splash.visible = false;
+  scene.add(splash);
   const camera = new THREE.PerspectiveCamera();
   const background = new THREE.Texture({ width: 512, height: 768 });
   const pass = loaded.exports.createWaterBackdropPass(renderer, scene, product);
   return { pass, targets, renderer, scene, product, fruit, water, hiddenWater, ice, ordinary, camera,
-    background, originalBackground, previousTarget };
+    background, originalBackground, previousTarget, splash, splashMaterial, oldSplashBackdrop };
 }
 
 test('capture includes actual accents, excludes product/water/ice feedback and restores caller state on success or render failure', () => {
@@ -71,6 +78,10 @@ test('capture includes actual accents, excludes product/water/ice feedback and r
       assert.equal(f.ice.visible, false, 'Native ice also samples this target and cannot render back into itself');
       assert.equal(f.fruit.visible, true, 'Fruit remains in the water sampler instead of being replaced by CSS color');
       assert.equal(f.ordinary.visible, true);
+      assert.equal(f.splash.visible, true, 'The DOM-only rear splash joins this capture once');
+      assert.equal(f.splashMaterial.uniforms.backdrop.value, f.background, 'Proxy samples the source canvas, never the target being written');
+      assert.notEqual(f.splashMaterial.uniforms.backdrop.value, f.pass.texture);
+      assert.deepEqual(f.splashMaterial.uniforms.resolution.value.toArray(), [512, 768]);
       assert.equal(f.renderer.getRenderTarget(), target);
       if (shouldThrow) throw new Error('test render failure');
     };
@@ -81,6 +92,9 @@ test('capture includes actual accents, excludes product/water/ice feedback and r
     assert.equal(f.water.visible, true);
     assert.equal(f.hiddenWater.visible, false);
     assert.equal(f.ice.visible, true);
+    assert.equal(f.splash.visible, false, 'Capture-only splash cannot leak into the visible WebGL scene after success or failure');
+    assert.equal(f.splashMaterial.uniforms.backdrop.value, f.oldSplashBackdrop);
+    assert.deepEqual(f.splashMaterial.uniforms.resolution.value.toArray(), [17, 23]);
     assert.equal(f.renderer.getRenderTarget(), f.previousTarget);
     assert.equal(f.renderer.getActiveCubeFace(), 3);
     assert.equal(f.renderer.getActiveMipmapLevel(), 2);

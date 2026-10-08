@@ -5,13 +5,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const ts = require('typescript');
 const THREE = require('three');
+require('../register-admin-typescript.cjs');
+const materialAdjustments = require('../../lib/viewer/material-adjustments.ts');
 function load(file, importer) {
   const text = fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8');
   const js = ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const loaded = { exports: {} }; new Function('require', 'module', 'exports', js)(importer, loaded, loaded.exports); return loaded.exports;
+  const loaded = { exports: {} }; new Function('require', 'module', 'exports', js)(name => name === './material-adjustments' ? materialAdjustments : importer(name), loaded, loaded.exports); return loaded.exports;
 }
 const urls = load('lib/public-url.ts', require), config = load('lib/viewer-config.ts', require);
-const bottleMaterials = load('lib/viewer/bottle-materials.ts', require);
+const aloeMaterials = load('lib/viewer/aloe-bottle-materials.ts', require);
+const bottleMaterials = load('lib/viewer/bottle-materials.ts', name => name === './aloe-bottle-materials' ? aloeMaterials : require(name));
 const appearance = id => ({ id, requiredSlots: ['label'], slots: { label: { baseColorMap: `/labels/${id}.webp`, roughness: .15 } } });
 function fixture(context, options = {}) {
   const { importedTexture, ...poolOptions } = options;
