@@ -115,6 +115,16 @@
 .flavorGrouping button:focus-visible { outline: 2px solid #176946; outline-offset: 3px; }
 .flavorTypeBadges { display: flex; flex-wrap: wrap; gap: 5px; margin: 5px 0; }
 .flavorTypeBadges > span { padding: 3px 7px; border: 1px solid #dce9e1; border-radius: 5px; background: #f0f7f2; color: #34664c; font-size: 11px; line-height: 1.4; }
+.detailFilters { margin-bottom: 18px; padding: 16px 20px 20px; border: 1px solid var(--admin-border); border-radius: 10px; background: #fff; }
+.detailFilterHeading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.detailFilterHeading > span, .detailFilterHeading > button { display: inline-flex; align-items: center; gap: 7px; }
+.detailFilterHeading > span { color: #365c48; font-size: 13px; font-weight: 600; }
+.detailFilterHeading > button { padding: 8px 10px; min-height: 36px; border: 1px solid #dce7df; border-radius: 6px; background: #f7faf8; color: #326c4c; font-size: 12px; }
+.detailFilterFields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.detailFilterFields > label { display: flex; flex-direction: column; gap: 8px; min-width: 0; color: #486650; font-size: 12px; font-weight: 600; }
+.detailFilterFields select { width: 100%; min-width: 0; min-height: 44px; padding: 9px 12px; border: 1px solid #d8e4dc; border-radius: 7px; background: #fafcfb; color: #315440; font-size: 13px; font-weight: 400; }
+.detailFilters :is(select, button):focus-visible { outline: 2px solid #176946; outline-offset: 2px; }
+@media (max-width: 700px) { .detailFilters { padding: 14px; } .detailFilterFields { grid-template-columns: 1fr; gap: 12px; } }
 .contextBanner { display: flex; align-items: center; gap: 9px; padding: 13px 15px; border: 1px solid #dbe8de; border-radius: 8px; background: #edf5ef; color: #64836c; font-size: 11px; margin-bottom: 17px; }
 .contextBanner strong { color: #2e6341; }
 .contextBanner p { margin-left: auto; font-size: 10px; }

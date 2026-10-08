@@ -1,0 +1,173 @@
+{
+  "state": "complete",
+  "source": "D:\\3D model\\Model Bottle Can\\Blender Model 1\\500 ml Bottle Model Short Label_web.blend",
+  "sourceSha256": "a0a0526acef9c8771b9a36eb29ff1b6c7adf13bec1c056b3e5f81171c2355f48",
+  "sourceUnchanged": true,
+  "blenderVersion": "5.2.2 LTS",
+  "normalMapSource": "D:\\3D model\\Model Bottle Can\\Blender Model 1\\..\\..\\..\\Vinut-TK\\Downloads\\Normal.png",
+  "normalMapSourceSha256": "73d16fb67533015f83a834f80dc260fbc32c4d4d1fdeb71d77f97b5005115189",
+  "sourceBounds": {
+    "minimum": [
+      -0.2931825816631317,
+      -0.293148010969162,
+      0.003936648368835449
+    ],
+    "maximum": [
+      0.2930968403816223,
+      0.29321756958961487,
+      2.0924148559570312
+    ],
+    "center": [
+      -0.00004287064075469971,
+      0.00003477931022644043,
+      1.0481757521629333
+    ]
+  },
+  "exportScale": 0.1,
+  "meshes": [
+    {
+      "name": "Cap",
+      "role": "cap",
+      "triangles": 12036,
+      "evaluatedVertices": 6000,
+      "originalUvLayers": [
+        "UVMap"
+      ],
+      "modifiers": [
+        {
+          "name": "Solidify",
+          "type": "SOLIDIFY",
+          "levels": null,
+          "renderLevels": null,
+          "showViewport": true,
+          "showRender": true
+        }
+      ],
+      "exportUvLayers": []
+    },
+    {
+      "name": "Body bottle",
+      "role": "body",
+      "triangles": 98392,
+      "evaluatedVertices": 49677,
+      "originalUvLayers": [
+        "UVMap",
+        "automap",
+        "UV_Body_Normal"
+      ],
+      "modifiers": [
+        {
+          "name": "Subdivision",
+          "type": "SUBSURF",
+          "levels": 1,
+          "renderLevels": 2,
+          "showViewport": true,
+          "showRender": true
+        },
+        {
+          "name": "Unity Tangent Triangulation",
+          "type": "TRIANGULATE",
+          "levels": null,
+          "renderLevels": null,
+          "showViewport": true,
+          "showRender": true
+        }
+      ],
+      "exportUvLayers": [
+        "UVMap"
+      ]
+    },
+    {
+      "name": "Label",
+      "role": "label",
+      "triangles": 21696,
+      "evaluatedVertices": 11104,
+      "originalUvLayers": [
+        "UVMap"
+      ],
+      "modifiers": [
+        {
+          "name": "Subdivision",
+          "type": "SUBSURF",
+          "levels": 2,
+          "renderLevels": 2,
+          "showViewport": true,
+          "showRender": true
+        }
+      ],
+      "exportUvLayers": [
+        "UVMap"
+      ]
+    },
+    {
+      "name": "Water",
+      "role": "liquid",
+      "triangles": 94664,
+      "evaluatedVertices": 47429,
+      "originalUvLayers": [
+        "UVMap",
+        "automap"
+      ],
+      "modifiers": [
+        {
+          "name": "Subdivision",
+          "type": "SUBSURF",
+          "levels": 1,
+          "renderLevels": 2,
+          "showViewport": true,
+          "showRender": true
+        }
+      ],
+      "exportUvLayers": []
+    },
+    {
+      "name": "Aloe Pulp",
+      "role": "inclusions",
+      "triangles": 19980,
+      "evaluatedVertices": 10360,
+      "originalUvLayers": [],
+      "modifiers": [],
+      "exportUvLayers": []
+    }
+  ],
+  "triangleCount": 246768,
+  "draco": {
+    "level": 10,
+    "positionBits": 14,
+    "liquidPositionBits": 16,
+    "normalBits": 10,
+    "uvBits": 12
+  },
+  "id": "pet-500-short-label",
+  "file": "pet-500-short-label.glb",
+  "bytes": 1125168,
+  "sha256": "915d9da6d1999baf00a84548d5dc68ee6654011d74c8973603ea71c7f3a3424e",
+  "compression": [
+    "KHR_draco_mesh_compression",
+    "EXT_texture_webp"
+  ],
+  "triangleCountUnchanged": true,
+  "gltf": {
+    "triangles": 246768,
+    "vertices": 168836,
+    "dracoBytes": 762155
+  },
+  "normalMap": {
+    "width": 668,
+    "height": 668,
+    "originalBytes": 1263265,
+    "encodedBytes": 338830,
+    "encoding": "WebP quality 95, smartSubsample, full resolution",
+    "normalStrength": 0.35,
+    "lossy": true,
+    "colorGrading": false,
+    "resized": false
+  },
+  "baseline": {
+    "bytes": 3014632,
+    "triangles": 246768,
+    "vertices": 206434,
+    "dracoBytes": 1727145
+  },
+  "registeredInCatalog": false
+}
