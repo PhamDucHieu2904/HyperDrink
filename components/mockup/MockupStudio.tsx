@@ -70,7 +70,6 @@ function Studio() {
   }) ?? [])], [catalog]);
   const flavorIndex = Math.max(0, themes.findIndex(theme => theme.id === selection?.label?.flavorId));
   const [backgroundState] = useState(() => new BackgroundRenderState(backgroundSettings, [studioFallbackTheme]));
-  const backdrop = useMemo(() => ({ state: backgroundState, config: backgroundSettings }), [backgroundState]);
   const hasPreview = Boolean(product);
   const selectedModel = data?.models3d.find(item => item.id === selection?.model?.id);
   const selectedLabel = data?.labels.find(item => item.id === selection?.label?.id);
@@ -168,7 +167,7 @@ function Studio() {
   const previewStyle: CSSProperties = { '--frame-aspect': frame.ratio } as CSSProperties;
   const backgroundTypes = ['white','gray','dark','color','gradient','transparent'] as const;
   const downloadButton = (className: string) => <button type="button" className={className} disabled={!ready || locked} onClick={() => void exportImage()}>{locked ? <LoaderCircle size={18} className={styles.spinner} aria-hidden="true" /> : <ArrowDownToLine size={18} aria-hidden="true" />}{locked ? copy.exporting : copy.download}</button>;
-  return <main ref={studioRef} className={styles.studio} style={studioStyle} data-language={locale} data-background={background.type} data-refraction-backdrop>
+  return <main ref={studioRef} className={styles.studio} style={studioStyle} data-language={locale} data-background={background.type}>
     <FlavorBackground flavorIndex={flavorIndex} themes={themes} renderState={backgroundState} config={backgroundSettings} />
     <a href="#mockup-workspace" className={styles.skip}>{copy.open}</a>
     <header className={styles.header}>
@@ -194,7 +193,7 @@ function Studio() {
           <div className={styles.sceneArea}>
             <div className={styles.cameraTools} style={mockupGlassStyle} role="group" aria-label={copy.focal}><span className={styles.toolLabel}>{copy.focal}</span>{MOCKUP_FOCAL_PRESETS.map(preset => <button type="button" key={preset} aria-pressed={focal === preset} disabled={locked || !status?.hasProduct} onClick={() => setFocal(preset)}><Focus size={17} aria-hidden="true" />{copy[preset]}</button>)}</div>
             <div ref={stageRef} className={styles.stage} style={previewStyle}><div className={styles.frame}>
-              <MockupCanvas ref={canvas} asset={product.asset} appearance={product.appearance} materialOverrides={materialOverrides} frontYaw={selection?.model?.mockupFrontYaw} background={background} backdrop={backdrop} animation={animation} focal={focal} aspect={frame.ratio} label={`${copy.title}. ${copy.keyboard}`} onStatus={receiveStatus} onInteraction={manualInteraction} onReset={resetLens} retry={retry} locked={locked} />
+              <MockupCanvas ref={canvas} asset={product.asset} appearance={product.appearance} materialOverrides={materialOverrides} frontYaw={selection?.model?.mockupFrontYaw} background={background} animation={animation} focal={focal} aspect={frame.ratio} label={`${copy.title}. ${copy.keyboard}`} onStatus={receiveStatus} onInteraction={manualInteraction} onReset={resetLens} retry={retry} locked={locked} />
               {phase !== 'ready' && phase !== 'error' && <div className={styles.sceneLoading} style={mockupGlassStyle} role="status"><LoaderCircle size={19} className={styles.spinner} aria-hidden="true" />{statusText}</div>}
               {phase === 'error' && <div className={styles.sceneError} style={mockupGlassStyle} role="alert"><p>{statusText}</p><button type="button" disabled={locked} onClick={() => { setStatus(null); setRetry(value => value + 1); }}>{copy.retry}</button></div>}
               <span className={styles.frameTag} aria-hidden="true">{frame.text}</span>

@@ -4,30 +4,6 @@ import type { ProductAsset } from '../viewer-config';
 
 export type AloeBottleRole = 'body' | 'ring' | 'liquid' | 'liquid-back' | 'inclusions' | 'cap' | 'label';
 export const ALOE_PET_PROFILE = 'aloe-pet-v1';
-interface AloeBackdropBinding {
-  texture: { value: THREE.Texture | null };
-  enabled: { value: number };
-  texel: { value: THREE.Vector2 };
-}
-// The backdrop is borrowed from the viewer's existing capture pass. Keeping
-// bindings out of serializable material metadata also avoids pool ownership.
-const backdropBindings = new WeakMap<THREE.Material, AloeBackdropBinding>();
-
-/** Bind the current drawn pool clone, before or after its shader compiles. */
-export function setAloeBottleBackdrop(root: THREE.Object3D, texture: THREE.Texture | null): void {
-  const image = texture?.image as { width?: number; height?: number } | undefined;
-  const width = Math.max(1, image?.width ?? 1), height = Math.max(1, image?.height ?? 1);
-  root.traverse(node => {
-    if (!(node instanceof THREE.Mesh)) return;
-    for (const material of Array.isArray(node.material) ? node.material : [node.material]) {
-      const binding = backdropBindings.get(material);
-      if (!binding) continue;
-      binding.texture.value = texture;
-      binding.enabled.value = texture ? 1 : 0;
-      binding.texel.value.set(1 / width, 1 / height);
-    }
-  });
-}
 const PROFILE_LEVELS = 16;
 const FLOOR_LEVELS = 16;
 const FLOOR_DEPTH = 0.025;
@@ -51,14 +27,6 @@ export const ALOE_PET_OPTICS = Object.freeze({
   scatteringExtinctionPerMetre: 34,
   bulkAbsorption: 0.3,
   mediumAbsorption: 0.55,
-  externalRayInsetMetres: 0.0005,
-  externalRayMaximumChord: 1.6,
-  // Authorized art direction: a neutral softbox contribution keeps turbid
-  // body colour close to the white Studio preview. Only the borrowed backdrop
-  // is lifted; liquid colour, extinction and the Studio/null mode are unchanged.
-  externalBackdropNeutralFill: true,
-  externalBackdropThinFill: 0.2,
-  externalBackdropBodyFill: 0.75,
 });
 
 export function isAloeBottleMaterial(asset: ProductAsset, mesh: THREE.Mesh, material: THREE.Material): boolean {
@@ -115,13 +83,6 @@ export function aloeReservoirCoverage(pathMetres: number, normalizedHeight = 0):
   return 1 - Math.exp(-Math.max(0, pathMetres) * ALOE_PET_OPTICS.scatteringExtinctionPerMetre * neckRetention * topRetention);
 }
 
-/** Art-direction fill of the refracted backdrop, independent of liquid hue. */
-export function aloeBackdropWhiteFill(pathMetres: number, referencePathMetres: number): number {
-  if (!ALOE_PET_OPTICS.externalBackdropNeutralFill) return 0;
-  const fullness = THREE.MathUtils.smoothstep(pathMetres / Math.max(referencePathMetres, 0.0001), 0.35, 0.9);
-  return THREE.MathUtils.lerp(ALOE_PET_OPTICS.externalBackdropThinFill, ALOE_PET_OPTICS.externalBackdropBodyFill, fullness);
-}
-
 /** Three uses a white/alpha .5 sentinel in its transmission target. Recover
  * actual captured objects without turning uncovered CSS/PNG areas white. */
 export function aloeClearCapture(color: THREE.Color, alpha: number, clearRadiance = 1): { color: THREE.Color; opacity: number } {
@@ -139,48 +100,12 @@ export function aloeTransmissionClearRadiance(renderer: THREE.WebGLRenderer): nu
 }
 
 /** Shared with the Aloe PET ring; leaves opaque capture pixels untouched. */
-export function correctAloeTransmissionClear(source: string, includeBackdrop = false): string {
-  const corrected = source.replace('transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );', /* glsl */`
+export function correctAloeTransmissionClear(source: string): string {
+  return source.replace('transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );', /* glsl */`
     transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );
     float aloeCapturedCoverage = clamp(transmittedLight.a * 2.0 - 1.0, 0.0, 1.0);
     transmittedLight.rgb = max(vec3(0.0), transmittedLight.rgb - vec3(aloeClearRadiance * (1.0 - aloeCapturedCoverage))) / max(aloeCapturedCoverage, 0.0001);
     transmittedLight.a = aloeCapturedCoverage;
-  `);
-  if (!includeBackdrop) return corrected;
-  return corrected.replace('transmittedLight.a = aloeCapturedCoverage;', /* glsl */`
-    transmittedLight.a = aloeCapturedCoverage;
-    if (aloeBackdropEnabled > 0.5) {
-      // The internal capture retains its calibrated thin ray. The external
-      // scene instead traverses the actual fitted liquid volume to its first
-      // exit, including the square shoulder and inward bottom air pocket.
-      vec3 externalViewWorld = normalize(mix(v,
-        (aloeMetricToWorld * vec4(aloeViewDirection, 0.0)).xyz, aloeOrthographic));
-      vec3 externalRayWorld = normalize(refract(-externalViewWorld, normalize(n), 1.0 / ior));
-      vec3 externalRayMetric = normalize((aloeWorldToMetric * vec4(externalRayWorld, 0.0)).xyz);
-      vec3 externalFrontMetric = (aloeWorldToMetric * vec4(position, 1.0)).xyz;
-      float externalInset = ${ALOE_PET_OPTICS.externalRayInsetMetres.toFixed(6)};
-      float externalPath = clamp(aloeExitDistance(externalFrontMetric + externalRayMetric * externalInset, externalRayMetric)
-        + externalInset, externalInset, aloeReferencePath * ${ALOE_PET_OPTICS.externalRayMaximumChord.toFixed(6)});
-      vec3 externalExitWorld = (aloeMetricToWorld * vec4(externalFrontMetric + externalRayMetric * externalPath, 1.0)).xyz;
-      vec4 externalNdc = projMatrix * viewMatrix * vec4(externalExitWorld, 1.0);
-      vec2 externalCoords = externalNdc.xy / externalNdc.w * 0.5 + 0.5;
-      // Five taps soften the borrowed backdrop without another mip/target pass.
-      vec2 backdropStep = aloeBackdropTexel * 1.25;
-      vec3 externalColor = texture2D(aloeBackdropTexture, clamp(externalCoords, vec2(0.0), vec2(1.0))).rgb * 0.5;
-      externalColor += texture2D(aloeBackdropTexture, clamp(externalCoords + vec2(backdropStep.x, 0.0), vec2(0.0), vec2(1.0))).rgb * 0.125;
-      externalColor += texture2D(aloeBackdropTexture, clamp(externalCoords - vec2(backdropStep.x, 0.0), vec2(0.0), vec2(1.0))).rgb * 0.125;
-      externalColor += texture2D(aloeBackdropTexture, clamp(externalCoords + vec2(0.0, backdropStep.y), vec2(0.0), vec2(1.0))).rgb * 0.125;
-      externalColor += texture2D(aloeBackdropTexture, clamp(externalCoords - vec2(0.0, backdropStep.y), vec2(0.0), vec2(1.0))).rgb * 0.125;
-      if (${ALOE_PET_OPTICS.externalBackdropNeutralFill ? 'true' : 'false'}) {
-        float backdropFill = mix(${ALOE_PET_OPTICS.externalBackdropThinFill.toFixed(6)}, ${ALOE_PET_OPTICS.externalBackdropBodyFill.toFixed(6)},
-          smoothstep(0.35, 0.9, externalPath / aloeReferencePath));
-        externalColor = mix(externalColor, vec3(1.0), backdropFill);
-      }
-      // Keep native water/gel radiance and coverage intact through exposure and
-      // tone mapping. The CSS scene is composited in output space afterward.
-      aloeExternalBackdrop = externalColor;
-      aloeExternalReady = 1.0;
-    }
   `);
 }
 
@@ -364,17 +289,11 @@ uniform vec3 aloeJuiceColor;
 uniform float aloeClearRadiance;
 uniform float aloeReferencePath;
 uniform float aloeWorldThickness;
-uniform mat4 aloeWorldToMetric;
-uniform mat4 aloeMetricToWorld;
-uniform sampler2D aloeBackdropTexture;
-uniform float aloeBackdropEnabled;
-uniform vec2 aloeBackdropTexel;
+uniform float aloeWhiteDisplayFill;
 uniform float aloePulpVisibility;
 uniform float aloePulpExtinction;
 uniform vec2 aloePulpFadeRange;
 varying vec3 vAloePosition;
-vec3 aloeExternalBackdrop = vec3(0.0);
-float aloeExternalReady = 0.0;
 
 vec4 aloeSupportAt(float y) {
   float height = clamp((y - aloeHeightRange.x) / (aloeHeightRange.y - aloeHeightRange.x), 0.0, 1.0) * ${PROFILE_LEVELS - 1}.0;
@@ -545,12 +464,7 @@ export function createAloeBottleMaterialContext(root: THREE.Object3D, asset: Pro
       const inverseWorld = new THREE.Matrix4();
       const metricToLocal = localToMetric.clone().invert();
       const metricToWorld = new THREE.Matrix4().multiplyMatrices(mesh.matrixWorld, metricToLocal);
-      const worldToMetric = metricToWorld.clone().invert();
       const physicalThickness = Math.min(profile.halfBounds.x, profile.halfBounds.y) * 0.44;
-      const backdrop: AloeBackdropBinding = {
-        texture: { value: null }, enabled: { value: 0 }, texel: { value: new THREE.Vector2(1, 1) },
-      };
-      if (role === 'liquid') backdropBindings.set(material, backdrop);
       const uniforms = {
         aloeLocalToMetric: { value: localToMetric },
         aloeCamera: { value: new THREE.Vector3() },
@@ -566,11 +480,7 @@ export function createAloeBottleMaterialContext(root: THREE.Object3D, asset: Pro
         aloeClearRadiance: { value: 1 },
         aloeReferencePath: { value: 2 * Math.min(profile.halfBounds.x, profile.halfBounds.y) },
         aloeWorldThickness: { value: physicalThickness },
-        aloeWorldToMetric: { value: worldToMetric },
-        aloeMetricToWorld: { value: metricToWorld },
-        aloeBackdropTexture: backdrop.texture,
-        aloeBackdropEnabled: backdrop.enabled,
-        aloeBackdropTexel: backdrop.texel,
+        aloeWhiteDisplayFill: { value: 0 },
         aloePulpVisibility: { value: ALOE_PET_OPTICS.pulpVisibility },
         aloePulpExtinction: { value: ALOE_PET_OPTICS.pulpExtinction },
         aloePulpFadeRange: { value: new THREE.Vector2(ALOE_PET_OPTICS.pulpFadeStart, ALOE_PET_OPTICS.pulpFadeEnd) },
@@ -581,6 +491,9 @@ export function createAloeBottleMaterialContext(root: THREE.Object3D, asset: Pro
       });
       material.onBeforeRender = (renderer, _scene, camera, _geometry, renderedObject) => {
         uniforms.aloeClearRadiance.value = aloeTransmissionClearRadiance(renderer);
+        // Default-framebuffer previews use the approved white Studio beauty.
+        // Linear/offscreen capture keeps native RGBA for the PNG output stage.
+        uniforms.aloeWhiteDisplayFill.value = renderer.getRenderTarget?.() === null ? 1 : 0;
         // The pool draws a different clone. Recover its camera in the initial
         // metric model space, retaining the original Blender hierarchy scales.
         inverseWorld.copy(renderedObject.matrixWorld).invert();
@@ -592,7 +505,6 @@ export function createAloeBottleMaterialContext(root: THREE.Object3D, asset: Pro
         // stretching vertical refraction. Recover only the viewer's model scale
         // and refract through an isotropic physical liquid thickness instead.
         metricToWorld.copy(renderedObject.matrixWorld).multiply(metricToLocal);
-        worldToMetric.copy(metricToWorld).invert();
         uniforms.aloeWorldThickness.value = physicalThickness * metricToWorld.getMaxScaleOnAxis();
       };
       if (role === 'liquid' && material instanceof THREE.MeshPhysicalMaterial) {
@@ -630,7 +542,7 @@ export function createAloeBottleMaterialContext(root: THREE.Object3D, asset: Pro
           .replace('#include <begin_vertex>', '#include <begin_vertex>\nvAloePosition = (aloeLocalToMetric * vec4(transformed, 1.0)).xyz;');
         shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\n${declarations}`);
         if (role === 'liquid') shader.fragmentShader = shader.fragmentShader.replace('#include <transmission_pars_fragment>',
-          correctAloeTransmissionClear(THREE.ShaderChunk.transmission_pars_fragment, true).replace(
+          correctAloeTransmissionClear(THREE.ShaderChunk.transmission_pars_fragment).replace(
             'return normalize( refractionVector ) * thickness * modelScale;',
             'return normalize( refractionVector ) * aloeWorldThickness;'));
         if (role === 'liquid-back') shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', /* glsl */`
@@ -646,8 +558,8 @@ export function createAloeBottleMaterialContext(root: THREE.Object3D, asset: Pro
           float relativePath = clamp(opticalPath / aloeReferencePath, 0.12, 1.8);
           vec3 volumeColor = aloeVolumeColor(opticalPath);
           vec3 mediumExtinction = -log(clamp(aloeJuiceColor, vec3(0.025), vec3(1.0))) * ${ALOE_PET_OPTICS.mediumAbsorption.toFixed(6)};
-          // Only water/gel enter this internal capture; the exterior has its
-          // separate backdrop ray. Spectrally filtering a negative gel delta
+          // Only water/gel enter this internal capture. Spectrally filtering
+          // a negative gel delta
           // again darkens red more than green/blue and gives grey-green pulp.
           // Preserve the water hue and cap cumulative overlapping extinction.
           vec3 captureDelta = totalDiffuse - volumeColor;
@@ -669,12 +581,11 @@ export function createAloeBottleMaterialContext(root: THREE.Object3D, asset: Pro
         `);
         if (role === 'liquid') shader.fragmentShader = shader.fragmentShader.replace('#include <premultiplied_alpha_fragment>', /* glsl */`
           #include <premultiplied_alpha_fragment>
-          if (aloeBackdropEnabled > 0.5 && aloeExternalReady > 0.5) {
-            // The captured CSS scene has no exposure/tone mapping. Only convert
-            // its linear colour to the current output space, exactly like its
-            // normal display; preserve the water's Studio appearance above.
-            vec3 backdropDisplay = linearToOutputTexel(vec4(aloeExternalBackdrop, 1.0)).rgb;
-            gl_FragColor.rgb += backdropDisplay * (1.0 - gl_FragColor.a);
+          if (aloeWhiteDisplayFill > 0.5) {
+            // Compose white after tone mapping, exactly as in white Studio.
+            // Internal water/gel refraction remains intact; no rear artwork
+            // texture or full-volume external ray is evaluated per pixel.
+            gl_FragColor.rgb += vec3(1.0 - gl_FragColor.a);
             gl_FragColor.a = 1.0;
           }
         `);
@@ -702,7 +613,7 @@ export function createAloeBottleMaterialContext(root: THREE.Object3D, asset: Pro
           gl_FragColor = vec4(vec3(2.0 * aloeClearRadiance * (1.0 - gelFilter)), gelFilter);
         `);
       };
-      material.customProgramCacheKey = () => `${ALOE_PET_PROFILE}:${role}:13`;
+      material.customProgramCacheKey = () => `${ALOE_PET_PROFILE}:${role}:14`;
     },
   };
 }

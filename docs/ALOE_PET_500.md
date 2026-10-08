@@ -74,7 +74,19 @@ For a new registration, `--liquid-color=#rrggbb` sets the initial display's inde
 
 The delivered poster `public/models/bottles/pet-500-aloe-poster.webp` is a 640 × 640 WebP derived from the actual 2048 × 2048 transparent PNG exported by Mockup Studio. The full native export is saved at `docs/screenshots/aloe-500-final-export.png`. The import refreshes derived media checksums when the poster is replaced; the temporary bootstrap illustration has been replaced.
 
-## Optical implementation and validation
+## Current display: v14 white liquid reservoir
+
+The selected low-cost display renders Aloe water as in the approved white Studio view. Internal Three transmission, isotropic 12.74 mm capture thickness, glossy PET/Ring, clear same-hue pulp and path-dependent neck turbidity stay calibrated. Cap and Label remain excluded from the native refraction capture. No model, color preset or 320 ml material changes are required.
+
+The liquid composes white into its remaining coverage after tone mapping and output-color conversion. This gives the white Studio appearance while hiding rear grid, fruit, leaves and splash through the liquid. The hero does not request the optional backdrop painter/capture pass for Aloe, including configurations with native water decorations. External Snell-ray scanning, five artwork texture taps, borrowed texture bindings and their matrix inversions are removed from the liquid shader. Pulp retains its fitted near/far depth calculation.
+
+Transparent Studio preview uses the same default-framebuffer white fill as the hero. It has no live decorative painter or refresh loop; Still schedules frames only for real changes or interactions. White Studio beauty and native PNG continue through the existing MSAA/linear/output pipeline. Offscreen renders disable the display fill, preserving reusable transparent PNG alpha. Preview fill resumes on the next drawn frame, without texture allocation or shader recompilation.
+
+This removes identifiable additional GPU/CPU work; low-spec hardware FPS has not been measured on the user's other machine. The v11–v13 external-refraction notes below describe the superseded implementation, not the current display.
+
+Browser review covered the real Strawberry hero with splash/leaves, matching white and transparent Studio views, and a native 2048 × 2048 transparent PNG. Still render diagnostics stayed at 334 frames across the idle checks; the PNG contains 3,145,258 fully transparent and 545,909 partially transparent pixels, and preview resumes after export. No shader/console errors were observed. Proofs: `docs/screenshots/aloe-500-v14-white-reservoir-hero.png`, `docs/screenshots/aloe-500-v14-white-reservoir-studio.png`, `docs/screenshots/aloe-500-v14-white-studio.png`, and `docs/screenshots/aloe-500-v14-transparent-export.png`.
+
+## Optical implementation and validation history
 
 The source Water had one unfilled top at the neck: 96 boundary edges before subdivision, 192 at the saved export subdivision. `bottle_500_liquid.py` seals that evaluated ring with one center vertex and 192 outward-facing triangles. All existing Water vertices, faces and corner normals remain unchanged before Draco compression. The additional surface prevents a bright open center when viewing through the molded bottom. The other four mesh streams (Body, Cap, Label and Aloe Pulp) remain byte-identical to the preceding GLB; no shader calibration changes accompany this repair. The resulting asset is only 1,260 bytes larger.
 

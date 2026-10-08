@@ -302,107 +302,51 @@ test('hero and Studio contexts bind their actual transmission clear before every
   }
 });
 
-test('drawn Aloe pool materials borrow a linear external backdrop and recover their Studio mode when detached', context => {
+test('white liquid preview retains internal refraction without an external sampler or full-volume surface ray', context => {
   const f = fixture(context), optical = aloe.createAloeBottleMaterialContext(f.root, asset);
   optical.configure(f.liquid.material, f.liquid, 'liquid', '#e84a3c');
-  const texture = new THREE.Texture({ width: 1920, height: 1080 });
-  let disposed = false; texture.addEventListener('dispose', () => { disposed = true; });
-  context.after(() => texture.dispose());
-  // Binding before compilation and on the actual pool clone must update the
-  // same uniform objects used by the eventual material shader.
-  const drawnRoot = new THREE.Group(), drawn = f.liquid.clone(); drawnRoot.add(drawn);
-  aloe.setAloeBottleBackdrop(drawnRoot, texture);
   const shader = compile(f.liquid.material);
-  assert.equal(shader.uniforms.aloeBackdropTexture.value, texture);
-  assert.equal(shader.uniforms.aloeBackdropEnabled.value, 1);
-  assert.deepEqual(shader.uniforms.aloeBackdropTexel.value.toArray(), [1 / 1920, 1 / 1080]);
-  assert.ok(shader.fragmentShader.includes('uniform sampler2D aloeBackdropTexture;'));
-  assert.equal((shader.fragmentShader.match(/texture2D\(aloeBackdropTexture/g) ?? []).length, 5);
-  assert.ok(shader.fragmentShader.includes('clamp(externalCoords + vec2(backdropStep.x, 0.0)'));
-  assert.ok(shader.fragmentShader.includes('aloeExternalBackdrop = externalColor;'));
-  assert.ok(!shader.fragmentShader.includes('transmittedLight.rgb * aloeCapturedCoverage + externalColor'),
-    'External pixels never alter native water or gel radiance before tone mapping');
-  assert.ok(!shader.fragmentShader.includes('transmittedLight.a = 1.0;'), 'Native water coverage stays unchanged before tone mapping');
-  const compositeAt = shader.fragmentShader.indexOf('vec3 backdropDisplay = linearToOutputTexel');
+  assert.equal(f.liquid.material.transmission, 1); assert.equal(f.liquid.material.ior, 1.335);
+  assert.ok(shader.fragmentShader.includes('transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );'));
+  assert.ok(shader.fragmentShader.includes('return normalize( refractionVector ) * aloeWorldThickness;'));
+  assert.ok(!shader.fragmentShader.includes('externalRay'));
+  assert.ok(!shader.fragmentShader.includes('aloeBackdropTexture'));
+  assert.ok(!shader.fragmentShader.includes('aloeExitDistance(vAloePosition'), 'Full fitted depth remains reserved for gel, not each liquid surface pixel');
+  const compositeAt = shader.fragmentShader.indexOf('gl_FragColor.rgb += vec3(1.0 - gl_FragColor.a);');
   assert.ok(compositeAt > shader.fragmentShader.indexOf('#include <colorspace_fragment>'));
   assert.ok(compositeAt > shader.fragmentShader.indexOf('#include <premultiplied_alpha_fragment>'));
-  assert.ok(shader.fragmentShader.includes('gl_FragColor.rgb += backdropDisplay * (1.0 - gl_FragColor.a);'));
   assert.ok(shader.fragmentShader.includes('gl_FragColor.a = 1.0;'));
-  assert.ok(!JSON.stringify(f.liquid.material.userData).includes(texture.uuid), 'Borrowed textures never enter serialized/pool metadata');
-  aloe.setAloeBottleBackdrop(drawnRoot, texture);
-  texture.image.width = 2048; texture.image.height = 2048;
-  aloe.setAloeBottleBackdrop(drawnRoot, texture);
-  assert.deepEqual(shader.uniforms.aloeBackdropTexel.value.toArray(), [1 / 2048, 1 / 2048], 'Capture resizing updates blur texels without recompilation');
-  aloe.setAloeBottleBackdrop(drawnRoot, null);
-  assert.equal(shader.uniforms.aloeBackdropTexture.value, null); assert.equal(shader.uniforms.aloeBackdropEnabled.value, 0);
-  assert.equal(disposed, false, 'The capture pass retains ownership of its texture');
-  assert.ok(!aloe.correctAloeTransmissionClear(THREE.ShaderChunk.transmission_pars_fragment).includes('aloeBackdropEnabled'),
-    'The common Ring helper keeps its standalone sentinel correction contract');
+  assert.ok(!aloe.correctAloeTransmissionClear(THREE.ShaderChunk.transmission_pars_fragment).includes('aloeWhiteDisplayFill'),
+    'Ring retains its standalone clear-sentinel correction');
 });
 
-test('external refraction uses the fitted full liquid chord under actual viewer placement, while the native gel ray stays thin', context => {
+test('actual pooled draws use white preview while offscreen PNG preserves native alpha and restore without recompilation', context => {
   const f = fixture(context), optical = aloe.createAloeBottleMaterialContext(f.root, asset);
   optical.configure(f.liquid.material, f.liquid, 'liquid', '#e84a3c');
-  const shader = compile(f.liquid.material);
-  f.root.position.set(2, -1, 3); f.root.rotation.set(0.4, 0.7, -0.2); f.root.scale.setScalar(2.5);
-  f.root.updateMatrixWorld(true);
-  const camera = new THREE.PerspectiveCamera(); camera.position.set(2, 0, 6); camera.lookAt(f.root.position); camera.updateMatrixWorld(true);
-  f.liquid.material.onBeforeRender({}, {}, camera, f.liquid.geometry, f.liquid, {});
-  const toWorld = shader.uniforms.aloeMetricToWorld.value, toMetric = shader.uniforms.aloeWorldToMetric.value;
-  const front = new THREE.Vector3(0, 0, 0.029), forward = new THREE.Vector3(0, 0, -1);
-  const worldFront = front.clone().applyMatrix4(toWorld), worldForward = forward.clone().transformDirection(toWorld);
-  assert.ok(worldFront.clone().applyMatrix4(toMetric).distanceTo(front) < 1e-12);
-  assert.ok(worldForward.clone().transformDirection(toMetric).distanceTo(forward) < 1e-12);
-  const profile = aloe.fitAloeLiquidProfile(f.liquid.geometry, shader.uniforms.aloeLocalToMetric.value);
-  const inset = aloe.ALOE_PET_OPTICS.externalRayInsetMetres;
-  const fullPath = aloe.aloeExitDistance(profile, front.clone().addScaledVector(forward, inset), forward) + inset;
-  assert.ok(Math.abs(fullPath - 0.058) < 0.00003, 'The external ray traverses the full 58 mm body rather than the artistic 12.74 mm capture thickness');
-  const exit = front.clone().addScaledVector(forward, fullPath).applyMatrix4(toWorld);
-  assert.ok(Math.abs(exit.distanceTo(worldFront) - 2.5 * 0.058) < 0.00008, 'External exit follows viewer scale and rotation in world space');
-  assert.ok(shader.fragmentShader.includes('aloeExitDistance(externalFrontMetric + externalRayMetric * externalInset, externalRayMetric)'));
-  assert.ok(shader.fragmentShader.includes('projMatrix * viewMatrix * vec4(externalExitWorld, 1.0)'));
-  assert.ok(shader.fragmentShader.includes('transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );'),
-    'Gel/internal capture coordinates retain their existing calibration');
-  assert.ok(shader.fragmentShader.includes('return normalize( refractionVector ) * aloeWorldThickness;'));
-  const orthographic = new THREE.OrthographicCamera(); orthographic.position.copy(camera.position);
-  orthographic.quaternion.copy(camera.quaternion); orthographic.updateMatrixWorld(true);
-  f.liquid.material.onBeforeRender({}, {}, orthographic, f.liquid.geometry, f.liquid, {});
-  const recoveredTowardWorld = shader.uniforms.aloeViewDirection.value.clone().transformDirection(shader.uniforms.aloeMetricToWorld.value);
-  const actualTowardWorld = orthographic.getWorldDirection(new THREE.Vector3()).negate();
-  assert.ok(recoveredTowardWorld.distanceTo(actualTowardWorld) < 1e-12, 'Orthographic rays use one parallel camera direction throughout the bottle');
-  assert.ok(shader.fragmentShader.includes('(aloeMetricToWorld * vec4(aloeViewDirection, 0.0)).xyz, aloeOrthographic'));
+  const drawnRoot = f.root.clone(), drawn = drawnRoot.getObjectByName(f.liquid.name);
+  drawnRoot.position.set(2, -1, 3); drawnRoot.rotation.set(0.4, 0.7, -0.2); drawnRoot.scale.setScalar(2.5);
+  drawnRoot.updateMatrixWorld(true);
+  const camera = new THREE.PerspectiveCamera(); camera.position.set(2, 0, 6); camera.lookAt(drawnRoot.position); camera.updateMatrixWorld(true);
+  const shader = compile(drawn.material), version = drawn.material.version, key = drawn.material.customProgramCacheKey();
+  let target = null;
+  const renderer = { getRenderTarget: () => target, getContextAttributes: () => ({ premultipliedAlpha: true }) };
+  const draw = () => drawn.material.onBeforeRender(renderer, {}, camera, drawn.geometry, drawn, {});
+  draw(); assert.equal(shader.uniforms.aloeWhiteDisplayFill.value, 1); assert.equal(shader.uniforms.aloeClearRadiance.value, 0.5);
+  assert.ok(Math.abs(shader.uniforms.aloeWorldThickness.value - 0.058 * 0.22 * 2.5) < 1e-7, 'Isotropic internal ray follows the drawn clone scale');
+  target = {}; draw(); assert.equal(shader.uniforms.aloeWhiteDisplayFill.value, 0, 'Linear render targets and PNG keep native alpha');
+  target = null; draw(); assert.equal(shader.uniforms.aloeWhiteDisplayFill.value, 1);
+  assert.equal(drawn.material.version, version); assert.equal(drawn.material.customProgramCacheKey(), key);
 });
 
-test('authorized neutral backdrop fill preserves white beauty on cloudy body while keeping thin neck background recognizable', () => {
-  assert.equal(aloe.aloeBackdropWhiteFill(0.012, 0.058), 0.2);
-  assert.equal(aloe.aloeBackdropWhiteFill(0.058, 0.058), 0.75);
-  const neck = aloe.aloeBackdropWhiteFill(0.024, 0.058), shoulder = aloe.aloeBackdropWhiteFill(0.04, 0.058);
-  assert.ok(neck > 0.2 && neck < 0.25); assert.ok(shoulder > neck && shoulder < 0.75);
-  assert.equal(aloe.aloeBackdropWhiteFill(0.09, 0.058), 0.75, 'Long diagonal paths never add more than the approved neutral fill');
-  assert.equal(aloe.aloeBackdropWhiteFill(0, 0.058), 0.2);
-});
-
-test('post-tone backdrop composition exactly preserves white Studio pixels at every water coverage and exposure', () => {
-  const water = new THREE.Color().setRGB(0.7, 0.09, 0.05), external = new THREE.Color().setRGB(0.03, 0.35, 0.12);
-  const outputExternal = external.clone().convertLinearToSRGB();
-  const outputWhite = new THREE.Color(1, 1, 1).convertLinearToSRGB();
+test('post-tone white reservoir matches white Studio across water coverage and exposure', () => {
+  const water = new THREE.Color().setRGB(0.7, 0.09, 0.05);
   for (const coverage of [0, 0.2, 0.6, 1]) for (const exposure of [0.6, 1, 1.8]) {
-    // Representative nonlinear tone mapping shows why the backdrop must stay
-    // outside the water exposure/tone pipeline. The regression holds for any
-    // such output colour, independently of which renderer tone mapper is used.
     const outputWater = water.clone().multiplyScalar(exposure);
     for (const channel of ['r', 'g', 'b']) outputWater[channel] /= 1 + outputWater[channel];
     outputWater.convertLinearToSRGB();
-    const premultiplied = outputWater.clone().multiplyScalar(coverage);
-    const newWhite = premultiplied.clone().add(outputWhite.clone().multiplyScalar(1 - coverage));
+    const filled = outputWater.clone().multiplyScalar(coverage).add(new THREE.Color(1, 1, 1).multiplyScalar(1 - coverage));
     const studioWhite = new THREE.Color(1, 1, 1).lerp(outputWater, coverage);
-    const coloredBackdrop = premultiplied.clone().add(outputExternal.clone().multiplyScalar(1 - coverage));
-    const expectedColored = outputExternal.clone().lerp(outputWater, coverage);
-    for (const channel of ['r', 'g', 'b']) {
-      assert.ok(Math.abs(newWhite[channel] - studioWhite[channel]) < 1e-7,
-        'Refracted white background matches the original PNG/CSS white composition independently of exposure');
-      assert.ok(Math.abs(coloredBackdrop[channel] - expectedColored[channel]) < 1e-12);
-    }
+    for (const channel of ['r', 'g', 'b']) assert.ok(Math.abs(filled[channel] - studioWhite[channel]) < 1e-12);
   }
 });
 

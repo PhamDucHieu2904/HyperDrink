@@ -198,41 +198,37 @@ test('Studio uniform edits preserve selection readiness/camera and apply pending
   assert.equal(h.statuses.at(-1).materials.label.roughness, .15);
 });
 
-test('Aloe transparent Studio preview refracts the live surface but PNG remains free of the decorative grid', async context => {
+test('Aloe white-reservoir preview has no live backdrop allocation or continuous Still RAF and retains native PNG', async context => {
   const h = runtimeHarness(); context.after(() => h.close());
-  const backdrop = { state: {}, config: {} };
-  h.runtime.setBackdrop(backdrop);
   h.runtime.setBackground({ type: 'transparent' });
   h.runtime.select({ ...studioAsset('aloe'), packaging: 'pet', materialSlots: { liquid: ['Aloe Vera Water'] } }, studioLabel('one'));
   await flush(); h.parse('/aloe.glb'); await flush(); h.finishLabel('one'); await flush();
   assert.equal(h.statuses.at(-1).phase, 'ready');
-  assert.equal(h.backdropPainters.length, 1);
-  assert.equal(h.backdropBindings.at(-1).texture, h.backdropPainters[0].texture);
-  assert.equal(h.draws.at(-1).target, null, 'Live preview uses the same final color-space composition as the hero');
-  const bindingCount = h.backdropBindings.length;
+  h.runFrame(performance.now() + 1000);
+  assert.equal(h.backdropPainters.length, 0); assert.equal(h.backdropBindings.length, 0);
+  assert.equal(h.draws.at(-1).target, null, 'Preview uses the same post-tone white composition as the hero');
+  assert.equal(h.rafs.size, 0, 'Static decorative CSS cannot keep the bottle render loop alive');
+  const drawsAtRest = h.draws.length; h.runFrame(performance.now() + 1500);
+  assert.equal(h.draws.length, drawsAtRest);
   const exporting = h.runtime.capture({ longEdge: 2048 }); await flush();
-  assert.ok(h.backdropBindings.slice(bindingCount).every(binding => binding.texture === null),
-    'The PNG render must detach live CSS before the asynchronous GPU readback');
   assert.ok(h.draws.at(-1).target !== null, 'Native transparent PNG retains its linear/MSAA export stage');
-  h.finishReadback(); await exporting; await flush(); h.runFrame(performance.now() + 1000);
-  assert.equal(h.backdropBindings.at(-1).texture, h.backdropPainters[0].texture, 'Preview refraction resumes after export');
-  h.runtime.setBackground({ type: 'white' }); h.runFrame(performance.now() + 2000);
-  assert.equal(h.backdropBindings.at(-1).texture, null);
-  assert.equal(h.backdropPainters[0].disposed, true, 'Solid backgrounds release the optional live sampler');
-  assert.ok(h.draws.at(-1).target !== null, 'White beauty preview continues to share its output stage with PNG');
-  h.runtime.setBackground({ type: 'transparent' }); h.runFrame(performance.now() + 3000);
-  assert.equal(h.backdropPainters.length, 2);
+  h.finishReadback(); await exporting; await flush(); h.runFrame(performance.now() + 2000);
+  assert.equal(h.draws.at(-1).target, null, 'White reservoir preview resumes after PNG readback');
+  assert.equal(h.rafs.size, 0);
+  h.runtime.setBackground({ type: 'white' }); h.runFrame(performance.now() + 3000);
+  assert.ok(h.draws.at(-1).target !== null, 'White Studio retains its established native beauty output');
+  h.runtime.setBackground({ type: 'transparent' }); h.runFrame(performance.now() + 4000);
   h.runtime.select(studioAsset('can'), studioLabel('one')); await flush(); h.parse('/can.glb'); await flush(); h.finishLabel('one'); await flush();
-  assert.equal(h.backdropPainters[1].disposed, true, 'Switching packages cannot leave a borrowed texture on the cached bottle');
-  assert.equal(h.backdropBindings.at(-1).texture, null);
+  h.runFrame(performance.now() + 5000);
+  assert.ok(h.draws.at(-1).target !== null, 'Other packages retain their established preview pipeline');
+  assert.equal(h.backdropPainters.length, 0); assert.equal(h.backdropBindings.length, 0);
 });
 
-test('ordinary Studio models do not allocate a refraction painter or a continuous still-preview loop', async context => {
+test('ordinary Studio models retain a stationary transparent-preview loop', async context => {
   const h = runtimeHarness(); context.after(() => h.close());
-  h.runtime.setBackdrop({ state: {}, config: {} }); h.runtime.setBackground({ type: 'transparent' });
+  h.runtime.setBackground({ type: 'transparent' });
   await makeReady(h); h.runFrame(performance.now() + 1000);
-  assert.equal(h.backdropPainters.length, 0);
-  assert.equal(h.rafs.size, 0);
+  assert.equal(h.backdropPainters.length, 0); assert.equal(h.rafs.size, 0);
 });
 
 test('Studio presets fit actual package geometry at portrait, square and landscape aspect', () => {

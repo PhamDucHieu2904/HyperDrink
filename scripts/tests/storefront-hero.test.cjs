@@ -410,26 +410,25 @@ test('an uploaded flavor icon reaches the actual hero and shared water backdrop 
   assert.equal(fallback.themes[4].iconUrl, undefined); assert.equal(fallback.themes[4].icon, data.flavors[4].icon);
 });
 
-test('Aloe liquid receives the hero backdrop even with image-only decorations, while ordinary cans retain the cheaper path', () => {
+test('Aloe white liquid skips external capture with image-only decorations', () => {
   const data = fixture();
   assert.equal(render(data).viewers[0].backdrop, undefined);
   data.packagingCategories[0].viewerKind = 'pet';
   data.models3d[0].materialSlots.liquid = ['Aloe Vera Water'];
-  const { viewers, visuals } = render(data);
-  assert.equal(viewers[0].backdrop.state, visuals[0].backgroundState);
-  assert.equal(viewers[0].backdrop.config, visuals[0].backgroundConfig);
+  const { viewers } = render(data);
+  assert.equal(viewers[0].backdrop, undefined);
   assert.ok(viewers[0].accentScene.nodes.every(node => !node.enabled || node.assetUrl || !['droplet', 'ice'].includes(node.kind)),
-    'This regression exercises the image-only scene that previously skipped liquid refraction');
+    'The production scene uses image decorations');
 });
 
-test('the registered Aloe release routes its real exported liquid name to the external backdrop', () => {
+test('the registered Aloe release routes its real exported liquid name to white preview without external capture', () => {
   const data = JSON.parse(fs.readFileSync(require('node:path').resolve(__dirname, '../../public/catalog/current.json'), 'utf8')).data.catalog;
   const display = data.displays3d.find(item => item.id === 'aloe-pet500-strawberry-3d');
   const variant = data.productVariants.find(item => item.id === display.productVariantId);
   const slot = data.packagingSlots.find(item => item.groupId === variant.groupId && item.packagingVariantId === variant.packagingVariantId);
-  const { viewers, visuals } = render(data, { groupId: variant.groupId, slotId: slot.id, variantId: variant.id });
+  const { viewers } = render(data, { groupId: variant.groupId, slotId: slot.id, variantId: variant.id });
   assert.equal(viewers[0].asset.id, display.modelId);
   assert.deepEqual(viewers[0].asset.materialSlots.liquid, ['Aloe Vera Water']);
-  assert.equal(viewers[0].backdrop?.state, visuals[0].backgroundState,
-    'The real catalog material name must activate the capture even without native water decorations');
+  assert.equal(viewers[0].backdrop, undefined,
+    'The real material name disables the optional per-frame environment pass');
 });

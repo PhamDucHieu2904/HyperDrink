@@ -18,7 +18,6 @@ import { createAccentLayer } from './accent-layer';
 import type { AccentFlavor, ProductAccentSceneInput } from './accent-config';
 import { createBackdropTexture, type ProductViewerBackdropInput } from './backdrop-texture';
 import { createWaterBackdropPass } from './water-backdrop-pass';
-import { setAloeBottleBackdrop } from './aloe-bottle-materials';
 import { createProductHitRegion, hitVisibleProduct, visibleProductMeshes } from './product-hit-region';
 
 export interface ViewerStatus {
@@ -244,7 +243,6 @@ export function createProductViewer(
     const signature = JSON.stringify(source?.config ?? null);
     if (source?.state === backdropSource?.state && signature === backdropSignature) return;
     accents.setBackdrop(null);
-    setAloeBottleBackdrop(product, null);
     backdrop?.dispose();
     waterBackdrop?.dispose(); waterBackdrop = undefined;
     backdrop = undefined; backdropSource = source; backdropSignature = signature;
@@ -864,9 +862,6 @@ export function createProductViewer(
     if (dirty && sinceDraw >= frameInterval) {
       hitRegion.update(active && !packageTransition ? active.root : null, camera, mount.clientWidth, mount.clientHeight, now, dragging);
       if (backdrop && waterBackdrop) waterBackdrop.render(backdrop.texture, camera);
-      // Reuse the product-free capture for liquid refraction. CSS artwork and
-      // transparent accents are absent from Three's native opaque capture.
-      setAloeBottleBackdrop(product, waterBackdrop?.texture ?? null);
       renderer.render(scene, camera);
       mount.dataset.viewerReady = active ? 'true' : 'false';
       sampleDraws++;

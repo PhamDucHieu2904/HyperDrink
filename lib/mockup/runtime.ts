@@ -15,8 +15,6 @@ import type { LiveMaterialOverrides } from '../viewer/material-adjustments';
 import { createPooledAppearanceHandle, type PooledAppearanceHandle } from '../viewer/pooled-appearance';
 import { createResourcePrefetcher } from '../viewer/resource-prefetch';
 import { createDaylightEnvironment } from '../viewer/environment';
-import { createBackdropTexture, type ProductViewerBackdropInput } from '../viewer/backdrop-texture';
-import { setAloeBottleBackdrop } from '../viewer/aloe-bottle-materials';
 import { createProductHitRegion, hitVisibleProduct, visibleProductMeshes } from '../viewer/product-hit-region';
 import { fitMockupCamera, mockupCameraDirection, mockupOrbitBounds, mockupShowcaseBounds, normalizeMockupAspect } from './camera';
 import { MOCKUP_FOCAL_FOV } from './focal-length';
@@ -136,16 +134,8 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
   let lastFrameMs = 0;
   let diagnosticsAt = 0;
   const warmedTextures = new WeakSet<THREE.Texture>();
-  let backdropSource: ProductViewerBackdropInput | undefined;
-  let backdropSignature = '';
-  let backdrop: ReturnType<typeof createBackdropTexture> | undefined;
-  const hasLiquidBackdrop = () => active?.asset.packaging === 'pet'
+  const usesWhiteLiquidPreview = () => active?.asset.packaging === 'pet'
     && active.asset.materialSlots?.liquid?.includes('Aloe Vera Water') === true;
-  const usesLiveBackdrop = () => hasLiquidBackdrop() && Boolean(backdropSource) && outputUniforms.backgroundAlpha.value === 0;
-  const clearBackdrop = () => {
-    setAloeBottleBackdrop(product, null);
-    backdrop?.dispose(); backdrop = undefined;
-  };
 
   // Preview and PNG share one output stage. Scene radiance is linear half float;
   // this final stage applies the runtime's exact tone map and sRGB transfer once.
@@ -199,16 +189,12 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     samples: Math.min(4, renderer.capabilities.maxSamples),
   });
   const renderTo = (linear: THREE.WebGLRenderTarget, output: THREE.WebGLRenderTarget | null, view: THREE.PerspectiveCamera) => {
-    // Match the hero's final output-space composition only for the live CSS
-    // preview. Export always detaches that surface: transparent PNG must not
-    // bake a decorative Studio grid into its bottle pixels.
-    if (output === null && usesLiveBackdrop()) {
-      backdrop ??= createBackdropTexture(backdropSource!.state, backdropSource!.config, host);
-      backdrop.update(); setAloeBottleBackdrop(product, backdrop.texture);
+    // Transparent Aloe preview uses the same white-reservoir output as the
+    // hero. Native PNG and solid backgrounds retain the linear/MSAA pipeline.
+    if (output === null && usesWhiteLiquidPreview() && outputUniforms.backgroundAlpha.value === 0) {
       renderer.setRenderTarget(null); renderer.setClearColor('#000000', 0); renderer.clear();
       renderer.render(scene, view); return;
     }
-    setAloeBottleBackdrop(product, null);
     renderer.setRenderTarget(linear); renderer.setClearColor('#000000', 0); renderer.clear();
     renderer.render(scene, view);
     outputUniforms.tDiffuse.value = linear.texture;
@@ -218,12 +204,6 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
   function frame(now: number) {
     raf = 0;
     if (!isVisible() || captureGate.busy) return;
-    if (usesLiveBackdrop()) {
-      backdrop ??= createBackdropTexture(backdropSource!.state, backdropSource!.config, host);
-      const version = backdrop.texture.version;
-      backdrop.update();
-      if (version !== backdrop.texture.version) dirty = true;
-    }
     const dt = Math.min(0.06, Math.max(0, (now - lastTime) / 1000)); lastTime = now;
     if (moving()) {
       if (animation.mode === 'showcase') {
@@ -253,7 +233,7 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     }
     // OrbitControls may request a frame from its synchronous change event.
     // Reuse that request instead of starting a second animation chain.
-    if ((moving() || dirty || usesLiveBackdrop()) && !raf) raf = requestAnimationFrame(frame);
+    if ((moving() || dirty) && !raf) raf = requestAnimationFrame(frame);
   }
   const fit = (preset?: MockupCameraPreset) => {
     if (!active) return;
@@ -285,13 +265,11 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
   };
   const discard = (model: LoadedModel | null) => {
     if (!model || discarded.has(model)) return;
-    setAloeBottleBackdrop(model.root, null);
     discarded.add(model);
     candidates.delete(model); model.root.removeFromParent(); model.pool.dispose(); disposeProduct(model.root); disposeMockupDetachedTextures(model.detachedTextures);
   };
   const recycle = (model: LoadedModel | null) => {
     if (!model) return;
-    setAloeBottleBackdrop(model.root, null);
     model.root.removeFromParent(); model.pool.dispose(); model.recent = [];
     if (mobile || disposed) { discarded.add(model); disposeProduct(model.root); disposeMockupDetachedTextures(model.detachedTextures); return; }
     discard(cached); cached = model;
@@ -430,7 +408,6 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
         }
         candidate.asset = asset; candidate.root.rotation.y = desired!.frontYaw; candidate.committedAppearance = appearance;
         candidate.pool.setLiveOverrides?.(materialOverrides);
-        if (!hasLiquidBackdrop()) clearBackdrop();
         // Bounds belong to the upright model, not its currently animated parent.
         // Otherwise a label switch would bake today's tilt/yaw into future lens fits.
         candidate.root.removeFromParent(); candidate.root.updateMatrixWorld(true);
@@ -459,13 +436,6 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     outputUniforms.backgroundBottom.value.set(value.type === 'gradient' ? safeColor(value.colorEnd, '#bfd9ca') : base);
     outputUniforms.backgroundAlpha.value = value.type === 'transparent' ? 0 : 1;
     host.dataset.background = value.type; requestRender();
-    if (value.type !== 'transparent') clearBackdrop();
-  };
-  const setBackdrop = (source?: ProductViewerBackdropInput) => {
-    if (disposed) return;
-    const signature = JSON.stringify(source?.config ?? null);
-    if (source?.state === backdropSource?.state && signature === backdropSignature) return;
-    clearBackdrop(); backdropSource = source; backdropSignature = signature; requestRender();
   };
   const manualCamera = (preset: MockupCameraPreset) => {
     if (disposed || captureGate.busy) return;
@@ -572,7 +542,6 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
       fit(); requestRender();
     },
     setBackground,
-    setBackdrop,
     setAnimation(value) {
       if (disposed || captureGate.busy) return;
       const previousMode = animation.mode;
@@ -691,7 +660,6 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
       canvas.removeEventListener('lostpointercapture', pointerUp);
       host.removeEventListener('wheel', wheel);
       controls.removeEventListener('start', onControlsStart); controls.removeEventListener('change', onControlsChange); controls.dispose();
-      clearBackdrop();
       discard(active); active = null; discard(cached); cached = null; [...candidates].forEach(discard);
       prefetch.dispose(); previewTarget?.dispose(); environmentTarget?.dispose();
       outputQuad.dispose(); outputMaterial.dispose(); pmrem.dispose(); draco.dispose(); basis.dispose();
