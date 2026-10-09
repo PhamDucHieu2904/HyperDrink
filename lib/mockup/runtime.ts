@@ -15,7 +15,10 @@ import type { LiveMaterialOverrides } from '../viewer/material-adjustments';
 import { createPooledAppearanceHandle, type PooledAppearanceHandle } from '../viewer/pooled-appearance';
 import { createResourcePrefetcher } from '../viewer/resource-prefetch';
 import { createDaylightEnvironment } from '../viewer/environment';
-import { createProductHitRegion, hitVisibleProduct, visibleProductMeshes } from '../viewer/product-hit-region';
+import { createProductHitRegion, hitVisibleProduct, visibleProductGestureMeshes } from '../viewer/product-hit-region';
+import { renderBottleScene } from '../viewer/bottle-materials';
+import { createBackdropTexture, type ProductViewerBackdropInput } from '../viewer/backdrop-texture';
+import { setAloeBottleBackdrop } from '../viewer/aloe-bottle-materials';
 import { fitMockupCamera, mockupCameraDirection, mockupOrbitBounds, mockupShowcaseBounds, normalizeMockupAspect } from './camera';
 import { MOCKUP_FOCAL_FOV } from './focal-length';
 import { createMockupCaptureGate, encodeMockupPng, mockupAbortError, mockupCaptureSize } from './capture';
@@ -136,6 +139,13 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
   const warmedTextures = new WeakSet<THREE.Texture>();
   const usesWhiteLiquidPreview = () => active?.asset.packaging === 'pet'
     && active.asset.materialSlots?.liquid?.includes('Aloe Vera Water') === true;
+  let backdropSource: ProductViewerBackdropInput | undefined;
+  let backdropSignature = '';
+  let backdrop: ReturnType<typeof createBackdropTexture> | undefined;
+  const clearBackdrop = () => {
+    setAloeBottleBackdrop(product, null);
+    backdrop?.dispose(); backdrop = undefined;
+  };
 
   // Preview and PNG share one output stage. Scene radiance is linear half float;
   // this final stage applies the runtime's exact tone map and sRGB transfer once.
@@ -189,14 +199,19 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     samples: Math.min(4, renderer.capabilities.maxSamples),
   });
   const renderTo = (linear: THREE.WebGLRenderTarget, output: THREE.WebGLRenderTarget | null, view: THREE.PerspectiveCamera) => {
-    // Transparent Aloe preview uses the same white-reservoir output as the
-    // hero. Native PNG and solid backgrounds retain the linear/MSAA pipeline.
+    // Borrow the decorative background only for the transparent preview.
+    // Native PNG and solid backgrounds retain the linear/MSAA pipeline.
     if (output === null && usesWhiteLiquidPreview() && outputUniforms.backgroundAlpha.value === 0) {
+      if (backdropSource) {
+        backdrop ??= createBackdropTexture(backdropSource.state, backdropSource.config, host);
+        backdrop.update(); setAloeBottleBackdrop(product, backdrop.texture);
+      } else setAloeBottleBackdrop(product, null);
       renderer.setRenderTarget(null); renderer.setClearColor('#000000', 0); renderer.clear();
-      renderer.render(scene, view); return;
+      renderBottleScene(renderer, scene, view); return;
     }
+    setAloeBottleBackdrop(product, null);
     renderer.setRenderTarget(linear); renderer.setClearColor('#000000', 0); renderer.clear();
-    renderer.render(scene, view);
+    renderBottleScene(renderer, scene, view);
     outputUniforms.tDiffuse.value = linear.texture;
     outputUniforms.toneMappingExposure.value = renderer.toneMappingExposure;
     renderer.setRenderTarget(output); renderer.clear(); outputQuad.render(renderer);
@@ -265,11 +280,13 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
   };
   const discard = (model: LoadedModel | null) => {
     if (!model || discarded.has(model)) return;
+    setAloeBottleBackdrop(model.root, null);
     discarded.add(model);
     candidates.delete(model); model.root.removeFromParent(); model.pool.dispose(); disposeProduct(model.root); disposeMockupDetachedTextures(model.detachedTextures);
   };
   const recycle = (model: LoadedModel | null) => {
     if (!model) return;
+    setAloeBottleBackdrop(model.root, null);
     model.root.removeFromParent(); model.pool.dispose(); model.recent = [];
     if (mobile || disposed) { discarded.add(model); disposeProduct(model.root); disposeMockupDetachedTextures(model.detachedTextures); return; }
     discard(cached); cached = model;
@@ -454,11 +471,11 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     if (!(rect.width > 0 && rect.height > 0)) return;
     pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2);
     product.updateWorldMatrix(true, true); camera.updateMatrixWorld(); raycaster.setFromCamera(pointer, camera);
-    if (!hitVisibleProduct(raycaster, visibleProductMeshes(active.root))) return;
+    if (!hitVisibleProduct(raycaster, visibleProductGestureMeshes(active.root))) return;
     targetPose.copy(pose); returnFrom = null;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     try { canvas.setPointerCapture(event.pointerId); } catch { pointers.delete(event.pointerId); return; }
-    dragging = true; hitRegion.element.style.cursor = canvas.style.cursor = 'grabbing';
+    dragging = true; hitRegion.beginDrag(); hitRegion.element.style.cursor = canvas.style.cursor = 'grabbing';
     lastInputAt = motionTime; requestRender();
   };
   const pointerMove = (event: PointerEvent) => {
@@ -474,11 +491,12 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     if (!pointers.delete(event.pointerId)) return;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     dragging = pointers.size > 0;
-    if (!dragging) { hitRegion.element.style.cursor = canvas.style.cursor = 'grab'; lastInputAt = motionTime; }
+    if (!dragging) { hitRegion.endDrag(); hitRegion.element.style.cursor = canvas.style.cursor = 'grab'; lastInputAt = motionTime; }
     requestRender();
   };
   const cancelPointers = () => {
     const ids = [...pointers.keys()]; pointers.clear(); dragging = false;
+    hitRegion.endDrag();
     for (const id of ids) if (canvas.hasPointerCapture(id)) {
       try { canvas.releasePointerCapture(id); } catch { /* The browser may have cancelled capture already. */ }
     }
@@ -542,6 +560,12 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
       fit(); requestRender();
     },
     setBackground,
+    setBackdrop(source) {
+      if (disposed) return;
+      const signature = JSON.stringify(source?.config ?? null);
+      if (source?.state === backdropSource?.state && signature === backdropSignature) return;
+      clearBackdrop(); backdropSource = source; backdropSignature = signature; requestRender();
+    },
     setAnimation(value) {
       if (disposed || captureGate.busy) return;
       const previousMode = animation.mode;
@@ -660,6 +684,7 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
       canvas.removeEventListener('lostpointercapture', pointerUp);
       host.removeEventListener('wheel', wheel);
       controls.removeEventListener('start', onControlsStart); controls.removeEventListener('change', onControlsChange); controls.dispose();
+      clearBackdrop();
       discard(active); active = null; discard(cached); cached = null; [...candidates].forEach(discard);
       prefetch.dispose(); previewTarget?.dispose(); environmentTarget?.dispose();
       outputQuad.dispose(); outputMaterial.dispose(); pmrem.dispose(); draco.dispose(); basis.dispose();

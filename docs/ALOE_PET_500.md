@@ -74,7 +74,13 @@ For a new registration, `--liquid-color=#rrggbb` sets the initial display's inde
 
 The delivered poster `public/models/bottles/pet-500-aloe-poster.webp` is a 640 × 640 WebP derived from the actual 2048 × 2048 transparent PNG exported by Mockup Studio. The full native export is saved at `docs/screenshots/aloe-500-final-export.png`. The import refreshes derived media checksums when the poster is replaced; the temporary bootstrap illustration has been replaced.
 
-## Current display: v14 white liquid reservoir
+## Current trial: external backdrop refraction with the optimized pulp
+
+The restored liquid-only branch follows the earlier v13 Snell ray, fitted full first-exit chord, five backdrop taps and neutral thin/body fill (0.2/0.75). The hero again lends the existing product-free capture containing grid, splash, fruit and leaves. Label and Cap remain excluded. Transparent Studio preview borrows the same decorative painter; white/solid views and native PNG detach it. The white liquid reservoir remains the fallback without a borrowed texture.
+
+The approved pulp shader, cached gesture proxy, frozen pointer-capture routing, shared splash decode and capture-only interior draw suppression are retained. Studio Still also keeps its suspended loop: its borrowed background updates on actual preview draws, including rotation, interaction or a setting change. No extra continuous refresh loop or quality downgrade accompanies this trial. The restored background shader has not been measured on the user's phone yet.
+
+## Previous display: v14 white liquid reservoir
 
 The selected low-cost display renders Aloe water as in the approved white Studio view. Internal Three transmission, isotropic 12.74 mm capture thickness, glossy PET/Ring, clear same-hue pulp and path-dependent neck turbidity stay calibrated. Cap and Label remain excluded from the native refraction capture. No model, color preset or 320 ml material changes are required.
 

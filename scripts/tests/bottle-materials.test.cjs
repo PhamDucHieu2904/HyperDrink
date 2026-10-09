@@ -324,3 +324,82 @@ test('vivid scattering preserves hue, stays neutral for clear/ivory flavors and 
     if (color === '#efefef') assert.ok(Math.abs(vivid.r - vivid.g) + Math.abs(vivid.g - vivid.b) < 1e-10, 'White coconut juice cannot acquire an invented hue');
   }
 });
+
+test('Aloe internal layers draw in transmission and PNG targets but skip duplicate white preview geometry', context => {
+  const f = fixture(context);
+  for (const material of Object.values(f.originals)) material.userData.bottleProfile = 'aloe-pet-v1';
+  bottles.prepareBottleLayers(f.root, asset);
+  const back = f.meshes.liquid.children[0];
+  context.after(() => back.material.dispose());
+  let beforeCalls = 0, afterCalls = 0;
+  assert.equal(back.geometry, f.meshes.liquid.geometry);
+  f.meshes.inclusions.onBeforeRender = () => beforeCalls++;
+  f.meshes.inclusions.onAfterRender = () => afterCalls++;
+  bottles.configureBottleRenderOrder(f.root, asset);
+  bottles.configureBottleRenderOrder(f.root, asset);
+  const camera = new THREE.PerspectiveCamera(), scene = new THREE.Scene();
+  for (const mesh of [back, f.meshes.inclusions]) {
+    const geometry = mesh.geometry;
+    geometry.setDrawRange(3, 12);
+    for (const target of [{ name: 'transmission' }, { name: 'PNG' }, null]) {
+      const renderer = { getRenderTarget: () => target };
+      mesh.onBeforeRender(renderer, scene, camera, geometry, mesh.material, null);
+      assert.deepEqual(geometry.drawRange, target === null ? { start: 0, count: 0 } : { start: 3, count: 12 });
+      mesh.onAfterRender(renderer, scene, camera, geometry, mesh.material, null);
+      assert.deepEqual(geometry.drawRange, { start: 3, count: 12 });
+      assert.deepEqual(f.meshes.liquid.geometry.drawRange, { start: 3, count: 12 }, 'Shared Water geometry is restored before its front draw');
+    }
+  }
+  assert.equal(beforeCalls, 3, 'Repeated configuration must not nest callbacks');
+  assert.equal(afterCalls, 3, 'Existing callbacks remain intact');
+  const preparedClone = f.root.clone(true);
+  bottles.configureBottleRenderOrder(preparedClone, asset);
+  const clonedPulp = preparedClone.children.find(mesh => mesh.name === 'inclusions');
+  const geometry = clonedPulp.geometry;
+  clonedPulp.onBeforeRender({ getRenderTarget: () => null }, scene, camera, geometry, clonedPulp.material, null);
+  assert.equal(geometry.drawRange.count, 0, 'Prepared appearance clones install their own capture hooks');
+  clonedPulp.onAfterRender({}, scene, camera, geometry, clonedPulp.material, null);
+  assert.equal(geometry.drawRange.count, 12);
+});
+
+test('Cojo reservoirs retain their existing beauty draw', context => {
+  const f = fixture(context);
+  bottles.prepareBottleLayers(f.root, asset);
+  const back = f.meshes.liquid.children[0];
+  context.after(() => back.material.dispose());
+  bottles.configureBottleRenderOrder(f.root, asset);
+  for (const mesh of [back, f.meshes.inclusions]) {
+    mesh.onBeforeRender({ getRenderTarget: () => null }, new THREE.Scene(), new THREE.PerspectiveCamera(), mesh.geometry, mesh.material, null);
+    assert.equal(mesh.geometry.drawRange.count, Infinity);
+  }
+});
+
+test('a failed Aloe draw restores shared Water before retry or PNG capture', context => {
+  const f = fixture(context);
+  for (const material of Object.values(f.originals)) material.userData.bottleProfile = 'aloe-pet-v1';
+  bottles.prepareBottleLayers(f.root, asset);
+  const back = f.meshes.liquid.children[0], geometry = back.geometry;
+  context.after(() => back.material.dispose());
+  bottles.configureBottleRenderOrder(f.root, asset);
+  geometry.setDrawRange(3, 12);
+  const camera = new THREE.PerspectiveCamera(), scene = new THREE.Scene();
+  const renderer = {
+    getRenderTarget: () => null,
+    render() {
+      back.onBeforeRender(renderer, scene, camera, geometry, back.material, null);
+      assert.equal(geometry.drawRange.count, 0);
+      // WebGLRenderer does not call onAfterRender if a material/GPU draw fails.
+      throw new Error('draw failed');
+    },
+  };
+  assert.throws(() => bottles.renderBottleScene(renderer, scene, camera), /draw failed/);
+  assert.deepEqual(f.meshes.liquid.geometry.drawRange, { start: 3, count: 12 });
+  geometry.setDrawRange(6, 9);
+  renderer.getRenderTarget = () => ({ name: 'PNG' });
+  renderer.render = () => {
+    back.onBeforeRender(renderer, scene, camera, geometry, back.material, null);
+    back.onAfterRender(renderer, scene, camera, geometry, back.material, null);
+  };
+  bottles.renderBottleScene(renderer, scene, camera);
+  assert.deepEqual(geometry.drawRange, { start: 6, count: 9 }, 'Failed preview restoration cannot leak into a later offscreen draw');
+});

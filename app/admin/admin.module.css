@@ -409,3 +409,25 @@
   .pickerGrid .thumbnail { height: 130px; }
 }
 @media (prefers-reduced-motion: reduce) { .adminShell *, .editorDialog *, .pickerDialog * { animation-duration: .001ms !important; transition-duration: .001ms !important; animation-iteration-count: 1 !important; } }
+.layoutConfig { margin: 24px 0 28px; padding: 23px; border: 1px solid var(--admin-border); border-radius: 11px; background: #fff; }
+.layoutConfig h2 { display: flex; align-items: center; gap: 9px; }
+.layoutConfig .sectionHeading { align-items: flex-start; margin-bottom: 18px; }
+.layoutDescription, .layoutHint { color: var(--admin-muted, #738780); font-size: 13px; line-height: 1.6; }
+.layoutDescription { margin: 8px 0 0; }
+.layoutSwitchGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.layoutSwitchRow { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--admin-border); border-radius: 9px; background: #f8fbf9; }
+.layoutSwitchRow > svg { flex-shrink: 0; color: #327250; }
+.layoutSwitchRow > div { flex: 1; min-width: 0; }
+.layoutSwitchRow strong { display: block; font-size: 14px; font-weight: 600; }
+.layoutSwitchRow small { display: block; margin-top: 4px; color: #667e74; font-size: 12px; line-height: 1.5; }
+.layoutSwitch { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px; background: transparent; border: 0; border-radius: 6px; color: #435f53; font: inherit; font-size: 12px; cursor: pointer; }
+.layoutSwitch:focus-visible { outline: 2px solid #20724c; outline-offset: 3px; }
+.layoutSwitchTrack { width: 36px; height: 22px; padding: 3px; border-radius: 20px; background: #778980; transition: background .18s; }
+.layoutSwitchTrack > span { display: block; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #0002; transition: transform .18s; }
+.layoutSwitch[aria-checked="true"] .layoutSwitchTrack { background: #196b48; }
+.layoutSwitch[aria-checked="true"] .layoutSwitchTrack > span { transform: translateX(14px); }
+.layoutSwitch:disabled { cursor: wait; opacity: .6; }
+.layoutConfigFooter { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--admin-border); }
+.layoutHint { margin: 12px 0 0; }
+@media (max-width: 1350px) { .layoutSwitchGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .layoutSwitchGrid { grid-template-columns: 1fr; } .layoutConfig { padding: 18px; } .layoutConfigFooter .headingActions { flex-wrap: wrap; } }

@@ -29,6 +29,7 @@ const { DEFAULT_PRODUCT_ACCENT_SCENE: STOREFRONT_SCENE } = loadSource('lib/viewe
 // Optional presets continue to exercise water rendering when explicitly enabled.
 const DEFAULT_PRODUCT_ACCENT_SCENE = { ...STOREFRONT_SCENE, nodes: STOREFRONT_SCENE.nodes.map(node => ({ ...node, enabled: true })) };
 const { createAccentLayer } = loadSource('lib/viewer/accent-layer.ts');
+const { filterHomepageAccents, decodeHomepageLayout } = loadSource('lib/catalog/homepage-layout.ts');
 const baseNode = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.find(node => node.kind === 'fruit');
 const node = (id, overrides = {}) => ({ ...baseNode, id, variants: undefined, ...overrides });
 const sceneConfig = nodes => ({ ...DEFAULT_PRODUCT_ACCENT_SCENE, nodes });
@@ -74,6 +75,26 @@ async function harness(run, mount) {
 }
 
 const { projectAccentImage, createHardLightCaptureProxy } = loadSource('lib/viewer/blended-accent.ts');
+test('homepage all-off creates no accent meshes and starts no image or GLB downloads', async () => harness(async ({ layer, root, textureRequests, gltfRequests, settle }) => {
+  layer.configure(filterHomepageAccents(DEFAULT_PRODUCT_ACCENT_SCENE, decodeHomepageLayout('00000')), 'performance-off', 'citrus');
+  const state = await settle();
+  assert.equal(state.count, 0);
+  assert.equal(root.children.length, 0);
+  assert.deepEqual(textureRequests, []);
+  assert.deepEqual(gltfRequests, []);
+}));
+test('homepage selective switches prevent disabled texture downloads', async () => harness(async ({ layer, textureRequests, gltfRequests, update }) => {
+  const scene = sceneConfig([
+    node('fruit-test', { assetUrl: '/fruit.webp' }),
+    node('leaf-test', { kind: 'leaf', assetUrl: '/leaf.webp' }),
+    node('ice-test', { kind: 'ice', assetUrl: '/ice.webp' }),
+    node('splash-test', { kind: 'splash', assetUrl: '/splash.webp' }),
+  ]);
+  layer.configure(filterHomepageAccents(scene, decodeHomepageLayout('00010')), 'fruit-only', 'citrus');
+  update();
+  assert.deepEqual(textureRequests.map(item => item.url), ['/fruit.webp']);
+  assert.deepEqual(gltfRequests, []);
+}));
 test('hard-light capture proxy shares source resources, keeps exact zoom and uses CSS blending only inside the capture', () => {
   const map = fakeTexture(3, 2), geometry = new THREE.PlaneGeometry(1, 2 / 3);
   map.colorSpace = THREE.SRGBColorSpace;
@@ -141,20 +162,25 @@ test('Hard Light shares product readiness, fades continuously, resizes and dispo
       const splash = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.find(node => node.kind === 'splash');
       const configured = { ...sceneConfig([{ ...splash, opacity: 0.8 }]), opacity: 0.5 };
       layer.configure(configured, 'can-330:lime', 'lime');
-      update(); textureRequests[0].resolve(fakeTexture(3, 2)); await flush();
+      update();
       const host = hero.children[0], image = host.children[0];
+      assert.equal(textureRequests.length, 0, 'The LCP image is discovered directly and supplies the capture texture without another loader');
+      assert.equal(root.children[0].children.length, 0, 'DOM discovery does not wait for capture geometry');
       assert.equal(image.style.mixBlendMode, 'hard-light');
-      assert.equal(image.style.width, '768px'); assert.equal(image.style.height, '512px', 'Hard Light must retain the same rectangle as its WebGL plane');
-      assert.equal(root.children[0].children[0].geometry.parameters.height, 2 / 3);
       assert.equal(host.style.zIndex, 'auto', 'Wrapper must not isolate the image from the live flavor background');
-      assert.equal(update().phase, 'waiting', 'Decoded Three texture alone cannot reveal a pending DOM image');
+      assert.equal(update().phase, 'waiting', 'Pending DOM image cannot reveal the composition');
+      image.naturalWidth = 3; image.naturalHeight = 2;
       image.onload();
+      assert.equal(image.style.width, '768px'); assert.equal(image.style.height, '512px', 'The decoded DOM image determines the fitted aspect ratio immediately');
       assert.equal(update({ viewerIdle: false }).phase, 'waiting');
+      await flush(); await flush();
+      assert.equal(root.children[0].children[0].geometry.parameters.height, 2 / 3);
       await settle();
       assert.equal(image.style.display, 'block');
       assert.equal(Number(image.style.opacity), 0.4);
       assert.equal(root.children[0].children[0].visible, false, 'Splash is composited only once');
       const normalSplash = root.children[0].children[0], captureProxy = root.children[0].children[1];
+      assert.equal(normalSplash.material.map.image, image, 'Capture reuses the visible image pixels rather than decoding a second image');
       assert.equal(captureProxy.geometry, normalSplash.geometry);
       assert.equal(captureProxy.material.uniforms.splashMap.value, normalSplash.material.map);
       assert.equal(captureProxy.visible, false);
@@ -168,6 +194,7 @@ test('Hard Light shares product readiness, fades continuously, resizes and dispo
       assert.ok(Number(image.style.opacity) > 0 && Number(image.style.opacity) < 0.4);
       update({ viewerIdle: false, deltaSeconds: 0.2 }); await flush();
       assert.equal(image.onload, null); assert.equal(host.children.length, 1);
+      assert.equal(root.children[0].children[0].material.map.image, image, 'A flavor switch retains the cached source after its outgoing DOM image is removed');
       const replacement = host.children[0]; replacement.onerror();
       assert.equal(update({ reducedMotion: true }).phase, 'idle', 'Missing decoration cannot block the product');
       assert.equal(replacement.style.display, 'none', 'Failed image cannot expose a broken-image glyph');
@@ -191,6 +218,48 @@ function modelWithResources() {
   scene.add(new THREE.PointLight());
   return { scene, disposed };
 }
+
+test('pending Hard Light image completions cannot revive an obsolete flavor or a disposed layer', async () => {
+  const previousDocument = global.document, previousObserver = global.ResizeObserver;
+  const element = () => ({ style: {}, dataset: {}, children: [], setAttribute() {},
+    appendChild(child) { this.children.push(child); child.parent = this; },
+    remove() { if (this.parent) this.parent.children = this.parent.children.filter(value => value !== this); },
+  });
+  const hero = element(); hero.getBoundingClientRect = () => ({ left: 0, top: 0 });
+  const mount = { dataset: {}, closest: () => hero, getBoundingClientRect: () => ({ left: 0, top: 0, width: 390, height: 560 }) };
+  global.document = { createElement: element };
+  global.ResizeObserver = class { observe() {} disconnect() {} };
+  try {
+    await harness(async ({ layer, root, textureRequests, update, invalidations }) => {
+      const splash = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.find(node => node.kind === 'splash');
+      layer.configure(sceneConfig([{ ...splash, assetUrl: '/first.webp' }]), 'first', 'citrus'); update();
+      const host = hero.children[0], oldImage = host.children[0], staleLoad = oldImage.onload;
+      assert.equal(oldImage.src, '/first.webp');
+      layer.configure(sceneConfig([{ ...splash, assetUrl: '/latest.webp' }]), 'latest', 'lime'); update();
+      const latestImage = host.children[0];
+      assert.equal(host.children.length, 1); assert.equal(latestImage.src, '/latest.webp');
+      assert.equal(oldImage.onload, null, 'Obsolete DOM handlers are detached before the next composition loads');
+      const beforeStale = invalidations(); staleLoad();
+      assert.equal(invalidations(), beforeStale, 'A queued obsolete load cannot mark the new flavor ready');
+      await flush(); await flush();
+      assert.equal(root.children[0].children.length, 0);
+      latestImage.naturalWidth = 640; latestImage.naturalHeight = 427; latestImage.onload();
+      update({ reducedMotion: true });
+      assert.equal(latestImage.style.display, 'block', 'DOM reveal can precede the capture texture promise finishing');
+      await flush(); await flush();
+      assert.equal(root.children[0].children[1].material.uniforms.splashMap.value.image, latestImage);
+      assert.equal(root.children[0].children[1].visible, false);
+      assert.equal(mount.dataset.accentSourcePending, '0');
+      assert.equal(textureRequests.length, 0, 'The independent splash path never starts a second image loader');
+      layer.configure(sceneConfig([{ ...splash, assetUrl: '/pending.webp' }]), 'pending', 'berry'); update();
+      const pendingImage = host.children[0], lateLoad = pendingImage.onload;
+      layer.dispose(); const beforeDisposeLoad = invalidations(); lateLoad();
+      await flush(); await flush();
+      assert.equal(invalidations(), beforeDisposeLoad); assert.equal(hero.children.length, 0);
+      assert.equal(mount.dataset.accentSourcePending, '0', 'Disposal settles pending shared image sources');
+    }, mount);
+  } finally { global.document = previousDocument; global.ResizeObserver = previousObserver; }
+});
 
 test('layer waits for product settle and every assigned sprite/GLB asset before revealing any accent', async () => harness(async ({ layer, root, textureRequests, gltfRequests, update, settle }) => {
   layer.configure(sceneConfig([

@@ -13,6 +13,8 @@ export interface ProductBackdropTexture {
 export interface ProductViewerBackdropInput {
   state: BackgroundRenderState;
   config: BackgroundConfig;
+  /** Homepage Aloe starts white and qualifies external refraction while hidden. */
+  adaptiveAloe?: boolean;
 }
 
 interface Area { x: number; y: number; width: number; height: number }

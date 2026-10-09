@@ -9,6 +9,7 @@ import { archiveCatalogRecord, updateCatalogRecord, prepareCatalogRelease, Catal
 import { deleteCatalogRecord, getDeletionImpact } from '@/lib/catalog/deletion';
 import { saveDisplayDraft } from '@/lib/catalog/display-drafts';
 import { applyDisplayAction } from '@/lib/catalog/display-management';
+import { isHomepageLayout, type HomepageLayout } from '@/lib/catalog/homepage-layout';
 import { addFlavorPoolAsset } from '@/lib/catalog/flavor-pool';
 import type { FlavorAsset, FlavorPoolAssetInput } from '@/lib/catalog/contracts';
 import { CATALOG_COLLECTIONS, preflightCatalog, hasValidationErrors } from '@/lib/catalog/validation';
@@ -58,6 +59,17 @@ export class LocalCatalogRepository implements CatalogRepository {
     catch (error) { this.database.exec('ROLLBACK'); throw error; }
   }
   async readDraft(): Promise<CatalogData> { return this.draftSync(); }
+  async saveHomepageLayout(layout: HomepageLayout, expectedDraftHash: string, actor: string): Promise<CatalogData> {
+    return this.atomic(() => {
+      if (!isHomepageLayout(layout)) throw new CatalogDomainError('invalid_layout', 'Cấu hình trang chính không hợp lệ.');
+      const draft = this.draftSync();
+      if (createHash('sha256').update(JSON.stringify(draft)).digest('hex') !== expectedDraftHash) throw new CatalogDomainError('revision_conflict', 'Bản nháp đã thay đổi. Tải lại trước khi lưu cấu hình.');
+      const catalog = { ...draft, homepageLayout: { ...layout } };
+      this.writeDraft(catalog);
+      this.audit(actor, 'save:homepageLayout', 'homepage');
+      return catalog;
+    });
+  }
   private draftSync(): CatalogData { return catalogWithDefaults(JSON.parse((this.database.prepare('SELECT data FROM draft_catalog WHERE id=1').get() as { data: string }).data)); }
   private writeDraft(data: CatalogData) { this.database.prepare('UPDATE draft_catalog SET data=? WHERE id=1').run(JSON.stringify(data)); }
   private audit(actor: string, action: string, entityId: string) { this.database.prepare('INSERT INTO audit_events VALUES(?,?,?,?,?)').run(randomUUID(), actor, action, entityId, new Date().toISOString()); }

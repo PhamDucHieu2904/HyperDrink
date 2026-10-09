@@ -89,6 +89,29 @@ async function createVisible2DProduct(context) {
   return { media, bytes, group, flavor, variant, asset, display, slot };
 }
 
+test('homepage layout requires authentication, detects stale drafts, survives restart and publishes to static catalog', async () => withBackend(async context => {
+  const layout = { splash: false, droplet: false, leaf: true, fruit: false, ice: false };
+  const endpoint = '/api/admin/v1/homepage-layout';
+  assert.equal((await context.request(endpoint, { method: 'POST', body: {}, cookie: '' })).response.status, 401);
+  await context.setup();
+  await createVisible2DProduct(context);
+  const draft = await context.repository.readDraft();
+  const expectedDraftHash = createHash('sha256').update(JSON.stringify(draft)).digest('hex');
+  const saved = await context.request(endpoint, { method: 'POST', body: { layout, expectedDraftHash } });
+  assert.equal(saved.response.status, 200, JSON.stringify(saved.payload));
+  assert.deepEqual(saved.payload.data.homepageLayout, layout);
+  assert.equal((await context.request(endpoint, { method: 'POST', body: { layout, expectedDraftHash } })).response.status, 409);
+  const nextHash = createHash('sha256').update(JSON.stringify(saved.payload.data)).digest('hex');
+  assert.equal((await context.request(endpoint, { method: 'POST', body: { layout: { ...layout, fruit: 'off' }, expectedDraftHash: nextHash } })).response.status, 422);
+  context.reopen();
+  assert.deepEqual((await context.repository.readDraft()).homepageLayout, layout);
+  assert.equal(await context.repository.readActiveRelease(), null);
+  const release = await context.repository.publish(await context.repository.readDraft(), owner.email, 'Homepage performance switches', null);
+  assert.deepEqual(release.data.homepageLayout, layout);
+  exportPublishedCatalog({ dataDir: context.folder, outputDir: context.staticOutputDir });
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(context.staticOutputDir, 'current.json'), 'utf8')).data.catalog.homepageLayout, layout);
+}));
+
 test('liquidColor, capColor and horizontal labelOffset survive record/display API saves, preflight and backend restart across nine draft displays', async () => withBackend(async context => {
   await context.setup();
   const product = await createVisible2DProduct(context);

@@ -36,6 +36,23 @@ function fixture(context) {
   return { root, normalized, materials, meshes, liquid: meshes['Aloe Vera Water'], pulp: meshes['Aloe Pulp - Clear'] };
 }
 
+test('assembled pulp shaders declare every optical uniform and helper before its first use', context => {
+  const f = fixture(context), optical = aloe.createAloeBottleMaterialContext(f.root, asset);
+  optical.configure(f.pulp.material, f.pulp, 'inclusions', '#e84a3c');
+  const shader = compile(f.pulp.material);
+  for (const stage of ['vertexShader', 'fragmentShader']) {
+    const text = shader[stage].replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+    const declarations = [...text.matchAll(/\b(?:uniform|varying|attribute)\s+\w+\s+((?:aloe|vAloe)\w+)/g),
+      ...text.matchAll(/\b(?:float|bool|vec[234])\s+(aloe\w+)\s*\(/g)];
+    assert.ok(declarations.length > 20, `${stage}: inspect the real assembled optical code`);
+    for (const declaration of declarations) {
+      const name = declaration[1], declaredAt = declaration.index + declaration[0].indexOf(name);
+      const firstUse = new RegExp(`\\b${name}\\b`).exec(text).index;
+      assert.equal(firstUse, declaredAt, `${stage}: ${name} must be declared before use`);
+    }
+  }
+});
+
 test('live water edits update existing Aloe volume/pulp uniforms without recoloring the neutral surface or recompiling optics', context => {
   const f = fixture(context), optical = aloe.createAloeBottleMaterialContext(f.root, asset);
   const back = f.liquid.material.clone(); context.after(() => back.dispose());
@@ -86,7 +103,12 @@ test('pulp fades by physical path length and deep silhouettes leave both color a
   optical.configure(f.pulp.material, f.pulp, 'inclusions', '#f35228');
   const shader = compile(f.pulp.material);
   assert.ok(shader.fragmentShader.includes('if (aloeDepth >= aloePulpFadeRange.y) discard;'));
-  assert.ok(shader.fragmentShader.includes('aloeNoise(vAloePosition'));
+  assert.ok(shader.fragmentShader.includes('float cloud = vAloeGelDetail.x;'));
+  assert.ok(shader.fragmentShader.includes('float aloeDepth = max(vAloeDepth, 0.0);'));
+  assert.ok(shader.vertexShader.includes('vAloeDepth = aloeGelDetail.z > 0.5 ? 0.0 : aloeExitDistance(vAloePosition, aloeTowardCamera);'));
+  assert.ok(shader.fragmentShader.includes('if (vAloeGelDetail.z > 0.00001)'),
+    'Exact per-pixel depth is reserved for the molded base and triangles crossing the fitted volume boundary');
+  assert.ok(!shader.fragmentShader.includes('aloeNoise'), 'No procedural noise runs at every overlapping pulp pixel');
   assert.match(shader.fragmentShader, /float gelDensity = 65\.0+ \+ cloud \* 70\.0+/,
     'Interpolated optical constants retain explicit GLSL float literals');
   assert.ok(!shader.fragmentShader.includes('vec3 paleGel'), 'Aloe receives no ivory/coconut pigment');
@@ -95,6 +117,26 @@ test('pulp fades by physical path length and deep silhouettes leave both color a
   assert.equal(f.pulp.material.transmission, 0, 'Gel contributes structure to one real liquid refraction, rather than refracting a second time');
   assert.deepEqual(shader.uniforms.aloeHeightRange.value.toArray().map(value => Math.round(value * 1000)), [-105, 105]);
   assert.ok(Math.abs(shader.uniforms.aloeHalfBounds.value.x - 0.029) < 1e-7, 'Blender water scale and export normalization are both retained');
+});
+
+test('gel detail is immutable authored-space density shared across pool clones and live flavour changes', context => {
+  const f = fixture(context), optical = aloe.createAloeBottleMaterialContext(f.root, asset);
+  const positions = Array.from(f.pulp.geometry.attributes.position.array);
+  optical.configure(f.pulp.material, f.pulp, 'inclusions', '#e84a3c');
+  const attribute = f.pulp.geometry.getAttribute('aloeGelDetail');
+  assert.equal(attribute.count, f.pulp.geometry.attributes.position.count);
+  assert.equal(attribute.itemSize, 3);
+  assert.ok([...attribute.array].every(value => value >= 0 && value <= 1));
+  const before = Array.from(attribute.array), version = attribute.version;
+  const clone = f.pulp.clone(); clone.rotation.set(0.2, 0.4, 0.1);
+  materialAdjustments.liquidColorUpdates.get(f.pulp.material)('#119d25');
+  optical.configure(clone.material, f.pulp, 'inclusions', '#e84a3c');
+  assert.equal(clone.geometry.getAttribute('aloeGelDetail'), attribute);
+  assert.deepEqual(Array.from(attribute.array), before); assert.equal(attribute.version, version);
+  assert.deepEqual(Array.from(f.pulp.geometry.attributes.position.array), positions,
+    'Baked optical density adds an attribute without changing the authored pulp or bottle form');
+  const point = new THREE.Vector3(0.017, 0.038, -0.012);
+  assert.deepEqual(aloe.aloeGelDetailAt(point).toArray(), aloe.aloeGelDetailAt(point.clone()).toArray());
 });
 
 test('smooth reservoir capture and neutral gel extinction preserve flavor radiance, alpha and one real refraction', context => {
@@ -302,22 +344,67 @@ test('hero and Studio contexts bind their actual transmission clear before every
   }
 });
 
-test('white liquid preview retains internal refraction without an external sampler or full-volume surface ray', context => {
+test('liquid restores the previous full-chord backdrop refraction and retains internal water plus white fallback', context => {
   const f = fixture(context), optical = aloe.createAloeBottleMaterialContext(f.root, asset);
   optical.configure(f.liquid.material, f.liquid, 'liquid', '#e84a3c');
   const shader = compile(f.liquid.material);
   assert.equal(f.liquid.material.transmission, 1); assert.equal(f.liquid.material.ior, 1.335);
   assert.ok(shader.fragmentShader.includes('transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );'));
   assert.ok(shader.fragmentShader.includes('return normalize( refractionVector ) * aloeWorldThickness;'));
-  assert.ok(!shader.fragmentShader.includes('externalRay'));
-  assert.ok(!shader.fragmentShader.includes('aloeBackdropTexture'));
+  const transmission = aloe.correctAloeTransmissionClear(THREE.ShaderChunk.transmission_pars_fragment, true);
+  assert.ok(transmission.includes('refract(-externalViewWorld, normalize(n), 1.0 / ior)'));
+  assert.ok(transmission.includes('aloeExitDistance(externalFrontMetric + externalRayMetric * externalInset, externalRayMetric)'));
+  assert.equal((transmission.match(/texture2D\(aloeBackdropTexture/g) ?? []).length, 5, 'Retain the former five-tap backdrop treatment');
+  assert.ok(shader.fragmentShader.includes('uniform sampler2D aloeBackdropTexture;'));
   assert.ok(!shader.fragmentShader.includes('aloeExitDistance(vAloePosition'), 'Full fitted depth remains reserved for gel, not each liquid surface pixel');
   const compositeAt = shader.fragmentShader.indexOf('gl_FragColor.rgb += vec3(1.0 - gl_FragColor.a);');
   assert.ok(compositeAt > shader.fragmentShader.indexOf('#include <colorspace_fragment>'));
   assert.ok(compositeAt > shader.fragmentShader.indexOf('#include <premultiplied_alpha_fragment>'));
   assert.ok(shader.fragmentShader.includes('gl_FragColor.a = 1.0;'));
-  assert.ok(!aloe.correctAloeTransmissionClear(THREE.ShaderChunk.transmission_pars_fragment).includes('aloeWhiteDisplayFill'),
+  assert.ok(!aloe.correctAloeTransmissionClear(THREE.ShaderChunk.transmission_pars_fragment).includes('aloeBackdropTexture'),
     'Ring retains its standalone clear-sentinel correction');
+});
+
+test('backdrop binds to current pooled liquid only and detaches without touching approved pulp or recompiling', context => {
+  const f = fixture(context), optical = aloe.createAloeBottleMaterialContext(f.root, asset);
+  optical.configure(f.liquid.material, f.liquid, 'liquid', '#e84a3c');
+  optical.configure(f.pulp.material, f.pulp, 'inclusions', '#e84a3c');
+  const liquid = compile(f.liquid.material), pulp = compile(f.pulp.material);
+  const version = f.liquid.material.version, key = f.liquid.material.customProgramCacheKey();
+  const drawnRoot = f.root.clone(true), texture = new THREE.Texture({ width: 512, height: 384 });
+  context.after(() => texture.dispose());
+  aloe.setAloeBottleBackdrop(drawnRoot, texture);
+  assert.equal(liquid.uniforms.aloeBackdropTexture.value, texture);
+  assert.equal(liquid.uniforms.aloeBackdropEnabled.value, 1);
+  assert.deepEqual(liquid.uniforms.aloeBackdropTexel.value.toArray(), [1 / 512, 1 / 384]);
+  aloe.setAloeBottleBackdrop(drawnRoot, texture, 0);
+  assert.equal(liquid.uniforms.aloeBackdropEnabled.value, 1, 'Prewarm executes the real external branch behind the white appearance');
+  assert.equal(liquid.uniforms.aloeBackdropMix.value, 0);
+  aloe.setAloeBottleBackdrop(drawnRoot, texture, .5);
+  assert.equal(liquid.uniforms.aloeBackdropMix.value, .5);
+  assert.ok(liquid.fragmentShader.includes('mix(vec3(1.0), backdropDisplay, aloeBackdropMix)'));
+  aloe.setAloeBottleBackdrop(drawnRoot, texture, 2);
+  assert.equal(liquid.uniforms.aloeBackdropMix.value, 1);
+  assert.equal(pulp.uniforms.aloeBackdropTexture, undefined, 'Pulp gains no sampler, matrix binding or external ray');
+  assert.ok(!pulp.fragmentShader.includes('aloeBackdropTexture'));
+  assert.ok(pulp.vertexShader.includes('vAloeDepth = aloeGelDetail.z > 0.5 ? 0.0 : aloeExitDistance'));
+  assert.ok(!pulp.fragmentShader.includes('aloeNoise'));
+  const camera = new THREE.PerspectiveCamera(); camera.position.z = 2;
+  drawnRoot.rotation.set(.3, .7, .2); drawnRoot.scale.setScalar(2); drawnRoot.updateMatrixWorld(true); camera.updateMatrixWorld(true);
+  const drawn = drawnRoot.getObjectByName(f.liquid.name);
+  drawn.material.onBeforeRender({ getRenderTarget: () => null }, {}, camera, drawn.geometry, drawn, null);
+  const product = liquid.uniforms.aloeWorldToMetric.value.clone().multiply(liquid.uniforms.aloeMetricToWorld.value);
+  const identity = new THREE.Matrix4();
+  product.elements.forEach((value, i) => assert.ok(Math.abs(value - identity.elements[i]) < 1e-10));
+  aloe.setAloeBottleBackdrop(drawnRoot, null);
+  assert.equal(liquid.uniforms.aloeBackdropTexture.value, null); assert.equal(liquid.uniforms.aloeBackdropEnabled.value, 0);
+  assert.equal(f.liquid.material.version, version); assert.equal(f.liquid.material.customProgramCacheKey(), key);
+  const expanded = liquid.fragmentShader.replace('#include <transmission_pars_fragment>', transmissionChunk());
+  for (const [declared, used] of [['uniform vec4 aloeFloor[', 'float aloeFloorValue('],
+    ['float aloeExitDistance(', 'vec3 externalViewWorld'], ['uniform sampler2D aloeBackdropTexture;', 'vec3 externalViewWorld']]) {
+    assert.ok(expanded.indexOf(declared) >= 0 && expanded.indexOf(declared) < expanded.indexOf(used), `${declared} precedes ${used}`);
+  }
+  function transmissionChunk() { return aloe.correctAloeTransmissionClear(THREE.ShaderChunk.transmission_pars_fragment, true); }
 });
 
 test('actual pooled draws use white preview while offscreen PNG preserves native alpha and restore without recompilation', context => {
@@ -381,4 +468,101 @@ test('molded inward bottom preserves near gel rather than skipping across the ba
   assert.ok(aloe.aloePulpReveal(depth) > 0.2, 'The near base piece remains visible');
   assert.equal(aloe.aloeExitDistance(profile, new THREE.Vector3(0, 0.005, 0), new THREE.Vector3(1, 0, 0)), 0,
     'The bottom air pocket contains no liquid');
+});
+
+test('vertex depth/detail interpolation stays calibrated against the previous per-pixel solver on shipped pulp and eight camera poses', async context => {
+  const createDraco = require('../../public/decoders/draco/draco_decoder.js');
+  const bytes = fs.readFileSync(path.resolve(__dirname, '../../public/models/bottles/pet-500-short-label.glb'));
+  const gltf = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12))), binary = bytes.subarray(28 + bytes.readUInt32LE(12));
+  const draco = await createDraco({}), parent = new Map();
+  gltf.nodes.forEach((node, index) => node.children?.forEach(child => parent.set(child, index)));
+  const matrixFor = index => {
+    const node = gltf.nodes[index], matrix = node.matrix ? new THREE.Matrix4().fromArray(node.matrix)
+      : new THREE.Matrix4().compose(new THREE.Vector3().fromArray(node.translation || [0, 0, 0]),
+        new THREE.Quaternion().fromArray(node.rotation || [0, 0, 0, 1]), new THREE.Vector3().fromArray(node.scale || [1, 1, 1]));
+    return parent.has(index) ? matrix.premultiply(matrixFor(parent.get(index))) : matrix;
+  };
+  const decode = role => {
+    const nodeIndex = gltf.nodes.findIndex(node => node.extras?.materialSlot === role);
+    const primitive = gltf.meshes[gltf.nodes[nodeIndex].mesh].primitives[0];
+    const extension = primitive.extensions.KHR_draco_mesh_compression, view = gltf.bufferViews[extension.bufferView];
+    const decoder = new draco.Decoder(), buffer = new draco.DecoderBuffer(), mesh = new draco.Mesh();
+    const positions = new draco.DracoFloat32Array(), face = new draco.DracoInt32Array();
+    let status;
+    try {
+      const data = binary.subarray(view.byteOffset || 0, (view.byteOffset || 0) + view.byteLength);
+      buffer.Init(data, data.length); status = decoder.DecodeBufferToMesh(buffer, mesh); assert.equal(status.ok(), true);
+      decoder.GetAttributeFloatForAllPoints(mesh, decoder.GetAttributeByUniqueId(mesh, extension.attributes.POSITION), positions);
+      const geometry = new THREE.BufferGeometry(), values = new Float32Array(mesh.num_points() * 3), indices = new Uint32Array(mesh.num_faces() * 3);
+      for (let i = 0; i < values.length; i++) values[i] = positions.GetValue(i);
+      for (let i = 0; i < mesh.num_faces(); i++) {
+        decoder.GetFaceFromMesh(mesh, i, face);
+        for (let corner = 0; corner < 3; corner++) indices[i * 3 + corner] = face.GetValue(corner);
+      }
+      geometry.setAttribute('position', new THREE.BufferAttribute(values, 3)); geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      context.after(() => geometry.dispose()); return { geometry, matrix: matrixFor(nodeIndex) };
+    } finally {
+      if (status) draco.destroy(status);
+      for (const item of [face, positions, mesh, buffer, decoder]) draco.destroy(item);
+    }
+  };
+  const water = decode('liquid'), pulp = decode('inclusions');
+  const profile = aloe.fitAloeLiquidProfile(water.geometry, water.matrix);
+  const position = pulp.geometry.attributes.position, indices = pulp.geometry.index;
+  const points = Array.from({ length: position.count }, (_, i) => new THREE.Vector3().fromBufferAttribute(position, i).applyMatrix4(pulp.matrix));
+  const model = new THREE.Group(), liquidMaterial = new THREE.MeshPhysicalMaterial(), pulpMaterial = new THREE.MeshPhysicalMaterial();
+  liquidMaterial.name = 'Aloe Vera Water'; pulpMaterial.name = 'Aloe Pulp - Clear';
+  liquidMaterial.userData.bottleProfile = pulpMaterial.userData.bottleProfile = 'aloe-pet-v1';
+  const liquidMesh = new THREE.Mesh(water.geometry, liquidMaterial), pulpMesh = new THREE.Mesh(pulp.geometry, pulpMaterial);
+  liquidMesh.applyMatrix4(water.matrix); pulpMesh.applyMatrix4(pulp.matrix); model.add(liquidMesh, pulpMesh); model.updateMatrixWorld(true);
+  context.after(() => { liquidMaterial.dispose(); pulpMaterial.dispose(); });
+  aloe.createAloeBottleMaterialContext(model, asset).configure(pulpMaterial, pulpMesh, 'inclusions', '#e84a3c');
+  const opticalAttribute = pulp.geometry.getAttribute('aloeGelDetail');
+  const details = points.map((_, i) => new THREE.Vector2(opticalAttribute.getX(i), opticalAttribute.getY(i)));
+  const fallbackAtVertex = points.map((_, i) => opticalAttribute.getZ(i));
+  const center = new THREE.Vector3(profile.center.x, (profile.minimumY + profile.maximumY) * 0.5, profile.center.y);
+  const offsets = [[0, 0, 0.6], [0.6, 0, 0], [-0.4, 0.18, 0.4], [0.4, 0.22, 0.4],
+    [0.4, -0.2, -0.4], [-0.4, -0.2, -0.4], [0.12, -0.6, 0.12], [0.12, 0.6, -0.12]];
+  const weights = [[1 / 3, 1 / 3, 1 / 3], [0.6, 0.2, 0.2], [0.2, 0.6, 0.2]];
+  const errors = [], contrastErrors = [], baseErrors = [], outliers = []; let neckSamples = 0, boundarySamples = 0;
+  const contrast = (depth, detail, cosine) => Math.min(aloe.ALOE_PET_OPTICS.pulpMaximumContrast,
+    (1 - Math.exp(-aloe.ALOE_PET_OPTICS.gelThicknessMetres / Math.max(Math.abs(cosine), 0.35)
+      * (aloe.ALOE_PET_OPTICS.gelExtinctionPerMetre + detail.x * aloe.ALOE_PET_OPTICS.gelCloudExtinctionPerMetre + detail.y * 8)))
+    * aloe.aloePulpReveal(depth));
+  for (const offset of offsets) {
+    const camera = center.clone().add(new THREE.Vector3().fromArray(offset));
+    const depthAtVertex = points.map((point, i) => fallbackAtVertex[i] > 0.5 ? 0 : aloe.aloeExitDistance(profile, point, camera.clone().sub(point)));
+    // Sample the real triangles, including molded-base and narrow-shoulder pulp.
+    for (let triangle = 0; triangle < indices.count; triangle += 3 * 23) {
+      const ids = [indices.getX(triangle), indices.getX(triangle + 1), indices.getX(triangle + 2)];
+      const [a, b, c] = ids.map(id => points[id]);
+      const normal = b.clone().sub(a).cross(c.clone().sub(a)).normalize();
+      const centroid = a.clone().add(b).add(c).multiplyScalar(1 / 3);
+      if (normal.dot(camera.clone().sub(centroid)) <= 0) continue;
+      for (const w of weights) {
+        const point = new THREE.Vector3(), detail = new THREE.Vector2(); let interpolated = 0, fallbackWeight = 0;
+        ids.forEach((id, i) => { point.addScaledVector(points[id], w[i]); detail.addScaledVector(details[id], w[i]); interpolated += depthAtVertex[id] * w[i]; fallbackWeight += fallbackAtVertex[id] * w[i]; });
+        const ray = camera.clone().sub(point).normalize(), original = aloe.aloeExitDistance(profile, point, ray);
+        if (fallbackWeight > 0.00001) { interpolated = original; boundarySamples++; }
+        const error = Math.abs(interpolated - original); errors.push(error);
+        const contrastError = Math.abs(contrast(interpolated, detail, normal.dot(ray)) - contrast(original, aloe.aloeGelDetailAt(point), normal.dot(ray)));
+        contrastErrors.push(contrastError);
+        if (contrastError > 0.025) outliers.push({ contrastError, original, interpolated, point: point.toArray(), triangle: triangle / 3, offset });
+        if (point.y < profile.minimumY + 0.025) baseErrors.push(error);
+        if (point.y > profile.maximumY - 0.05) neckSamples++;
+      }
+    }
+  }
+  const mean = values => values.reduce((sum, value) => sum + value, 0) / values.length;
+  const quantile = (values, fraction) => [...values].sort((a, b) => a - b)[Math.floor((values.length - 1) * fraction)];
+  context.diagnostic(JSON.stringify({ samples: errors.length, baseSamples: baseErrors.length, neckSamples,
+    depthMeanMm: mean(errors) * 1000, depthP95Mm: quantile(errors, 0.95) * 1000, depthMaximumMm: Math.max(...errors) * 1000,
+    baseMeanMm: mean(baseErrors) * 1000, contrastMean: mean(contrastErrors), contrastP95: quantile(contrastErrors, 0.95), contrastMaximum: Math.max(...contrastErrors),
+    contrastOutliers: outliers.length, exactFallbackSamples: boundarySamples }));
+  assert.ok(errors.length > 6000 && baseErrors.length > 300 && neckSamples > 100);
+  assert.ok(mean(errors) < 0.0002, 'Mean interpolation depth differs by less than .2 mm from fitted per-pixel depth');
+  assert.ok(quantile(contrastErrors, 0.95) < 0.01, '95% of sampled gel pixels retain contrast within one percentage point');
+  assert.ok(Math.max(...contrastErrors) < 0.05, 'No base discontinuity may change a faint gel pixel into a hard dark silhouette');
+  assert.equal(mean(baseErrors), 0, 'Molded-base depth retains the exact first exit at the inward air pocket');
+  assert.ok(boundarySamples / errors.length < 0.3, 'Most pulp pixels use interpolated depth; exact first-exit fallback remains confined to the base/boundary');
 });

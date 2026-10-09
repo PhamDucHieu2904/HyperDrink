@@ -205,7 +205,7 @@ test('Aloe white-reservoir preview has no live backdrop allocation or continuous
   await flush(); h.parse('/aloe.glb'); await flush(); h.finishLabel('one'); await flush();
   assert.equal(h.statuses.at(-1).phase, 'ready');
   h.runFrame(performance.now() + 1000);
-  assert.equal(h.backdropPainters.length, 0); assert.equal(h.backdropBindings.length, 0);
+  assert.equal(h.backdropPainters.length, 0); assert.ok(h.backdropBindings.every(binding => binding.texture === null));
   assert.equal(h.draws.at(-1).target, null, 'Preview uses the same post-tone white composition as the hero');
   assert.equal(h.rafs.size, 0, 'Static decorative CSS cannot keep the bottle render loop alive');
   const drawsAtRest = h.draws.length; h.runFrame(performance.now() + 1500);
@@ -221,7 +221,33 @@ test('Aloe white-reservoir preview has no live backdrop allocation or continuous
   h.runtime.select(studioAsset('can'), studioLabel('one')); await flush(); h.parse('/can.glb'); await flush(); h.finishLabel('one'); await flush();
   h.runFrame(performance.now() + 5000);
   assert.ok(h.draws.at(-1).target !== null, 'Other packages retain their established preview pipeline');
-  assert.equal(h.backdropPainters.length, 0); assert.equal(h.backdropBindings.length, 0);
+  assert.equal(h.backdropPainters.length, 0); assert.ok(h.backdropBindings.every(binding => binding.texture === null));
+});
+
+test('Aloe transparent preview borrows a backdrop while PNG and white detach it and Still stays suspended', async context => {
+  const h = runtimeHarness(); context.after(() => h.close());
+  const source = { state: {}, config: { cellSize: 88 } };
+  h.runtime.setBackground({ type: 'transparent' }); h.runtime.setBackdrop(source);
+  h.runtime.select({ ...studioAsset('aloe'), packaging: 'pet', materialSlots: { liquid: ['Aloe Vera Water'] } }, studioLabel('one'));
+  await flush(); h.parse('/aloe.glb'); await flush(); h.finishLabel('one'); await flush();
+  h.runFrame(performance.now() + 1000);
+  assert.equal(h.backdropPainters.length, 1);
+  const painter = h.backdropPainters[0];
+  assert.equal(h.backdropBindings.at(-1).texture, painter.texture);
+  assert.equal(h.draws.at(-1).target, null);
+  assert.equal(h.rafs.size, 0, 'Restoring the sampler does not revert the suspended Still render loop');
+  h.runtime.setBackdrop(source); assert.equal(h.rafs.size, 0, 'Identical sources do not schedule another draw');
+  const exporting = h.runtime.capture({ longEdge: 2048 }); await flush();
+  assert.equal(h.backdropBindings.at(-1).texture, null, 'PNG never embeds decorative rear artwork');
+  assert.notEqual(h.draws.at(-1).target, null);
+  h.finishReadback(); await exporting; await flush(); h.runFrame(performance.now() + 2000);
+  assert.equal(h.backdropBindings.at(-1).texture, painter.texture, 'Preview resumes its borrowed sampler');
+  h.runtime.setBackground({ type: 'white' }); h.runFrame(performance.now() + 3000);
+  assert.equal(h.backdropBindings.at(-1).texture, null);
+  h.runtime.setBackdrop(); assert.equal(painter.disposed, true);
+  h.runtime.setBackground({ type: 'transparent' }); h.runFrame(performance.now() + 4000);
+  assert.equal(h.backdropBindings.at(-1).texture, null);
+  assert.equal(h.backdropPainters.length, 1);
 });
 
 test('ordinary Studio models retain a stationary transparent-preview loop', async context => {

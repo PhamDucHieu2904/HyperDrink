@@ -40,6 +40,18 @@ const { resolveProductDetail } = require('../../lib/catalog/product-detail.ts');
 const { catalogProducts, parsePublishedCatalog } = require('../../lib/catalog/storefront.ts');
 Module._load = originalLoad;
 
+test('homepage published switches reach the actual viewer without changing model, label or refraction when all accents are off', () => {
+  const data = fixture();
+  const baseline = render(data).viewers[0];
+  data.homepageLayout = { splash: false, droplet: false, leaf: false, fruit: false, ice: false };
+  const viewer = render(data).viewers[0];
+  assert.deepEqual(viewer.asset, baseline.asset);
+  assert.deepEqual(viewer.appearance, baseline.appearance);
+  assert.deepEqual(viewer.accentScene.nodes, []);
+  assert.equal(viewer.accentScene.enabled, false);
+  assert.equal(viewer.backdrop, undefined);
+});
+
 test('product panel follows the selected label, escapes editorial text, and handles missing, disabled and archived details', () => {
   const data = fixture(); const products = catalogProducts(data);
   const product = products.find(item => item.label);
@@ -410,18 +422,18 @@ test('an uploaded flavor icon reaches the actual hero and shared water backdrop 
   assert.equal(fallback.themes[4].iconUrl, undefined); assert.equal(fallback.themes[4].icon, data.flavors[4].icon);
 });
 
-test('Aloe white liquid skips external capture with image-only decorations', () => {
+test('Aloe requests external capture even with image-only decorations while cans remain unchanged', () => {
   const data = fixture();
   assert.equal(render(data).viewers[0].backdrop, undefined);
   data.packagingCategories[0].viewerKind = 'pet';
   data.models3d[0].materialSlots.liquid = ['Aloe Vera Water'];
   const { viewers } = render(data);
-  assert.equal(viewers[0].backdrop, undefined);
+  assert.ok(viewers[0].backdrop?.state);
   assert.ok(viewers[0].accentScene.nodes.every(node => !node.enabled || node.assetUrl || !['droplet', 'ice'].includes(node.kind)),
     'The production scene uses image decorations');
 });
 
-test('the registered Aloe release routes its real exported liquid name to white preview without external capture', () => {
+test('the registered Aloe release routes its real exported liquid name to the live refraction backdrop', () => {
   const data = JSON.parse(fs.readFileSync(require('node:path').resolve(__dirname, '../../public/catalog/current.json'), 'utf8')).data.catalog;
   const display = data.displays3d.find(item => item.id === 'aloe-pet500-strawberry-3d');
   const variant = data.productVariants.find(item => item.id === display.productVariantId);
@@ -429,6 +441,6 @@ test('the registered Aloe release routes its real exported liquid name to white 
   const { viewers } = render(data, { groupId: variant.groupId, slotId: slot.id, variantId: variant.id });
   assert.equal(viewers[0].asset.id, display.modelId);
   assert.deepEqual(viewers[0].asset.materialSlots.liquid, ['Aloe Vera Water']);
-  assert.equal(viewers[0].backdrop, undefined,
-    'The real material name disables the optional per-frame environment pass');
+  assert.ok(viewers[0].backdrop?.state,
+    'The actual exported liquid role enables refraction instead of only a synthetic material name');
 });

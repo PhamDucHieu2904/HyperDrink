@@ -101,6 +101,49 @@ export function prepareBottleLayers(root: THREE.Object3D, asset: ProductAsset): 
   }
 }
 
+const captureOnlyLayers = new WeakSet<THREE.Mesh>();
+const suppressedDraws = new WeakMap<THREE.WebGLRenderer, Set<() => void>>();
+
+/** Three skips onAfterRender if a material/GPU draw throws. Always restore the
+ * shared Water range, including failed frames and aborted offscreen captures. */
+export function renderBottleScene(renderer: THREE.WebGLRenderer, scene: THREE.Object3D, camera: THREE.Camera): void {
+  try { renderer.render(scene, camera); }
+  finally {
+    const pending = suppressedDraws.get(renderer);
+    pending?.forEach(restore => restore());
+    pending?.clear();
+  }
+}
+
+/** The white-filled Aloe preview already composites these layers through native
+ * transmission. Skip their duplicate beauty draw, preserving capture and PNG.
+ * The back layer shares Water geometry: restore its range before Water is drawn. */
+function configureAloeCaptureOnlyLayer(mesh: THREE.Mesh): void {
+  if (captureOnlyLayers.has(mesh)) return;
+  captureOnlyLayers.add(mesh);
+  const before = mesh.onBeforeRender, after = mesh.onAfterRender;
+  let restoreRange: (() => void) | undefined;
+  mesh.onBeforeRender = function (renderer, scene, camera, geometry, material, group) {
+    before.call(this, renderer, scene, camera, geometry, material, group);
+    if (renderer.getRenderTarget() !== null) return;
+    const { start, count } = geometry.drawRange;
+    let pending = suppressedDraws.get(renderer);
+    if (!pending) { pending = new Set(); suppressedDraws.set(renderer, pending); }
+    const restore = () => {
+      geometry.setDrawRange(start, count);
+      pending.delete(restore);
+      restoreRange = undefined;
+    };
+    restoreRange = restore;
+    pending.add(restore);
+    geometry.setDrawRange(0, 0);
+  };
+  mesh.onAfterRender = function (renderer, scene, camera, geometry, material, group) {
+    restoreRange?.();
+    after.call(this, renderer, scene, camera, geometry, material, group);
+  };
+}
+
 /** Transparent surfaces must retain their order during spins and pooled flavor swaps. */
 export function configureBottleRenderOrder(root: THREE.Object3D, asset: ProductAsset): void {
   root.traverse(node => {
@@ -111,6 +154,7 @@ export function configureBottleRenderOrder(root: THREE.Object3D, asset: ProductA
       const aloe = node.userData.bottleProfile === 'aloe-pet-v1' ||
         (Array.isArray(node.material) ? node.material : [node.material]).some(material => material.userData.bottleProfile === 'aloe-pet-v1');
       node.renderOrder = role === 'body' || role === 'ring' ? 20 : role === 'liquid' ? 10 : role === 'inclusions' ? (aloe ? 1 : 0) : role === 'liquid-back' ? 0 : 30;
+      if (aloe && (role === 'inclusions' || role === 'liquid-back')) configureAloeCaptureOnlyLayer(node);
     }
   });
 }

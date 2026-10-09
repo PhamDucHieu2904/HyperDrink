@@ -80,14 +80,20 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     }
     reportTextureCache();
   };
-  const getTexture = (src: string) => {
+  const getTexture = (src: string, imageSource?: Promise<HTMLImageElement | null>) => {
     const cached = textureRequests.get(src);
     if (cached) {
       textureRequests.delete(src); textureRequests.set(src, cached);
       return cached.promise;
     }
     pendingTextureLoads += 1;
-    const promise = colorMaps.loadAsync(publicUrl(src)).then(texture => {
+    const source = imageSource ? imageSource.then(image => {
+      if (!image) throw new Error('Cannot load blended accent image');
+      const texture = new THREE.Texture(image);
+      texture.needsUpdate = true;
+      return texture;
+    }) : colorMaps.loadAsync(publicUrl(src));
+    const promise = source.then(texture => {
       // TextureLoader cannot cancel a started image request. An evicted result
       // is released immediately, even if this URL has since been requested anew.
       if (disposed || textureRequests.get(src) !== entry) {
@@ -162,8 +168,8 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     }
     trackMaterial(item, material);
     const size = planeSize(item.node);
-    const image = texture.image as { width?: number; height?: number } | undefined;
-    item.imageSize = item.node.assetUrl ? accentImageSize(image?.width ?? 0, image?.height ?? 0, size) : [size, size];
+    const image = texture.image as { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number } | undefined;
+    item.imageSize = item.node.assetUrl ? accentImageSize(image?.naturalWidth || image?.width || 0, image?.naturalHeight || image?.height || 0, size) : [size, size];
     const geometry = new THREE.PlaneGeometry(...item.imageSize);
     if (crop) {
       const uv = geometry.getAttribute('uv');
@@ -178,15 +184,10 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
     // Its actual depth is also solved behind those objects in update().
     if (item.node.kind === 'splash') {
       mesh.renderOrder = -10;
-      if (item.node.blendMode === 'hard-light' && item.node.assetUrl && mount) {
-        blendedHost ??= createBlendedAccentHost(mount);
-        if (blendedHost) {
-          item.blended = blendedHost.add(item.node.assetUrl, () => { item.ready = true; invalidate(); }, item.imageSize);
-          item.resources.push(item.blended);
-          // Keep the plane's transform for layout, but composite its photo only
-          // once, against the actual CSS backdrop beneath all WebGL objects.
-          mesh.visible = false;
-        }
+      if (item.blended) {
+        // The DOM image starts loading at build time. This optional counterpart
+        // supplies capture/layout only and never draws a second visible splash.
+        mesh.visible = false;
       }
     }
     item.group.add(mesh);
@@ -243,7 +244,24 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       } else {
         const glass = node.kind === 'ice';
         const cellName = node.sprite ?? (node.kind === 'leaf' ? 'mint' : flavor === 'citrus' ? 'orange' : flavor);
-        const request = getTexture(node.assetUrl ?? (glass ? GLASS_ATLAS : ATLAS));
+        if (node.kind === 'splash' && node.blendMode === 'hard-light' && node.assetUrl && mount) {
+          blendedHost ??= createBlendedAccentHost(mount);
+          if (blendedHost) {
+            // Discover the LCP decoration before any Three texture has loaded.
+            // Product settling and the existing fade still own its reveal.
+            item.blended = blendedHost.add(node.assetUrl, image => {
+              if (disposed || thisRevision !== revision) return;
+              if (image) {
+                item.imageSize = accentImageSize(image.naturalWidth, image.naturalHeight, size);
+                item.blended?.resize(item.imageSize);
+              }
+              item.ready = true;
+              invalidate();
+            });
+            item.resources.push(item.blended);
+          }
+        }
+        const request = getTexture(node.assetUrl ?? (glass ? GLASS_ATLAS : ATLAS), item.blended?.source);
         request.then(texture => {
           // The cache owns shared source textures, including late or temporarily
           // unused images. Each sprite owns only its transform clone/material.
@@ -252,7 +270,11 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
           sprite(item, texture, node.assetUrl ? undefined : glass ? [node.kind === 'ice' ? 0 : 1, 0] : CELLS[cellName], glass ? 2 : 3, glass ? 1 : 2);
           if (!item.blended) item.ready = true;
           invalidate();
-        }).catch(() => { item.ready = true; invalidate(); });
+        }).catch(() => {
+          if (disposed || thisRevision !== revision) return;
+          if (!item.blended) item.ready = true;
+          invalidate();
+        });
       }
       return item;
     });

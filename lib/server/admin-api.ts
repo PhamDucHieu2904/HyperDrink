@@ -78,6 +78,11 @@ export function createAdminHandler(repository:LocalCatalogRepository,options:{al
         monitor.store.acknowledge(body.id,user.userId);return respond(json(null));
       }
       if (path === '/api/admin/v1/catalog' && request.method === 'GET') return respond(json({catalog:await repository.readDraft(),releases:await repository.listReleases(),activeReleaseId:(await repository.readActiveRelease())?.id||null,session:user}));
+      if (path === '/api/admin/v1/homepage-layout' && request.method === 'POST') {
+        const body = await readAdminJson(request);
+        if (typeof body.expectedDraftHash !== 'string' || !/^[a-f0-9]{64}$/.test(body.expectedDraftHash) || Object.keys(body).some(key => !['layout', 'expectedDraftHash'].includes(key))) return respond(fail('Cấu hình trang chính không hợp lệ. Tải lại dữ liệu rồi thử lại.', 422));
+        return respond(json(await repository.saveHomepageLayout(body.layout, body.expectedDraftHash, user.email)));
+      }
       if (path === '/api/admin/v1/usage' && request.method === 'GET') return respond(json(getArchiveImpact(await repository.readDraft(),collection(url.searchParams.get('collection')),url.searchParams.get('id')||'')));
       if (path === '/api/admin/v1/record' && request.method === 'POST') {
         const body=await readAdminJson(request);

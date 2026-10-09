@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { Box } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import type { CatalogData, Display2D, Display3D, MediaAsset, Model3D, PackagingSlot, ProductVariant } from '@/lib/catalog/contracts';
 import { mediaUrl, resolveDisplay3D } from '@/lib/catalog/resolve';
 import { useLanguage } from '../LanguageProvider';
@@ -13,6 +13,11 @@ import type { BackgroundRenderState } from '@/lib/background-render-state';
 import type { BackgroundConfig } from '@/lib/background-config';
 import { createHeroResourceWindow } from '@/lib/viewer/hero-resource-window';
 import type { ViewerResourceCandidate, ViewerResourceWindow } from '@/lib/viewer/resource-prefetch';
+import { decodeHomepageLayout, filterHomepageAccents, resolveHomepageLayout } from '@/lib/catalog/homepage-layout';
+
+const subscribePreview = () => () => {};
+const readPreview = () => new URLSearchParams(window.location.search).get('layoutTest') ?? '';
+const serverPreview = () => '';
 
 const ProductViewer = dynamic(() => import('../ProductViewer'), { ssr: false, loading: () => <div className="scene-shell catalog-viewer-chunk"><ViewerLoading /></div> });
 
@@ -26,8 +31,15 @@ export default function ProductVisual({ catalog, releaseId, seed, slot, variant,
   const copy = heroCopy(locale);
   const [failedDisplay, setFailedDisplay] = useState('');
   const [failedImages, setFailedImages] = useState<string[]>([]);
+  const preview = useSyncExternalStore(subscribePreview, readPreview, serverPreview);
   const renderKey = `${releaseId}:${variant.id}:${display3d?.revision ?? 0}`;
-  const scene = useMemo(() => display3d ? resolveDisplay3D(catalog, display3d, `${releaseId}:${seed}`) : null, [catalog, display3d, releaseId, seed]);
+  const scene = useMemo(() => {
+    if (!display3d) return null;
+    const resolved = resolveDisplay3D(catalog, display3d, `${releaseId}:${seed}`);
+    if (!resolved) return null;
+    const layout = decodeHomepageLayout(preview) ?? resolveHomepageLayout(catalog.homepageLayout);
+    return { ...resolved, accentScene: filterHomepageAccents(resolved.accentScene, layout) };
+  }, [catalog, display3d, releaseId, seed, preview]);
   const resourceWindow = useMemo<ViewerResourceWindow | undefined>(() => {
     if (slot.mode === '2d' || !scene || !resourceDisplays?.length) return undefined;
     const selectedIndex = resourceDisplays.findIndex(display => display?.productVariantId === variant.id);
@@ -44,15 +56,14 @@ export default function ProductVisual({ catalog, releaseId, seed, slot, variant,
     return { ready: window.ready.flatMap(candidateFor), files: window.files.flatMap(candidateFor) };
   }, [catalog, display3d, releaseId, resourceDisplays, scene, seed, slot.mode, variant.id]);
   const canUse3d = slot.mode !== '2d' && scene && failedDisplay !== renderKey;
-  // Aloe uses a white liquid reservoir with internal refraction. Its scene
-  // never needs the optional per-frame capture of rear artwork or accents.
-  const whiteLiquid = scene?.asset.materialSlots?.liquid?.includes('Aloe Vera Water');
-  const needsBackdrop = !whiteLiquid && (scene?.accentScene.enabled && scene.accentScene.nodes.some(node => node.enabled && !node.assetUrl && (node.kind === 'droplet' || node.kind === 'ice')));
+  // Aloe borrows the product-free scene for the restored external refraction.
+  const aloeLiquid = scene?.asset.materialSlots?.liquid?.includes('Aloe Vera Water');
+  const needsBackdrop = aloeLiquid || (scene?.accentScene.enabled && scene.accentScene.nodes.some(node => node.enabled && !node.assetUrl && (node.kind === 'droplet' || node.kind === 'ice')));
   const poster = model ? catalog.media.find(item => item.id === model.posterId && item.role === 'poster' && item.lifecycle === 'active' && item.status === 'ready') : undefined;
   const candidates = [image2d, ...(slot.mode !== '2d' ? [poster] : [])].filter((item): item is MediaAsset => Boolean(item));
   const fallback = candidates.find(item => !failedImages.includes(mediaUrl(item)));
   const fallbackUrl = fallback ? mediaUrl(fallback) : '';
-  if (canUse3d) return <ProductViewer asset={scene.asset} appearance={scene.appearance} resourceWindow={resourceWindow} accentScene={scene.accentScene} loadingFallback={<ViewerLoading />} backdrop={needsBackdrop ? { state: backgroundState, config: backgroundConfig } : undefined} onStatus={status => { if (status.phase === 'error' && status.assetId === scene.asset.id) { setFailedDisplay(renderKey); onViewerUnavailable(); } }} />;
+  if (canUse3d) return <ProductViewer asset={scene.asset} appearance={scene.appearance} resourceWindow={resourceWindow} accentScene={scene.accentScene} loadingFallback={<ViewerLoading />} backdrop={needsBackdrop ? { state: backgroundState, config: backgroundConfig, adaptiveAloe: Boolean(aloeLiquid) } : undefined} onStatus={status => { if (status.phase === 'error' && status.assetId === scene.asset.id) { setFailedDisplay(renderKey); onViewerUnavailable(); } }} />;
   const isReference = Boolean(fallback && fallback.id === poster?.id && fallback.id !== image2d?.id);
   return <figure className="catalog-product-image" aria-label={variant.name}>
     {fallbackUrl ? <Image src={fallbackUrl} width={fallback?.width || 900} height={fallback?.height || 1200} alt={isReference ? `${model?.name} · ${copy.poster}` : display2d?.alt || variant.name} priority unoptimized onError={() => setFailedImages(previous => previous.includes(fallbackUrl) ? previous : [...previous, fallbackUrl])} /> : <div className="catalog-product-unavailable" role="status"><Box size={64} strokeWidth={1} /><p>{candidates.length ? copy.unavailable : copy.empty}</p></div>}

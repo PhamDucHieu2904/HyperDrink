@@ -26,7 +26,7 @@ function BrandMark() {
   return (
     <a className="brand-mark" href="#top" aria-label={t('nav.backToTop')}>
       <span className="brand-logo" aria-hidden="true" style={{ '--brand-logo-mask': `url("${logo}")` } as React.CSSProperties}>
-        <Image src={logo} alt="" width={968} height={492} unoptimized />
+        <Image src={logo} alt="" width={968} height={492} loading="eager" unoptimized />
         <span className="brand-logo-shine" />
       </span>
     </a>

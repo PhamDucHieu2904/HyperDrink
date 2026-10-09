@@ -3,6 +3,7 @@ import { catalogWithDefaults } from './contracts';
 import { checkDisplay2DCompatibility, checkDisplay3DCompatibility, collectPublicCatalog } from './compatibility';
 import { isImageMedia } from './media-roles';
 import { resolveFlavorFruitImage } from './flavor-media';
+import { isHomepageLayout } from './homepage-layout';
 
 export const CATALOG_COLLECTIONS = ['drinkTypes', 'packagingCategories', 'packagingVariants', 'flavors', 'flavorAssets', 'productGroups', 'productVariants', 'packagingSlots', 'media', 'labels', 'models3d', 'assets2d', 'displays3d', 'displays2d', 'productDetails', 'catalogCollections', 'catalogItems'] as const satisfies readonly CollectionName[];
 export interface ValidationOptions { mode?: 'draft' | 'publish' }
@@ -197,7 +198,8 @@ export function validateCatalog(input: unknown, options: ValidationOptions = {})
   const issues: ValidationIssue[] = [];
   const add = (collection: CollectionName, entityId: string, field: string, code: string, message: string, severity: 'error' | 'warning' = 'error') => issues.push({ collection, entityId, field, code, message, severity });
   if (!plain(input) || input.schemaVersion !== 1) { add('productGroups', '', 'schemaVersion', 'invalid_schema', 'Catalog cần schemaVersion 1.'); return issues; }
-  if (Object.keys(input).some(key => key !== 'schemaVersion' && !(CATALOG_COLLECTIONS as readonly string[]).includes(key))) add('productGroups', '', '', 'unknown_field', 'Catalog chứa collection không thuộc schema.');
+  if (Object.keys(input).some(key => key !== 'schemaVersion' && key !== 'homepageLayout' && !(CATALOG_COLLECTIONS as readonly string[]).includes(key))) add('productGroups', '', '', 'unknown_field', 'Catalog chứa collection không thuộc schema.');
+  if (input.homepageLayout !== undefined && !isHomepageLayout(input.homepageLayout)) add('productGroups', '', 'homepageLayout', 'invalid_value', 'Cấu hình trang chính cần đủ 5 giá trị bật/tắt hợp lệ.');
   for (const collection of CATALOG_COLLECTIONS) {
     const records = input[collection];
     if (['productDetails', 'catalogCollections', 'catalogItems'].includes(collection) && records === undefined) continue;

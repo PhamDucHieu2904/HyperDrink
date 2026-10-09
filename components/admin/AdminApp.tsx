@@ -15,6 +15,8 @@ import { buildProductDetailFilterIndex, productDetailMatchesFilters, productDeta
 import ProductDetailFilters from './catalog/ProductDetailFilters';
 import { mergeFlavorPoolAsset } from '@/lib/catalog/flavor-pool-library';
 import OperationsStatus from './operations/OperationsStatus';
+import HomepageLayoutConfig from './HomepageLayoutConfig';
+import type { HomepageLayout } from '@/lib/catalog/homepage-layout';
 import { BarChart3, ShieldAlert } from 'lucide-react';
 import FlavorSymbol from './ui/FlavorSymbol';
 import EntityEditor from './catalog/EntityEditor';
@@ -41,6 +43,7 @@ export interface AdminAppProps {
   backendReady: boolean;
   onSave?: WorkspaceHelpers['onSave'];
   onSaveDisplay?: WorkspaceHelpers['onSaveDisplay'];
+  onSaveHomepageLayout?: (layout: HomepageLayout, catalog: CatalogData) => Promise<CatalogData>;
   onAddFlavorAsset?: AddFlavorPoolAsset;
   onDeleteRecord?: DeleteRecordHandler;
   onArchive?: (collection: CollectionName, id: string, expectedRevision: number) => Promise<void>;
@@ -71,7 +74,7 @@ function referenceCount(data: CatalogData, id: string): number {
   return records.size;
 }
 
-export default function AdminApp({ initialData, session, backendReady, onSave, onSaveDisplay, onAddFlavorAsset, onArchive, onDeleteRecord, onUpload, onReorder, onRefresh, onSignOut, renderWorkspace }: AdminAppProps) {
+export default function AdminApp({ initialData, session, backendReady, onSave, onSaveDisplay, onSaveHomepageLayout, onAddFlavorAsset, onArchive, onDeleteRecord, onUpload, onReorder, onRefresh, onSignOut, renderWorkspace }: AdminAppProps) {
   const [catalog, setCatalog] = useState(initialData ?? emptyCatalog);
   const [sourceData, setSourceData] = useState(initialData);
   const [module, setModule] = useState<AdminModule>('dashboard');
@@ -249,6 +252,7 @@ export default function AdminApp({ initialData, session, backendReady, onSave, o
         {module === 'dashboard' ? <>
           <div className={styles.pageHeading}><div><p className={styles.eyebrow}>DỮ LIỆU · TÀI NGUYÊN · HIỂN THỊ</p><h1>Tổng quan website</h1><p>Theo dõi truy cập, an ninh và quản lý trải nghiệm sản phẩm.</p></div><button className={styles.primaryButton} onClick={() => navigate('productGroups')}><Plus size={18} /> Quản lý dòng sản phẩm</button></div>
           {workspace}
+          <HomepageLayoutConfig value={catalog.homepageLayout} onSave={backendReady && onSaveHomepageLayout ? async layout => { setCatalog(await onSaveHomepageLayout(layout, catalog)); } : undefined} />
           <div className={styles.statsGrid}>{([{ label: 'Dòng sản phẩm', collection: 'productGroups', icon: Layers3, target: 'productGroups', detail: `${catalog.productGroups.filter(item => item.lifecycle === 'active' && item.visible).length} dòng bật hiển thị` }, { label: 'Hương vị', collection: 'flavors', icon: Leaf, target: 'flavors', detail: `${active('flavorAssets')} ảnh trang trí` }, { label: 'Model 3D', collection: 'models3d', icon: Box, target: 'models3d', detail: `${active('packagingVariants')} quy cách bao bì` }, { label: 'Artwork nhãn', collection: 'labels', icon: FileImage, target: 'labels', detail: 'Tương thích theo UV profile' }] as const).map(card => <button key={card.collection} className={styles.statCard} onClick={() => navigate(card.target)}><div><span>{card.label}</span><card.icon size={20} /></div><strong>{active(card.collection).toString().padStart(2, '0')}</strong><small>{card.detail}<ArrowRight size={15} /></small></button>)}</div>
           <div className={styles.dashboardGrid}><section className={styles.workflowCard}><div className={styles.sectionHeading}><div><p className={styles.eyebrow}>QUY TRÌNH VẬN HÀNH</p><h2>Tạo một trải nghiệm sản phẩm</h2></div><span className={styles.softBadge}>5 bước</span></div>{([{ title: 'Chuẩn bị danh mục', copy: 'Loại nước, quy cách bao bì và bộ hương vị.', icon: FlaskConical, target: 'drinkTypes' }, { title: 'Thêm nhãn & mô hình', copy: 'Artwork và GLB có cùng bao bì, layout profile.', icon: Box, target: 'models3d' }, { title: 'Tạo dòng & sắp xếp button', copy: 'Tên dòng riêng, slot bao bì theo thứ tự mong muốn.', icon: Layers3, target: 'productGroups' }, { title: 'Ghép cấu hình 3D / 2D', copy: 'Chọn tổ hợp và xem trước giao diện sản phẩm.', icon: Sparkles, target: 'displays3d' }, { title: 'Kiểm tra & phát hành', copy: 'Chỉ bản phát hành hoàn chỉnh xuất hiện trên website.', icon: ShieldCheck, target: 'publishing' }] as const).map((step, index) => <button key={step.title} className={styles.workflowStep} onClick={() => navigate(step.target)}><span className={styles.stepNumber}>{index + 1}</span><step.icon size={20} /><div><strong>{step.title}</strong><p>{step.copy}</p></div><ChevronRight size={17} /></button>)}</section><div className={styles.dashboardSide}><section className={styles.readinessCard}><div className={styles.sectionHeading}><h2>Trạng thái tài nguyên</h2><CheckCircle2 size={20} /></div><div className={styles.readinessTotal}><strong>{catalog.media.filter(item => item.lifecycle === 'active' && item.status === 'ready').length}</strong><span>file sẵn sàng sử dụng</span></div><div className={styles.readinessRow}><span>Đang xử lý</span><strong>{catalog.media.filter(item => item.status === 'processing' || item.status === 'uploaded').length}</strong></div><div className={styles.readinessRow}><span>Cần kiểm tra lại</span><strong>{catalog.media.filter(item => item.status === 'failed').length}</strong></div><button className={styles.textButton} onClick={() => navigate('media')}>Mở kho tài nguyên <ArrowRight size={16} /></button></section><section className={styles.guidanceCard}><span className={styles.guidanceIcon}><Leaf size={25} /></span><h2>Một hương vị, nhiều trải nghiệm</h2><p>Màu nền, icon và ảnh trái cây / lá / splash / đá viên được quản lý trong Flavor Data, dùng lại cho mọi bao bì.</p><button className={styles.textButton} onClick={() => navigate('flavors')}>Xây dựng bộ Flavor <ArrowRight size={16} /></button></section></div></div>
         </> : workspace ?? (collection ? <>

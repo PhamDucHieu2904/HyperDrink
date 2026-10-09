@@ -106,9 +106,10 @@ export function createBlendedAccentHost(mount: HTMLDivElement) {
   measure();
   const targets = new Set<{ dispose(): void }>();
   return {
-    add(src: string, ready: () => void, imageSize: [number, number] = [1, 1]) {
+    add(src: string, ready: (image: HTMLImageElement | null) => void, imageSize: [number, number] = [1, 1]) {
       const image = document.createElement('img');
       image.alt = ''; image.draggable = false;
+      image.crossOrigin = 'anonymous';
       image.setAttribute('aria-hidden', 'true');
       image.dataset.accentBlend = 'hard-light';
       Object.assign(image.style, {
@@ -116,7 +117,17 @@ export function createBlendedAccentHost(mount: HTMLDivElement) {
         transformOrigin: '0 0', mixBlendMode: 'hard-light', zIndex: '1', pointerEvents: 'none', display: 'none',
       });
       let removed = false, loaded = false;
+      let resolveSource!: (image: HTMLImageElement | null) => void;
+      // The visible decoration owns discovery and decoding. Its capture proxy
+      // can reuse these pixels without a second TextureLoader/image cycle.
+      const source = new Promise<HTMLImageElement | null>(resolve => { resolveSource = resolve; });
       const target = {
+        source,
+        resize(value: [number, number]) {
+          imageSize = value;
+          image.style.width = `${768 * imageSize[0]}px`;
+          image.style.height = `${768 * imageSize[1]}px`;
+        },
         update(world: THREE.Matrix4, camera: THREE.Camera, opacity: number, visible: boolean, zoom = 1) {
           if (removed) return;
           image.style.display = visible && loaded ? 'block' : 'none';
@@ -126,11 +137,12 @@ export function createBlendedAccentHost(mount: HTMLDivElement) {
         dispose() {
           if (removed) return;
           removed = true; image.onload = null; image.onerror = null;
+          resolveSource(null);
           image.remove(); targets.delete(target);
         },
       };
-      image.onload = () => { if (!removed && !disposed) { loaded = true; ready(); } };
-      image.onerror = () => { if (!removed && !disposed) { loaded = false; ready(); } };
+      image.onload = () => { if (!removed && !disposed) { loaded = true; resolveSource(image); ready(image); } };
+      image.onerror = () => { if (!removed && !disposed) { loaded = false; resolveSource(null); ready(null); } };
       host.appendChild(image); targets.add(target);
       image.src = publicUrl(src);
       return target;

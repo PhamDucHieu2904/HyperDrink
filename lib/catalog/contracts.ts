@@ -187,6 +187,7 @@ export interface CatalogItem extends Entity {
 }
 export interface CatalogData {
   schemaVersion: 1;
+  homepageLayout?: import('./homepage-layout').HomepageLayout;
   drinkTypes: DrinkType[];
   packagingCategories: PackagingCategory[];
   packagingVariants: PackagingVariant[];
@@ -209,7 +210,7 @@ export interface CatalogData {
 export function catalogWithDefaults(data: CatalogData): CatalogData {
   return { ...data, productDetails: data.productDetails ?? [], catalogCollections: data.catalogCollections ?? [], catalogItems: data.catalogItems ?? [] };
 }
-export type CollectionName = Exclude<keyof CatalogData, 'schemaVersion'>;
+export type CollectionName = Exclude<keyof CatalogData, 'schemaVersion' | 'homepageLayout'>;
 export type CatalogRecord = CatalogData[CollectionName][number];
 export interface DisplayDraftSave {
   mode: '3d' | '2d';
