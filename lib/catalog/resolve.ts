@@ -25,7 +25,7 @@ export function resolveModelAsset(data: CatalogData, model: Model3D): ProductAss
   const media = data.media.find(item => item.id === model.mediaId);
   if (!packaging || !media || media.role !== 'model' || media.status !== 'ready' || media.lifecycle !== 'active') return null;
   const kind = category?.viewerKind || 'other';
-  return { id: model.id, name: model.name, src: mediaUrl(media), packaging: kind === 'pp' ? 'other' : kind, volumeMl: packaging.volumeMl || undefined, materialSlots: model.materialSlots, textureSamplers: ['can-wrap-v1', 'pet-wrap-v1'].includes(model.layoutProfile) ? { label: { wrapS: 'repeat', wrapT: 'clamp' } } : undefined, orientation: model.orientation, poster: mediaUrl(data.media.find(item => item.id === model.posterId)) || undefined };
+  return { id: model.id, name: model.name, src: mediaUrl(media), packaging: kind === 'pp' ? 'other' : kind, volumeMl: packaging.volumeMl || undefined, materialSlots: model.materialSlots, textureSamplers: ['can-wrap-v1', 'pet-wrap-v1', 'glass-290-basil-wrap-v1'].includes(model.layoutProfile) ? { label: { wrapS: 'repeat', wrapT: 'clamp' } } : undefined, orientation: model.orientation, poster: mediaUrl(data.media.find(item => item.id === model.posterId)) || undefined };
 }
 
 /** Artwork mapping is identical in sales previews and free compatible pairings. */

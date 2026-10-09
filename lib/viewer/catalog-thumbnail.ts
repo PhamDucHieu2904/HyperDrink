@@ -5,6 +5,7 @@ import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { createAppearanceHandle, disposeProduct } from './appearance';
+import { renderBottleScene } from './bottle-materials';
 import type { ProductAppearance, ProductAsset } from '../viewer-config';
 import { publicUrl } from '../public-url';
 
@@ -60,7 +61,7 @@ async function renderThumbnail(asset: ProductAsset, appearance: ProductAppearanc
     handle = createAppearanceHandle(content, asset);
     await handle.apply(appearance);
     current.scene.add(root);
-    current.renderer.render(current.scene, current.camera);
+    renderBottleScene(current.renderer, current.scene, current.camera);
     return current.renderer.domElement.toDataURL('image/webp', 0.9);
   } finally {
     root?.removeFromParent(); handle?.dispose(); if (root) disposeProduct(root);

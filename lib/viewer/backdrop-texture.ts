@@ -13,8 +13,6 @@ export interface ProductBackdropTexture {
 export interface ProductViewerBackdropInput {
   state: BackgroundRenderState;
   config: BackgroundConfig;
-  /** Homepage Aloe starts white and qualifies external refraction while hidden. */
-  adaptiveAloe?: boolean;
 }
 
 interface Area { x: number; y: number; width: number; height: number }
@@ -57,9 +55,8 @@ export function createBackdropTexture(
   };
   let texture = makeTexture();
 
-  // Both consumers crop the same live FlavorBackground in their own surface
-  // coordinates. Never capture unrelated page content into a liquid sampler.
-  const hero = mount.closest<HTMLElement>('.showcase-hero, [data-refraction-backdrop]');
+  // Crop the live hero background into the water decorations' surface.
+  const hero = mount.closest<HTMLElement>('.showcase-hero');
   const light = hero?.querySelector<HTMLElement>('.product-backlight');
   const tileSize = config.cellSize * config.iconSpacing;
   let layout: Layout = { hero: { x: 0, y: 0, width: 1, height: 1 }, crop: { x: 0, y: 0, width: 1, height: 1 } };

@@ -11,11 +11,11 @@ const materialAdjustments = require('../../lib/viewer/material-adjustments.ts');
 function loadSource(file, importer = require) {
   const source = fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8');
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } });
-  const loaded = { exports: {} }; new Function('require', 'module', 'exports', outputText)(name => name === './material-adjustments' ? materialAdjustments : importer(name), loaded, loaded.exports); return loaded.exports;
+  const loaded = { exports: {} }; new Function('require', 'module', 'exports', outputText)(name => name === './material-adjustments' ? materialAdjustments : name === './bottle-backdrop' ? require('../../lib/viewer/bottle-backdrop.ts') : importer(name), loaded, loaded.exports); return loaded.exports;
 }
 const config = loadSource('lib/viewer-config.ts'), urls = loadSource('lib/public-url.ts');
 const aloeMaterials = loadSource('lib/viewer/aloe-bottle-materials.ts');
-const bottleMaterials = loadSource('lib/viewer/bottle-materials.ts', name => name === './aloe-bottle-materials' ? aloeMaterials : require(name));
+const bottleMaterials = loadSource('lib/viewer/bottle-materials.ts', name => name === './aloe-bottle-materials' ? aloeMaterials : name === './basil-bottle-materials' ? require('../../lib/viewer/basil-bottle-materials.ts') : name === './basil-web-materials' ? require('../../lib/viewer/basil-web-materials.ts') : require(name));
 const required = url => ({ requiredSlots: ['label'], slots: { label: { baseColorMap: url, roughness: .15 } } });
 function fixture(context, { names = ['printed-label'], basic = false, uv = true, textureSamplers, secondary = false } = {}) {
   const requests = [], clones = [];

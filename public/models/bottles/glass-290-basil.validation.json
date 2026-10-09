@@ -1,0 +1,240 @@
+{
+  "state": "complete",
+  "passed": true,
+  "sourceUnchanged": true,
+  "unitySourcesUnchanged": true,
+  "glbSha256": "cc4dddb678d5599f6b0913012bb6c095033f5392094edf9c064ee9775de0dadf",
+  "authoredMeshTopologyPreserved": true,
+  "perSeedDerivedBlend": {
+    "path": "D:/program project/3d display product website/assets/source-models/glass-290-basil-with-gel.blend",
+    "objects": 330,
+    "passed": true,
+    "verticesPerGel": 62,
+    "trianglesPerGel": 120,
+    "maximumUnityClonePositionErrorMeters": 1.1253213472173229e-8,
+    "originalObjects": [
+      {
+        "name": "Body",
+        "passed": true,
+        "triangles": 1792,
+        "maximumPositionErrorMeters": 0
+      },
+      {
+        "name": "Base",
+        "passed": true,
+        "triangles": 20992,
+        "maximumPositionErrorMeters": 0
+      },
+      {
+        "name": "Golden Cap",
+        "passed": true,
+        "triangles": 9504,
+        "maximumPositionErrorMeters": 0
+      },
+      {
+        "name": "Water",
+        "passed": true,
+        "triangles": 4224,
+        "maximumPositionErrorMeters": 0
+      },
+      {
+        "name": "Neck",
+        "passed": true,
+        "triangles": 2304,
+        "maximumPositionErrorMeters": 0
+      },
+      {
+        "name": "Seeds",
+        "passed": true,
+        "triangles": 39600,
+        "maximumPositionErrorMeters": 0
+      },
+      {
+        "name": "Label",
+        "passed": true,
+        "triangles": 6501,
+        "maximumPositionErrorMeters": 0
+      }
+    ]
+  },
+  "unityGelClone": {
+    "count": 330,
+    "normalOffsetUnity": 0.0000832,
+    "normalOffsetMeters": 0.000832,
+    "maximumCoreDifferenceMeters": 1.2293457984924317e-8,
+    "minimumImportedNormalDot": 0.9999998211860657
+  },
+  "meshes": [
+    {
+      "name": "Base",
+      "passed": true,
+      "expectedTriangles": 20992,
+      "decodedTriangles": 20992,
+      "decodedVertices": 15346,
+      "maximumPositionErrorMeters": 0,
+      "maximumNormalErrorDegrees": 66.81307720465396,
+      "maximumGpuNormalErrorDegrees": 0.034970569093279974,
+      "maximumUvError": 2.9802322387695312e-8,
+      "sourceZeroAreaTriangles": 424,
+      "zeroAreaTriangles": 424,
+      "legacyHiddenReference": true,
+      "materials": [
+        "basil-authored-base"
+      ]
+    },
+    {
+      "name": "Basil Seed Gel Shell",
+      "passed": true,
+      "expectedTriangles": 39600,
+      "decodedTriangles": 39600,
+      "decodedVertices": 20460,
+      "maximumPositionErrorMeters": 2.5458517072252107e-8,
+      "maximumNormalErrorDegrees": 0.037420143117092186,
+      "maximumGpuNormalErrorDegrees": 0.035663122863758445,
+      "maximumUvError": 0,
+      "sourceZeroAreaTriangles": 0,
+      "zeroAreaTriangles": 0,
+      "legacyHiddenReference": false,
+      "materials": [
+        "basil-gel"
+      ]
+    },
+    {
+      "name": "Body",
+      "passed": true,
+      "expectedTriangles": 1792,
+      "decodedTriangles": 1792,
+      "decodedVertices": 1139,
+      "maximumPositionErrorMeters": 1.9887608004864887e-8,
+      "maximumNormalErrorDegrees": 0.03700937167982347,
+      "maximumGpuNormalErrorDegrees": 0.03676070566375315,
+      "maximumUvError": 0.000039232830355419894,
+      "sourceZeroAreaTriangles": 0,
+      "zeroAreaTriangles": 0,
+      "legacyHiddenReference": false,
+      "materials": [
+        "basil-authored-body"
+      ]
+    },
+    {
+      "name": "G290_ClosedGlass",
+      "passed": true,
+      "expectedTriangles": 52992,
+      "decodedTriangles": 52992,
+      "decodedVertices": 27533,
+      "maximumPositionErrorMeters": 3.729943998109775e-8,
+      "maximumNormalErrorDegrees": 0.16291374299945754,
+      "maximumGpuNormalErrorDegrees": 0.032051055913528075,
+      "maximumUvError": 0.00004315837287515549,
+      "sourceZeroAreaTriangles": 0,
+      "zeroAreaTriangles": 0,
+      "legacyHiddenReference": false,
+      "materials": [
+        "basil-high-outer",
+        "basil-high-inner"
+      ]
+    },
+    {
+      "name": "G290_HighNeck",
+      "passed": true,
+      "expectedTriangles": 8704,
+      "decodedTriangles": 8704,
+      "decodedVertices": 4648,
+      "maximumPositionErrorMeters": 3.951266869250958e-9,
+      "maximumNormalErrorDegrees": 0.03514498698418303,
+      "maximumGpuNormalErrorDegrees": 0.03523187213059369,
+      "maximumUvError": 0.000043179451441778675,
+      "sourceZeroAreaTriangles": 0,
+      "zeroAreaTriangles": 0,
+      "legacyHiddenReference": false,
+      "materials": [
+        "basil-high-neck"
+      ]
+    },
+    {
+      "name": "Golden Cap",
+      "passed": true,
+      "expectedTriangles": 9504,
+      "decodedTriangles": 9504,
+      "decodedVertices": 6250,
+      "maximumPositionErrorMeters": 8.433485021441811e-9,
+      "maximumNormalErrorDegrees": 0.6295705340861835,
+      "maximumGpuNormalErrorDegrees": 0.034970569093279974,
+      "maximumUvError": 0.00004107366624015081,
+      "sourceZeroAreaTriangles": 4,
+      "zeroAreaTriangles": 3,
+      "legacyHiddenReference": false,
+      "materials": [
+        "basil-gold-cap"
+      ]
+    },
+    {
+      "name": "Label",
+      "passed": true,
+      "expectedTriangles": 6501,
+      "decodedTriangles": 6501,
+      "decodedVertices": 3393,
+      "maximumPositionErrorMeters": 1.5274826736799696e-8,
+      "maximumNormalErrorDegrees": 0.03037360508024313,
+      "maximumGpuNormalErrorDegrees": 0.030486635221571266,
+      "maximumUvError": 0.00004240182432399828,
+      "sourceZeroAreaTriangles": 0,
+      "zeroAreaTriangles": 0,
+      "legacyHiddenReference": false,
+      "materials": [
+        "printed-label"
+      ]
+    },
+    {
+      "name": "Neck",
+      "passed": true,
+      "expectedTriangles": 2304,
+      "decodedTriangles": 2304,
+      "decodedVertices": 1424,
+      "maximumPositionErrorMeters": 3.951266869250958e-9,
+      "maximumNormalErrorDegrees": 0.04108111719081829,
+      "maximumGpuNormalErrorDegrees": 0.03925436660868794,
+      "maximumUvError": 0.000043179451441778675,
+      "sourceZeroAreaTriangles": 0,
+      "zeroAreaTriangles": 0,
+      "legacyHiddenReference": false,
+      "materials": [
+        "basil-glass-neck"
+      ]
+    },
+    {
+      "name": "Seeds",
+      "passed": true,
+      "expectedTriangles": 39600,
+      "decodedTriangles": 39600,
+      "decodedVertices": 20460,
+      "maximumPositionErrorMeters": 3.122362102203624e-8,
+      "maximumNormalErrorDegrees": 0.04395732413454704,
+      "maximumGpuNormalErrorDegrees": 0.030486635221571266,
+      "maximumUvError": 0,
+      "sourceZeroAreaTriangles": 0,
+      "zeroAreaTriangles": 0,
+      "legacyHiddenReference": false,
+      "materials": [
+        "basil-seeds"
+      ]
+    },
+    {
+      "name": "Water",
+      "passed": true,
+      "expectedTriangles": 4224,
+      "decodedTriangles": 4224,
+      "decodedVertices": 2564,
+      "maximumPositionErrorMeters": 2.3231784496147156e-8,
+      "maximumNormalErrorDegrees": 0.06255498601773943,
+      "maximumGpuNormalErrorDegrees": 0.03166719707547238,
+      "maximumUvError": 0.00004199996433359027,
+      "sourceZeroAreaTriangles": 0,
+      "zeroAreaTriangles": 0,
+      "legacyHiddenReference": false,
+      "materials": [
+        "basil-liquid"
+      ]
+    }
+  ]
+}

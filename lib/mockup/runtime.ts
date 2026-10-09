@@ -17,12 +17,13 @@ import { createResourcePrefetcher } from '../viewer/resource-prefetch';
 import { createDaylightEnvironment } from '../viewer/environment';
 import { createProductHitRegion, hitVisibleProduct, visibleProductGestureMeshes } from '../viewer/product-hit-region';
 import { renderBottleScene } from '../viewer/bottle-materials';
-import { createBackdropTexture, type ProductViewerBackdropInput } from '../viewer/backdrop-texture';
-import { setAloeBottleBackdrop } from '../viewer/aloe-bottle-materials';
+import { setBasilHighBackdrop } from '../viewer/basil-bottle-materials';
+import { isBasilHighAsset, basilHighPresentation } from '../viewer/basil-presentation';
 import { fitMockupCamera, mockupCameraDirection, mockupOrbitBounds, mockupShowcaseBounds, normalizeMockupAspect } from './camera';
 import { MOCKUP_FOCAL_FOV } from './focal-length';
 import { createMockupCaptureGate, encodeMockupPng, mockupAbortError, mockupCaptureSize } from './capture';
 import { disposeMockupDetachedTextures, neutralizeMockupLabelArtwork } from './appearance';
+import { createBasilNeckExport } from './basil-neck-export';
 import { mockupModelKey, mockupSelectionKey } from './selection';
 import type { MockupAnimation, MockupBackground, MockupCameraPreset, MockupFocalPreset, MockupRuntime, MockupRuntimeOptions, MockupStatus } from './contracts';
 
@@ -54,7 +55,7 @@ const abortable = <T>(promise: Promise<T>, signal: AbortSignal, timeoutMs: numbe
  * their resources. Showcase shares the homepage pose/input without its decorations.
  */
 export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntimeOptions): MockupRuntime {
-  const settings = DEFAULT_VIEWER_PRESENTATION;
+  let settings = DEFAULT_VIEWER_PRESENTATION;
   const mobile = window.matchMedia('(max-width: 760px)').matches;
   const capacity = mobile ? 3 : 5;
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false, premultipliedAlpha: false, powerPreference: 'high-performance' });
@@ -139,13 +140,6 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
   const warmedTextures = new WeakSet<THREE.Texture>();
   const usesWhiteLiquidPreview = () => active?.asset.packaging === 'pet'
     && active.asset.materialSlots?.liquid?.includes('Aloe Vera Water') === true;
-  let backdropSource: ProductViewerBackdropInput | undefined;
-  let backdropSignature = '';
-  let backdrop: ReturnType<typeof createBackdropTexture> | undefined;
-  const clearBackdrop = () => {
-    setAloeBottleBackdrop(product, null);
-    backdrop?.dispose(); backdrop = undefined;
-  };
 
   // Preview and PNG share one output stage. Scene radiance is linear half float;
   // this final stage applies the runtime's exact tone map and sRGB transfer once.
@@ -156,18 +150,38 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     backgroundTop: { value: new THREE.Color('#ffffff') },
     backgroundBottom: { value: new THREE.Color('#ffffff') },
     backgroundAlpha: { value: 1 },
+    basilNeckEnabled: { value: 0 },
+    basilNeckRadiance: { value: null as THREE.Texture | null },
+    basilNeckCoverage: { value: null as THREE.Texture | null },
   };
   const outputMaterial = new THREE.RawShaderMaterial({
     name: 'Mockup PNG output', uniforms: outputUniforms,
     vertexShader: OutputShader.vertexShader,
     fragmentShader: OutputShader.fragmentShader
-      .replace('uniform sampler2D tDiffuse;', 'uniform sampler2D tDiffuse;\nuniform vec3 backgroundTop;\nuniform vec3 backgroundBottom;\nuniform float backgroundAlpha;')
+      .replace('uniform sampler2D tDiffuse;', 'uniform sampler2D tDiffuse;\nuniform vec3 backgroundTop;\nuniform vec3 backgroundBottom;\nuniform float backgroundAlpha;\nuniform float basilNeckEnabled;\nuniform sampler2D basilNeckRadiance;\nuniform sampler2D basilNeckCoverage;')
       .replace('gl_FragColor = texture2D( tDiffuse, vUv );', 'gl_FragColor = texture2D( tDiffuse, vUv );\nif (gl_FragColor.a > 0.00001) gl_FragColor.rgb /= gl_FragColor.a; else gl_FragColor.rgb = vec3(0.0);')
+      .replace('// color space', `
+        // GlassNeckExportScope: tone radiance first, then reserve its alpha
+        // carrier and replace only the visible neck mask in premultiplied space.
+        if (basilNeckEnabled > .5) {
+          vec4 neck = texture2D(basilNeckRadiance, vUv);
+          vec3 radiance = ACESFilmicToneMapping(neck.rgb);
+          float carrier = clamp(max(neck.a, max(max(radiance.r, radiance.g), radiance.b)), 0.0, 1.0);
+          vec3 mask = texture2D(basilNeckCoverage, vUv).rgb;
+          float coverage = clamp(max(max(mask.r, mask.g), mask.b), 0.0, 1.0);
+          if (coverage > 1.0 / 255.0) {
+            float alpha = mix(gl_FragColor.a, carrier, coverage);
+            vec3 premultiplied = mix(gl_FragColor.rgb * gl_FragColor.a, radiance, coverage);
+            gl_FragColor = vec4(alpha > .00001 ? premultiplied / alpha : vec3(0.0), alpha);
+          }
+        }
+        // color space`)
       .replace(/\}\s*$/, '\nvec3 backdrop = mix(backgroundBottom, backgroundTop, vUv.y);\n#ifdef SRGB_TRANSFER\nbackdrop = sRGBTransferOETF(vec4(backdrop, 1.0)).rgb;\n#endif\nif (backgroundAlpha > 0.5) { gl_FragColor.rgb = mix(backdrop, gl_FragColor.rgb, gl_FragColor.a); gl_FragColor.a = 1.0; }\n}'),
     defines: { NEUTRAL_TONE_MAPPING: '', SRGB_TRANSFER: '' },
     depthTest: false, depthWrite: false, blending: THREE.NoBlending,
   });
   const outputQuad = new FullScreenQuad(outputMaterial);
+  const neckExport = createBasilNeckExport(renderer);
   const sampleDiagnostics = () => {
     host.dataset.renderFrames = String(renderFrames); host.dataset.frameMs = lastFrameMs.toFixed(2);
     host.dataset.geometryCount = String(renderer.info.memory.geometries); host.dataset.textureCount = String(renderer.info.memory.textures);
@@ -199,19 +213,40 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     samples: Math.min(4, renderer.capabilities.maxSamples),
   });
   const renderTo = (linear: THREE.WebGLRenderTarget, output: THREE.WebGLRenderTarget | null, view: THREE.PerspectiveCamera) => {
-    // Borrow the decorative background only for the transparent preview.
+    // The High integrator sees the selected studio matte before the final output pass.
+    const solid = outputUniforms.backgroundAlpha.value > .5;
+    setBasilHighBackdrop(scene, null, solid ? outputUniforms.backgroundTop.value : null,
+      solid ? outputUniforms.backgroundBottom.value : null, !solid);
+    const nativeNeck = !solid && isBasilHighAsset(active?.asset);
+    const neckMeshes: THREE.Mesh[] = [];
+    if (nativeNeck) scene.traverseVisible(node => {
+      if (node instanceof THREE.Mesh && (Array.isArray(node.material) ? node.material : [node.material]).some(material => material.name === 'basil-high-neck')) neckMeshes.push(node);
+    });
+    outputUniforms.basilNeckEnabled.value = 0;
+    outputUniforms.basilNeckRadiance.value = null;
+    outputUniforms.basilNeckCoverage.value = null;
+    if (!nativeNeck) neckExport.release();
+    // Transparent Aloe preview uses the fixed white liquid reservoir.
     // Native PNG and solid backgrounds retain the linear/MSAA pipeline.
     if (output === null && usesWhiteLiquidPreview() && outputUniforms.backgroundAlpha.value === 0) {
-      if (backdropSource) {
-        backdrop ??= createBackdropTexture(backdropSource.state, backdropSource.config, host);
-        backdrop.update(); setAloeBottleBackdrop(product, backdrop.texture);
-      } else setAloeBottleBackdrop(product, null);
       renderer.setRenderTarget(null); renderer.setClearColor('#000000', 0); renderer.clear();
       renderBottleScene(renderer, scene, view); return;
     }
-    setAloeBottleBackdrop(product, null);
     renderer.setRenderTarget(linear); renderer.setClearColor('#000000', 0); renderer.clear();
-    renderBottleScene(renderer, scene, view);
+    try {
+      neckMeshes.forEach(mesh => { mesh.visible = false; });
+      renderBottleScene(renderer, scene, view);
+    } finally {
+      neckMeshes.forEach(mesh => { mesh.visible = true; });
+    }
+    if (nativeNeck) {
+      const native = neckExport.render(scene, view, linear.width, linear.height);
+      if (native) {
+        outputUniforms.basilNeckEnabled.value = 1;
+        outputUniforms.basilNeckRadiance.value = native.radiance;
+        outputUniforms.basilNeckCoverage.value = native.coverage;
+      }
+    }
     outputUniforms.tDiffuse.value = linear.texture;
     outputUniforms.toneMappingExposure.value = renderer.toneMappingExposure;
     renderer.setRenderTarget(output); renderer.clear(); outputQuad.render(renderer);
@@ -280,13 +315,11 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
   };
   const discard = (model: LoadedModel | null) => {
     if (!model || discarded.has(model)) return;
-    setAloeBottleBackdrop(model.root, null);
     discarded.add(model);
     candidates.delete(model); model.root.removeFromParent(); model.pool.dispose(); disposeProduct(model.root); disposeMockupDetachedTextures(model.detachedTextures);
   };
   const recycle = (model: LoadedModel | null) => {
     if (!model) return;
-    setAloeBottleBackdrop(model.root, null);
     model.root.removeFromParent(); model.pool.dispose(); model.recent = [];
     if (mobile || disposed) { discarded.add(model); disposeProduct(model.root); disposeMockupDetachedTextures(model.detachedTextures); return; }
     discard(cached); cached = model;
@@ -343,6 +376,16 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
     const nextKey = mockupSelectionKey(asset, appearance, frontYaw);
     if (nextKey === desiredKey && readyRevision === revision && statusPhase === 'ready') { emit('ready'); return; }
     desired = { asset, appearance, frontYaw: Number.isFinite(frontYaw) ? frontYaw : 0 }; desiredKey = nextKey;
+    const nextSettings = isBasilHighAsset(asset) ? basilHighPresentation() : DEFAULT_VIEWER_PRESENTATION;
+    if (settings.environment.src !== nextSettings.environment.src) {
+      settings = nextSettings;
+      renderer.toneMapping = settings.toneMapping === 'aces' ? THREE.ACESFilmicToneMapping : THREE.NeutralToneMapping;
+      renderer.toneMappingExposure = settings.exposure;
+      outputMaterial.defines = { [settings.toneMapping === 'aces' ? 'ACES_FILMIC_TONE_MAPPING' : 'NEUTRAL_TONE_MAPPING']: '', SRGB_TRANSFER: '' };
+      outputMaterial.needsUpdate = true;
+      lights.forEach((light, index) => { light.color.set(settings.lights[index].color); light.intensity = settings.lights[index].intensity; });
+      environmentReady = loadEnvironment();
+    }
     if (pointers.size) cancelPointers();
     const thisRevision = ++revision;
     request?.abort(); request = new AbortController(); const signal = request.signal;
@@ -560,12 +603,6 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
       fit(); requestRender();
     },
     setBackground,
-    setBackdrop(source) {
-      if (disposed) return;
-      const signature = JSON.stringify(source?.config ?? null);
-      if (source?.state === backdropSource?.state && signature === backdropSignature) return;
-      clearBackdrop(); backdropSource = source; backdropSignature = signature; requestRender();
-    },
     setAnimation(value) {
       if (disposed || captureGate.busy) return;
       const previousMode = animation.mode;
@@ -684,10 +721,9 @@ export function createMockupRuntime(host: HTMLDivElement, options: MockupRuntime
       canvas.removeEventListener('lostpointercapture', pointerUp);
       host.removeEventListener('wheel', wheel);
       controls.removeEventListener('start', onControlsStart); controls.removeEventListener('change', onControlsChange); controls.dispose();
-      clearBackdrop();
       discard(active); active = null; discard(cached); cached = null; [...candidates].forEach(discard);
       prefetch.dispose(); previewTarget?.dispose(); environmentTarget?.dispose();
-      outputQuad.dispose(); outputMaterial.dispose(); pmrem.dispose(); draco.dispose(); basis.dispose();
+      neckExport.dispose(); outputQuad.dispose(); outputMaterial.dispose(); pmrem.dispose(); draco.dispose(); basis.dispose();
       renderer.dispose(); canvas.remove();
     },
   };

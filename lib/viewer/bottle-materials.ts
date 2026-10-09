@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { liquidColorUpdates } from './material-adjustments';
 import type { ProductAsset } from '../viewer-config';
 import { aloeTransmissionClearRadiance, correctAloeTransmissionClear, createAloeBottleMaterialContext } from './aloe-bottle-materials';
+import { basilMaterialRole, createBasilBottleMaterialContext, prepareBasilHighLayers } from './basil-bottle-materials';
+import { basilWebMaterialRole, beginBasilWebRender, endBasilWebRender, createBasilWebBottleMaterialContext, prepareBasilWebLayers } from './basil-web-materials';
+import { addBottleBackdropProjection, createBottleBackdropUniforms, updateBottleBackdropUniforms } from './bottle-backdrop';
 
 type BottleRole = 'body' | 'ring' | 'liquid' | 'liquid-back' | 'inclusions' | 'cap' | 'label';
 const PROFILE = 'nata-pet-v1';
@@ -66,6 +69,10 @@ export function nataJellyReveal(depthMetres: number): number {
 
 /** The authored/exported profile is explicit; ordinary cans and other PETs retain their PBR. */
 export function bottleMaterialRole(asset: ProductAsset, mesh: THREE.Mesh, material: THREE.Material): BottleRole | undefined {
+  const webBasil = basilWebMaterialRole(asset, mesh, material);
+  if (webBasil) return webBasil;
+  const basil = basilMaterialRole(asset, mesh, material);
+  if (basil) return basil;
   if (asset.packaging !== 'pet' || (!bottleProfiles.has(material.userData.bottleProfile) && !bottleProfiles.has(mesh.userData.bottleProfile))) return;
   const entry = Object.entries(asset.materialSlots ?? {}).find(([, names]) => names.includes(material.name))
     ?? Object.entries(asset.materialSlots ?? {}).find(([, names]) => names.includes(mesh.name));
@@ -77,6 +84,8 @@ export function bottleMaterialRole(asset: ProductAsset, mesh: THREE.Mesh, materi
 /** One opaque back surface provides the scattering reservoir for rough refraction.
  * Geometry is shared with the authored liquid; no topology or Blender asset is changed. */
 export function prepareBottleLayers(root: THREE.Object3D, asset: ProductAsset): void {
+  prepareBasilWebLayers(root, asset);
+  prepareBasilHighLayers(root, asset);
   if (asset.packaging !== 'pet') return;
   const liquids: { mesh: THREE.Mesh; material: THREE.MeshStandardMaterial }[] = [];
   root.traverse(node => {
@@ -107,8 +116,10 @@ const suppressedDraws = new WeakMap<THREE.WebGLRenderer, Set<() => void>>();
 /** Three skips onAfterRender if a material/GPU draw throws. Always restore the
  * shared Water range, including failed frames and aborted offscreen captures. */
 export function renderBottleScene(renderer: THREE.WebGLRenderer, scene: THREE.Object3D, camera: THREE.Camera): void {
+  beginBasilWebRender(renderer);
   try { renderer.render(scene, camera); }
   finally {
+    endBasilWebRender(renderer);
     const pending = suppressedDraws.get(renderer);
     pending?.forEach(restore => restore());
     pending?.clear();
@@ -153,7 +164,8 @@ export function configureBottleRenderOrder(root: THREE.Object3D, asset: ProductA
     if (role) {
       const aloe = node.userData.bottleProfile === 'aloe-pet-v1' ||
         (Array.isArray(node.material) ? node.material : [node.material]).some(material => material.userData.bottleProfile === 'aloe-pet-v1');
-      node.renderOrder = role === 'body' || role === 'ring' ? 20 : role === 'liquid' ? 10 : role === 'inclusions' ? (aloe ? 1 : 0) : role === 'liquid-back' ? 0 : 30;
+      const webBasil = node.userData.basilProfile === 'basil-web-v1';
+      node.renderOrder = role === 'body' || role === 'ring' ? 20 : role === 'liquid' ? (webBasil ? 0 : 10) : role === 'inclusions' ? (aloe || webBasil ? 1 : 0) : role === 'liquid-back' ? 0 : 30;
       if (aloe && (role === 'inclusions' || role === 'liquid-back')) configureAloeCaptureOnlyLayer(node);
     }
   });
@@ -193,6 +205,10 @@ vec3 nataTowardCamera() {
 
 /** Colored scattering plus Three's opaque color pyramid gives actual rough refraction. */
 export function createBottleMaterialContext(root: THREE.Object3D, asset: ProductAsset) {
+  const webBasil = createBasilWebBottleMaterialContext(root, asset);
+  if (webBasil) return webBasil;
+  const basil = createBasilBottleMaterialContext(root, asset);
+  if (basil) return basil;
   const aloe = createAloeBottleMaterialContext(root, asset);
   let liquid: THREE.Mesh | undefined;
   let originalLiquid: THREE.MeshStandardMaterial | undefined;
@@ -216,6 +232,8 @@ export function createBottleMaterialContext(root: THREE.Object3D, asset: Product
   const liquidInverse = liquid.matrixWorld.clone().invert();
   const defaultColor = originalLiquid.color.clone();
   return {
+    ready: undefined as Promise<void> | undefined,
+    dispose: undefined as (() => void) | undefined,
     defaultColor,
     configure(material: THREE.MeshStandardMaterial, mesh: THREE.Mesh, role: BottleRole, juiceColor?: string, capColor?: string) {
       // Aloe uses a tapered square volume and gel optics of its own. The molded
@@ -354,10 +372,14 @@ export function createBottleMaterialContext(root: THREE.Object3D, asset: Product
         material.emissive.set('#000000'); material.emissiveIntensity = 0;
         // The same radiance is used for deep jelly. Surface PBR normals here
         // would make submerged opaque silhouettes visible even at zero reveal.
+        const backdropUniforms = createBottleBackdropUniforms();
+        material.onBeforeRender = (_renderer, scene) => updateBottleBackdropUniforms(backdropUniforms, scene);
         material.onBeforeCompile = shader => {
+          Object.assign(shader.uniforms, backdropUniforms);
+          addBottleBackdropProjection(shader);
           shader.uniforms.nataScatteringColor = { value: scattering };
           shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 nataScatteringColor;')
-            .replace('#include <opaque_fragment>', 'gl_FragColor = vec4(nataScatteringColor, 1.0);');
+            .replace('#include <opaque_fragment>', 'vec3 nataRear = mix(nataScatteringColor, nataScatteringColor * bottleBackdropAt(bottleBackdropUv()), bottleBackdropEnabled * .35);\ngl_FragColor = vec4(nataRear, 1.0);');
         };
         material.customProgramCacheKey = () => `${PROFILE}:scattering:3`;
         liquidColorUpdates.set(material, color => { juice.set(color); scattering.copy(nataScatteringColor(juice)); material.color.copy(scattering); });
@@ -366,6 +388,7 @@ export function createBottleMaterialContext(root: THREE.Object3D, asset: Product
       const localToLiquid = new THREE.Matrix4().multiplyMatrices(liquidInverse, mesh.matrixWorld);
       const inverseWorld = new THREE.Matrix4();
       const uniforms = {
+        ...createBottleBackdropUniforms(),
         nataLocalToLiquid: { value: localToLiquid },
         nataCamera: { value: new THREE.Vector3() },
         nataViewDirection: { value: new THREE.Vector3(0, 0, 1) },
@@ -379,7 +402,8 @@ export function createBottleMaterialContext(root: THREE.Object3D, asset: Product
         nataJellyFadeRange: { value: new THREE.Vector2(NATA_PET_OPTICS.jellyFadeStart, NATA_PET_OPTICS.jellyFadeEnd) },
       };
       liquidColorUpdates.set(material, color => { juice.set(color); scattering.copy(nataScatteringColor(juice)); });
-      material.onBeforeRender = (_renderer, _scene, camera, _geometry, renderedObject) => {
+      material.onBeforeRender = (_renderer, scene, camera, _geometry, renderedObject) => {
+        updateBottleBackdropUniforms(uniforms, scene);
         // The visible pooled mesh is different from the preparation clone. Use
         // the object supplied by Three each draw so camera/pose/scale stay correct.
         inverseWorld.copy(renderedObject.matrixWorld).invert();
@@ -405,6 +429,7 @@ export function createBottleMaterialContext(root: THREE.Object3D, asset: Product
       }
       material.onBeforeCompile = shader => {
         Object.assign(shader.uniforms, uniforms);
+        addBottleBackdropProjection(shader);
         shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nuniform mat4 nataLocalToLiquid;\nvarying vec3 vNataPosition;')
           .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNataPosition = (nataLocalToLiquid * vec4(transformed, 1.0)).xyz;');
         shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\n${opticalDeclarations}`);
@@ -420,7 +445,7 @@ export function createBottleMaterialContext(root: THREE.Object3D, asset: Product
             // Nearby soft ivory jelly remains visible; farther pieces lose
             // contrast in the opaque transmission capture. The front liquid
             // then blurs their real silhouette rather than dimming sharp cubes.
-            vec3 nataScattering = nataScatteringColor;
+            vec3 nataScattering = mix(nataScatteringColor, nataScatteringColor * bottleBackdropAt(bottleBackdropUv()), bottleBackdropEnabled * .35);
             // Coconut gel stays ivory. Only the surrounding colored haze
             // blends over it; the front transmission never dyes it red/mango.
             vec3 nataPaleJelly = vec3(0.98, 0.97, 0.92);

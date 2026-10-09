@@ -11,11 +11,11 @@ const materialAdjustments = require('../../lib/viewer/material-adjustments.ts');
 function load(file, importer = require) {
   const source = fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const loaded = { exports: {} }; new Function('require', 'module', 'exports', js)(name => name === './material-adjustments' ? materialAdjustments : importer(name), loaded, loaded.exports); return loaded.exports;
+  const loaded = { exports: {} }; new Function('require', 'module', 'exports', js)(name => name === './material-adjustments' ? materialAdjustments : name === './bottle-backdrop' ? require('../../lib/viewer/bottle-backdrop.ts') : importer(name), loaded, loaded.exports); return loaded.exports;
 }
 const config = load('lib/viewer-config.ts'), urls = load('lib/public-url.ts');
 const aloe = load('lib/viewer/aloe-bottle-materials.ts');
-const bottles = load('lib/viewer/bottle-materials.ts', name => name === './aloe-bottle-materials' ? aloe : require(name));
+const bottles = load('lib/viewer/bottle-materials.ts', name => name === './aloe-bottle-materials' ? aloe : name === './basil-bottle-materials' ? require('../../lib/viewer/basil-bottle-materials.ts') : name === './basil-web-materials' ? require('../../lib/viewer/basil-web-materials.ts') : require(name));
 const appearances = load('lib/viewer/appearance.ts', name => ({ three: THREE, '../viewer-config': config, '../public-url': urls, './bottle-materials': bottles })[name]);
 const pooling = load('lib/viewer/pooled-appearance.ts', name => name === 'three' ? THREE : name === './bottle-materials' ? bottles : appearances);
 const asset = { id: 'pet', name: 'PET', src: '/pet.glb', packaging: 'pet', materialSlots: {

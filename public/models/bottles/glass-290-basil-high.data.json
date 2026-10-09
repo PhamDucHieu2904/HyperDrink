@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "profile": "basil-high-v1",
+  "sourceSha256": "801c1579dc47f678edd956b0c382b75de240a8efff2ad816e15f042fa2bb2fe1",
+  "sourceHash": "37a319ef20f7a4eb498f1f40e99a7df5:6f53bba05ce6fb56d14394fda16de60f",
+  "residualNodeStride": 8191,
+  "neck": false,
+  "bounds": {
+    "center": [
+      0,
+      0,
+      0.0075076823
+    ],
+    "extent": [
+      0.0034087242,
+      0.0034087242,
+      0.0075026075
+    ]
+  },
+  "buffers": {
+    "residualTriangles": {
+      "byteOffset": 0,
+      "floatCount": 565248,
+      "count": 23552
+    },
+    "residualNodes": {
+      "byteOffset": 2260992,
+      "floatCount": 786336,
+      "count": 65528
+    },
+    "profiles": {
+      "byteOffset": 5406336,
+      "floatCount": 576,
+      "count": 48
+    },
+    "profileNodes": {
+      "byteOffset": 5408640,
+      "floatCount": 756,
+      "count": 63
+    },
+    "seedEllipsoids": {
+      "byteOffset": 5411664,
+      "floatCount": 5280,
+      "count": 330
+    },
+    "seedNodes": {
+      "byteOffset": 5432784,
+      "floatCount": 3060,
+      "count": 255
+    }
+  },
+  "sourcePath": "D:/UnityHubData/Unity_3D_Mockup_Project/Assets/Resources/Glass290High/BasilVan.asset",
+  "outputBytes": 2019443,
+  "expandedBytes": 5445784
+}

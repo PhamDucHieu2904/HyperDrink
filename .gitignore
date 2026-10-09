@@ -19,6 +19,7 @@
 # Large authoring files stay in the external Blender source library.
 # Optimized GLBs in public/models remain tracked.
 *.blend
+!/assets/source-models/glass-290-basil-with-gel.blend
 *.blend1
 *.blend2
 

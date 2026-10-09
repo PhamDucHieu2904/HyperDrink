@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "profile": "basil-high-v1",
+  "sourceSha256": "48e1ed3589448d707c245e7b568c85cd886784552c164e18c403a7ab16ce6f01",
+  "sourceHash": "a35fde191b2eca686a77f6903e67b3a6",
+  "residualNodeStride": 0,
+  "neck": true,
+  "bounds": {
+    "center": [
+      0,
+      1.646631,
+      -6.7055225e-8
+    ],
+    "extent": [
+      0.15099984,
+      0.15012771,
+      0.15099981
+    ]
+  },
+  "buffers": {
+    "residualTriangles": {
+      "byteOffset": 0,
+      "floatCount": 436968,
+      "count": 18207
+    },
+    "residualNodes": {
+      "byteOffset": 1747872,
+      "floatCount": 98292,
+      "count": 8191
+    },
+    "profiles": {
+      "byteOffset": 2141040,
+      "floatCount": 12,
+      "count": 1
+    },
+    "profileNodes": {
+      "byteOffset": 2141088,
+      "floatCount": 12,
+      "count": 1
+    },
+    "seedEllipsoids": {
+      "byteOffset": 2141136,
+      "floatCount": 16,
+      "count": 1
+    },
+    "seedNodes": {
+      "byteOffset": 2141200,
+      "floatCount": 12,
+      "count": 1
+    }
+  },
+  "sourcePath": "D:\\UnityHubData\\Unity_3D_Mockup_Project\\Assets\\Resources\\Glass290High\\NeckVan.asset",
+  "outputBytes": 797342,
+  "expandedBytes": 2141956
+}

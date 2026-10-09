@@ -40,6 +40,16 @@
 .catalog-showcase .model-options button { flex:0 0 auto; color:var(--catalog-text); min-height:44px; height:auto; max-height:none; max-width:100%; padding:8px 12px; line-height:1.4; white-space:normal; overflow-wrap:anywhere; }
 .catalog-showcase .model-options button[aria-pressed='true'] { color:var(--catalog-background); background:var(--catalog-text); border-color:var(--catalog-text); }
 .catalog-showcase button:focus-visible { outline:2px solid var(--catalog-text); outline-offset:3px; }
+.graphics-toggle { position:absolute; top:0; right:var(--graphics-control-right,calc(9% + 8px)); z-index:6; width:46px; height:46px; display:grid; place-items:center; border:1px solid #ffffffb3; border-radius:50%; color:var(--catalog-text); background:color-mix(in srgb,var(--catalog-background) 75%,#ffffff26); box-shadow:inset 0 1px 0 #ffffff80,0 4px 14px #0002; cursor:pointer; transition:background .18s ease,box-shadow .18s ease,transform .18s ease; }
+.graphics-toggle:hover { transform:translateY(-2px); background:color-mix(in srgb,var(--catalog-background) 70%,#fff); }
+.graphics-toggle[aria-pressed='true'] { color:#71321d; background:linear-gradient(135deg,#fff8da,#ffc58b); border-color:#fffbdc; box-shadow:0 0 16px #ffd39c70,inset 0 1px 0 #fff; }
+.graphics-toggle-indicator { position:absolute; right:7px; bottom:7px; width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.35; }
+.graphics-toggle[aria-pressed='true'] .graphics-toggle-indicator { opacity:1; }
+.graphics-toggle-caption { position:absolute; top:calc(100% + 10px); right:0; display:grid; gap:4px; width:max-content; max-width:220px; padding:10px 13px; border:1px solid #ffffff60; border-radius:12px; color:#fff; background:#243326f2; box-shadow:0 5px 16px #0002; font-size:12px; text-align:start; line-height:1.4; opacity:0; pointer-events:none; transform:translateY(-3px); transition:opacity .18s ease,transform .18s ease; }
+.graphics-toggle-caption span { font-size:11px; font-weight:400; }
+.graphics-toggle:is(:hover,:focus) .graphics-toggle-caption { opacity:1; transform:none; }
+@media(max-width:760px) { .graphics-toggle { top:8px; right:18px; } }
+@media(prefers-reduced-motion:reduce) { .graphics-toggle,.graphics-toggle-caption { transition:none; } }
 
 .catalog-showcase .catalog-product-image { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; margin:0; padding:12px 0 42px; }
 .catalog-showcase .catalog-product-image>img { display:block; width:100%; height:100%; min-height:0; object-fit:contain; filter:drop-shadow(0 15px 22px #0003); }

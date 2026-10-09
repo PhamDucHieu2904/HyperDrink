@@ -18,6 +18,7 @@ import { trackUsage } from '@/lib/operations/client';
 import ProductDetailPanel from './product-detail/ProductDetailPanel';
 import { publicUrl } from '@/lib/public-url';
 import { mockupCopy } from '@/lib/i18n/mockup';
+import GraphicsToggle, { useGraphicsMode } from './GraphicsToggle';
 
 const backgroundSettings = normalizeBackgroundConfig(backgroundConfig);
 const glassStyle = { backdropFilter: 'blur(28px) saturate(148%) brightness(1.04)', WebkitBackdropFilter: 'blur(28px) saturate(148%) brightness(1.04)' } as React.CSSProperties;
@@ -35,6 +36,7 @@ export interface ShowcaseHeroProps {
 export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGroup, onSelectVariant, onExplore }: ShowcaseHeroProps) {
   const { locale, t } = useLanguage();
   const copy = heroCopy(locale);
+  const graphicsMode = useGraphicsMode();
   const resolved = useMemo(() => resolveStorefrontSelection(catalog, selection), [catalog, selection]);
   const products = useMemo(() => catalogProducts(catalog), [catalog]);
   const { groups, group, slot, variants, variant, flavor, packaging } = resolved;
@@ -83,6 +85,7 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
     const hero = heroRef.current;
     const product = productRef.current;
     if (!hero || !product) return;
+    const feature = hero.querySelector<HTMLElement>('.showcase-feature');
     const alignLight = () => {
       const area = hero.getBoundingClientRect();
       const bounds = product.getBoundingClientRect();
@@ -90,9 +93,13 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
       hero.style.setProperty('--backlight-y', `${bounds.top - area.top + bounds.height / 2}px`);
       hero.style.setProperty('--backlight-w', `${bounds.width * backgroundSettings.productGlowWidth}px`);
       hero.style.setProperty('--backlight-h', `${bounds.height * backgroundSettings.productGlowHeight}px`);
+      // The featured card caps its width on wide desktops. Align the control
+      // with its real left edge, using the existing resize-only layout read.
+      if (feature) product.style.setProperty('--graphics-control-right', `${bounds.right - feature.getBoundingClientRect().left + 12}px`);
     };
     const observer = new ResizeObserver(alignLight);
     observer.observe(hero); observer.observe(product);
+    if (feature) observer.observe(feature);
     alignLight();
     return () => observer.disconnect();
   }, [hasProduct]);
@@ -135,7 +142,7 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
         <button type="button" className="btn btn-ghost" onClick={() => openDetail('flavor')}><Play size={18} fill="currentColor" /> {t('nav.flavors')}</button>
       </div>
     </div>
-    <div ref={productRef} className="showcase-product"><ProductVisual catalog={catalog} releaseId={releaseId} seed={sessionSeed} slot={slot} variant={variant} display3d={product?.display3d} display2d={product?.display2d} image2d={product?.image2d} model={product?.model} resourceDisplays={resourceDisplays} backgroundState={backgroundState} backgroundConfig={backgroundSettings} onViewerUnavailable={() => setFailedVisual(renderKey)} /></div>
+    <div ref={productRef} className="showcase-product"><ProductVisual catalog={catalog} releaseId={releaseId} seed={sessionSeed} slot={slot} variant={variant} display3d={product?.display3d} display2d={product?.display2d} image2d={product?.image2d} model={product?.model} resourceDisplays={resourceDisplays} backgroundState={backgroundState} backgroundConfig={backgroundSettings} graphicsMode={graphicsMode} onViewerUnavailable={() => setFailedVisual(renderKey)} /><GraphicsToggle /></div>
     {productPicker}
     <FlavorCarousel items={carouselItems} selectedId={variant.id} onSelect={onSelectVariant} />
     <div className="showcase-details">

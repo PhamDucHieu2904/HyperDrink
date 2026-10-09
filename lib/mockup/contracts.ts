@@ -1,6 +1,5 @@
 import type { ProductAppearance, ProductAsset } from '../viewer-config';
 import type { LiveMaterialOverrides } from '../viewer/material-adjustments';
-import type { ProductViewerBackdropInput } from '../viewer/backdrop-texture';
 
 export type MockupCameraPreset = 'front' | 'three-quarter' | 'left' | 'right' | 'back' | 'top';
 export type MockupFocalPreset = 'ultraWide' | 'wide' | 'standard' | 'long' | 'telephoto';
@@ -31,8 +30,6 @@ export interface MockupRuntime {
   /** Changes perspective and compensates camera distance to retain the framing. */
   setFocalLength(preset: MockupFocalPreset): void;
   setBackground(background: MockupBackground): void;
-  /** Live decorative surface used only for refractive transparent previews. */
-  setBackdrop(backdrop?: ProductViewerBackdropInput): void;
   setAnimation(animation: MockupAnimation): void;
   /** Numeric width/height ratio; the host should display the same frame. */
   setAspect(aspect: number): void;

@@ -32,7 +32,6 @@ const backgrounds = loadSource('lib/background-config.ts', name => name === './s
   ? loadSource('lib/showcase-flavors.ts') : require(name));
 const backgroundRender = loadSource('lib/background-render-state.ts', name => name === './background-config' ? backgrounds : require(name));
 const hitRegions = loadSource('lib/viewer/product-hit-region.ts');
-const { AdaptiveAloeQuality } = loadSource('lib/viewer/adaptive-aloe.ts');
 
 // CSS uses nonzero winding. Check the generated boundary independently against real raycasts.
 function insidePath(cssPath, x, y) {
@@ -333,7 +332,6 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
   const accentFrames = [];
   const backdropResources = [];
   const backdropBindings = [];
-  const aloeBackdropBindings = [];
   const waterPassResources = [];
   const renderEvents = [];
   const statuses = [];
@@ -363,8 +361,10 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
     getBoundingClientRect() { return { left: 0, top: 0, width: 500, height: 700 }; },
   };
   class Renderer {
-    constructor() { this.domElement = canvas; this.info = { programs: [] }; this.resolutionTargets = new Set(); this.draws = []; this.warmedTextures = []; this.compiledRoots = []; this.asyncCompiledRoots = []; renderers.push(this); }
+    constructor() { this.domElement = canvas; this.info = { programs: [] }; this.renderTarget = null; this.resolutionTargets = new Set(); this.draws = []; this.warmedTextures = []; this.compiledRoots = []; this.asyncCompiledRoots = []; renderers.push(this); }
     setClearColor() {} dispose() {}
+    getRenderTarget() { return this.renderTarget; }
+    setRenderTarget(target) { this.renderTarget = target; }
     setPixelRatio(value) { this.pixelRatio = value; }
     setSize(width, height) { this.width = width; this.height = height; }
     getDrawingBufferSize(target) {
@@ -482,15 +482,6 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
     if (name === './package-motion') return packageMotion;
     if (name === './environment') return environments;
     if (name === './product-hit-region') return hitRegions;
-    if (name === './adaptive-aloe') return { AdaptiveAloeQuality: class extends AdaptiveAloeQuality {
-      constructor() {
-        const records = new Map();
-        super(options.qualityStore ?? { read: key => records.get(key), write: (key, value) => records.set(key, value) });
-      }
-    } };
-    if (name === './aloe-bottle-materials') return {
-      setAloeBottleBackdrop(root, texture, amount = 1) { aloeBackdropBindings.push({ root, texture, amount }); },
-    };
     if (name === './pooled-appearance') return pooledAppearance;
     if (name === './resource-prefetch') return {
       // The real queue/lifetime implementation remains installed; this fixture
@@ -528,6 +519,9 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
       dispose() {},
     }) };
     if (name === './appearance') return appearanceBoundary;
+    if (name === './basil-bottle-materials') return require('../../lib/viewer/basil-bottle-materials.ts');
+    if (name === './basil-presentation') return require('../../lib/viewer/basil-presentation.ts');
+    if (name === './bottle-backdrop') return require('../../lib/viewer/bottle-backdrop.ts');
     throw new Error(`Unexpected runtime dependency: ${name}`);
   });
   const classes = new Set();
@@ -551,13 +545,48 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
       renderers[0].frame(frameTime);
     }
   };
-  return { viewer, mount, canvas, hitRegion: mount.children.find(child => child.dataset.productHitRegion), renderer: renderers[0], geometryRequests, appearanceRequests, appearanceCalls, labelTextures, idleCallbacks, disposedProducts, accentFrames, backdropResources, backdropBindings, aloeBackdropBindings, waterPassResources, renderEvents, environment, statuses,
+  return { viewer, mount, canvas, hitRegion: mount.children.find(child => child.dataset.productHitRegion), renderer: renderers[0], geometryRequests, appearanceRequests, appearanceCalls, labelTextures, idleCallbacks, disposedProducts, accentFrames, backdropResources, backdropBindings, waterPassResources, renderEvents, environment, statuses,
     tickIdleTimers: milliseconds => context.mock.timers.tick(milliseconds),
     releaseIdle() { const next = idleCallbacks.entries().next().value; assert.ok(next, 'An idle task must actually be queued'); idleCallbacks.delete(next[0]); next[1]({ didTimeout: false, timeRemaining: () => 50 }); },
     advanceFrames(timestamps) { for (const timestamp of timestamps) { frameTime = timestamp; renderers[0].frame(frameTime); } },
     model, asset, flush, advance, setReducedMotion: (matches) => motionListeners.forEach((listener) => listener({ matches })),
     disposedCount: () => productsDisposed };
 }
+
+test('manual enhanced graphics binds one shared rear capture and releases it without loading the product again', async context => {
+  const f = runtimeFixture(context, true);
+  f.viewer.select(f.asset('pet')); f.geometryRequests[0].resolve(f.model()); await f.flush(); f.advance(.05);
+  const optics = require('../../lib/viewer/bottle-backdrop.ts');
+  const uniforms = optics.createBottleBackdropUniforms();
+  const scene = f.renderer.scene;
+  const loads = f.geometryRequests.length;
+  assert.equal(f.backdropResources.length, 0);
+  f.viewer.graphicsMode('enhanced');
+  optics.updateBottleBackdropUniforms(uniforms, scene);
+  assert.equal(uniforms.bottleBackdropEnabled.value, 0, 'Mode alone does not create a capture or bind an absent target');
+  f.viewer.backdrop({ state: new backgroundRender.BackgroundRenderState(), config: { ...backgrounds.backgroundConfig } });
+  f.advance(.05);
+  optics.updateBottleBackdropUniforms(uniforms, scene);
+  assert.equal(uniforms.bottleBackdrop.value, f.waterPassResources[0].texture);
+  assert.equal(uniforms.bottleBackdropEnabled.value, 1);
+  f.viewer.graphicsMode('standard');
+  optics.updateBottleBackdropUniforms(uniforms, scene);
+  assert.equal(uniforms.bottleBackdrop.value, null);
+  assert.equal(uniforms.bottleBackdropEnabled.value, 0, 'Pooled shaders lose the sampler immediately');
+  f.viewer.backdrop();
+  const renders = f.waterPassResources[0].renders.length; f.advance(.2);
+  assert.equal(f.waterPassResources[0].renders.length, renders, 'Disabled bottle capture no longer renders');
+  assert.equal(f.waterPassResources[0].disposals, 1);
+  assert.equal(f.backdropResources[0].disposals, 1);
+  assert.equal(f.geometryRequests.length, loads, 'Toggle preserves loaded geometry and appearance');
+  f.viewer.graphicsMode('enhanced');
+  f.viewer.backdrop({ state: new backgroundRender.BackgroundRenderState(), config: { ...backgrounds.backgroundConfig } });
+  f.advance(.05); optics.updateBottleBackdropUniforms(uniforms, scene);
+  assert.notEqual(uniforms.bottleBackdrop.value, f.waterPassResources[0].texture);
+  f.viewer.dispose(); optics.updateBottleBackdropUniforms(uniforms, scene);
+  assert.equal(uniforms.bottleBackdrop.value, null);
+  assert.equal(f.waterPassResources[1].disposals, 1);
+});
 
 test('OS reduced motion does not disable idle spin, flavor turns, packaging transitions or accents', async context => {
   const f = runtimeFixture(context, true, 1, { reducedMotion: true });
@@ -1012,7 +1041,7 @@ test('viewer backdrop shares live background state, avoids identical recreation 
 });
 
 test('water composition renders once before each actual main draw using the same camera and CSS texture', (context) => {
-  const { viewer, renderer, backdropResources, waterPassResources, renderEvents, aloeBackdropBindings, advance } = runtimeFixture(context, true);
+  const { viewer, renderer, backdropResources, waterPassResources, renderEvents, advance } = runtimeFixture(context, true);
   viewer.backdrop({ state: new backgroundRender.BackgroundRenderState(), config: { ...backgrounds.backgroundConfig } });
   advance(0.2);
   const pass = waterPassResources[0];
@@ -1021,8 +1050,6 @@ test('water composition renders once before each actual main draw using the same
   assert.ok(pass.product.parent === renderer.scene, 'The offscreen module receives the real product group for exclusion');
   assert.ok(renderer.draws.length > 0 && renderer.draws.length < 24, 'Main drawing remains capped below the 120Hz fixture RAF rate');
   assert.equal(pass.renders.length, renderer.draws.length, 'Skipped main frames do not spend an additional offscreen pass');
-  assert.equal(aloeBackdropBindings.at(-1).root, pass.product);
-  assert.equal(aloeBackdropBindings.at(-1).texture, pass.texture, 'The actual drawn pool receives the product-free capture');
   for (const [index, call] of pass.renders.entries()) {
     assert.equal(call.background, backdropResources[0].texture);
     assert.equal(call.camera, renderer.draws[index].camera);
@@ -1039,63 +1066,23 @@ test('water composition renders once before each actual main draw using the same
   assert.ok(renderer.draws.length > atRest, 'A real backdrop texture repaint wakes refraction even when object motion is paused');
   assert.equal(pass.renders.length, renderer.draws.length);
   viewer.backdrop();
-  assert.equal(aloeBackdropBindings.at(-1).texture, null, 'Detach liquid sampling before disposing a replaced source');
 });
 
-test('adaptive Aloe starts white, trials only in the hidden package gap, then reenters prewarmed and fades', async context => {
+test('Aloe stays on the white path through loading, flavour changes and package reentry without hidden trials', async context => {
   const f = runtimeFixture(context, true);
   const aloe = { ...f.asset('aloe'), packaging: 'pet', materialSlots: { liquid: ['Aloe Vera Water'] } };
-  const source = { state: new backgroundRender.BackgroundRenderState(), config: { ...backgrounds.backgroundConfig }, adaptiveAloe: true };
-  f.viewer.backdrop(source); f.viewer.select(aloe);
+  f.viewer.select(aloe, { id: 'strawberry' });
   f.geometryRequests[0].resolve(f.model(.18)); f.environment.resolve(new THREE.Texture()); await f.flush();
-  f.advance(2.2);
-  assert.equal(f.mount.dataset.aloeQuality, 'eligible');
-  assert.equal(f.mount.dataset.aloeRefractionMix, '0.000');
-  assert.equal(f.backdropResources.length, 0, 'White mode allocates no painter/capture target');
-  assert.ok(f.aloeBackdropBindings.every(binding => binding.texture === null));
-  f.viewer.select(f.asset('can')); f.viewer.backdrop();
-  f.geometryRequests[1].resolve(f.model()); await f.flush();
-  for (let frame = 0; f.mount.dataset.aloeProbe !== 'true' && frame < 180; frame++) f.advance(1 / 120);
-  assert.equal(f.mount.dataset.transitionPhase, 'package-hold');
-  assert.equal(f.mount.dataset.aloeProbe, 'true'); assert.equal(f.canvas.style.opacity, '0');
-  const masked = f.renderer.draws.filter(draw => draw.masked);
-  assert.ok(masked.length > 0 && masked.every(draw => draw.productVisible && draw.productScale === 1), 'Trial draws the actual full-size model behind the hidden canvas');
-  f.advance(1.5);
-  assert.equal(f.mount.dataset.aloeQuality, 'full'); assert.equal(f.canvas.style.opacity, '');
+  assert.equal(f.statuses.at(-1).phase, 'ready');
+  f.advance(3);
+  f.viewer.select(aloe, { id: 'mango' }); await f.flush(); f.advance(3);
+  assert.equal(f.mount.dataset.appearanceId, 'mango');
+  f.viewer.select(f.asset('can')); f.geometryRequests[1].resolve(f.model()); await f.flush(); f.advance(3);
   assert.equal(f.mount.dataset.productId, 'can');
-  f.viewer.select(aloe); f.viewer.backdrop(source);
-  f.geometryRequests[2].resolve(f.model(.18)); await f.flush(); f.advance(3);
+  f.viewer.select(aloe, { id: 'strawberry' }); f.geometryRequests[2].resolve(f.model(.18)); await f.flush(); f.advance(3);
   assert.equal(f.mount.dataset.productId, 'aloe'); assert.equal(f.mount.dataset.transitionPhase, 'idle');
-  assert.equal(f.mount.dataset.aloeQuality, 'full'); assert.equal(f.mount.dataset.aloeRefractionMix, '1.000');
-  assert.ok(f.aloeBackdropBindings.at(-1).texture);
-  assert.equal(f.aloeBackdropBindings.at(-1).amount, 1);
-});
-
-test('a slow Aloe keeps the white sampler path and never spends a hidden full trial', async context => {
-  const f = runtimeFixture(context, true);
-  const aloe = { ...f.asset('aloe'), packaging: 'pet', materialSlots: { liquid: ['Aloe Vera Water'] } };
-  f.viewer.backdrop({ state: new backgroundRender.BackgroundRenderState(), config: { ...backgrounds.backgroundConfig }, adaptiveAloe: true });
-  f.viewer.select(aloe); f.geometryRequests[0].resolve(f.model()); f.environment.resolve(new THREE.Texture()); await f.flush();
-  f.advanceFrames(Array.from({ length: 80 }, (_, i) => (i + 1) * 1000 / 30));
-  assert.equal(f.mount.dataset.aloeQuality, 'white'); assert.equal(f.mount.dataset.aloeQualityReason, 'white-frames-slow');
-  f.viewer.select(f.asset('can')); f.viewer.backdrop(); f.geometryRequests[1].resolve(f.model()); await f.flush(); f.advance(3);
-  assert.equal(f.mount.dataset.productId, 'can'); assert.equal(f.backdropResources.length, 0);
-  assert.ok(f.renderer.draws.every(draw => !draw.masked));
-});
-
-test('remembered full Aloe prepares before reveal and holds its fade during pointer capture', async context => {
-  const f = runtimeFixture(context, true, 1, { qualityStore: { read: () => 'full', write() {} } });
-  const aloe = { ...f.asset('aloe'), packaging: 'pet', materialSlots: { liquid: ['Aloe Vera Water'] } };
-  f.viewer.backdrop({ state: new backgroundRender.BackgroundRenderState(), config: { ...backgrounds.backgroundConfig }, adaptiveAloe: true });
-  f.viewer.select(aloe); f.geometryRequests[0].resolve(f.model()); f.environment.resolve(new THREE.Texture()); await f.flush();
-  assert.equal(f.canvas.style.opacity, '0');
-  f.advance(.15); assert.equal(f.canvas.style.opacity, '');
-  const before = f.mount.dataset.aloeRefractionMix;
-  f.mount.emit('pointerdown', { pointerId: 1, pointerType: 'mouse', clientX: 250, clientY: 350 });
-  assert.equal(f.mount.classList.contains('is-dragging'), true);
-  f.advance(.3); assert.equal(f.mount.dataset.aloeRefractionMix, before);
-  f.mount.emit('pointerup', { pointerId: 1 }); f.advance(.3);
-  assert.ok(Number(f.mount.dataset.aloeRefractionMix) > Number(before));
+  assert.equal(f.backdropResources.length, 0); assert.equal(f.waterPassResources.length, 0);
+  assert.ok(f.renderer.draws.every(draw => !draw.masked), 'No quality probe hides or re-renders the visible canvas');
 });
 
 test('droplet frames receive physical drawing-buffer resolution after DPR and viewer size changes', (context) => {

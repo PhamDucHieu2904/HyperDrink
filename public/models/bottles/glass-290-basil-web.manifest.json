@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "id": "glass-290-basil-web",
+  "basilProfile": "basil-web-v1",
+  "layoutProfile": "glass-290-basil-wrap-v1",
+  "file": "glass-290-basil-web.glb",
+  "bytes": 424312,
+  "sha256": "4cc5032f0f40d48de156af9d50962d65b329883f7ed44df1e1bdba4a69547502",
+  "triangleCount": 62725,
+  "materialSlots": {
+    "body": [
+      "basil-web-outer",
+      "basil-web-neck"
+    ],
+    "cap": [
+      "basil-gold-cap"
+    ],
+    "label": [
+      "printed-label"
+    ],
+    "liquid": [
+      "basil-web-liquid"
+    ],
+    "inclusions": []
+  },
+  "defaultLiquidColor": "#8c0514",
+  "dimensionsMeters": [
+    0.06816202402114868,
+    0.06816202402114868,
+    0.18036122620105743
+  ],
+  "source": "D:\\3D model\\Model Bottle Can\\Blender Model 1\\Glass 290ml model (Basil) - web.blend",
+  "sourceSha256": "18a9016a314f653798dd199601f2744fa81cc4225c054ff698d03dc647a2908b",
+  "sourceUnchanged": true,
+  "referenceHighFile": "glass-290-basil.glb",
+  "referenceHighSha256": "cc4dddb678d5599f6b0913012bb6c095033f5392094edf9c064ee9775de0dadf",
+  "referenceHighDataSha256": "3b336ab60876bd1411caed6a01f79e7192af908ffee425bd68583917e8648fed",
+  "referenceHighPreserved": true,
+  "sourceGeometryReduced": false,
+  "authoredSubdivisionChanged": false,
+  "omittedHiddenReferenceMeshes": [
+    "Base",
+    "Body",
+    "Neck",
+    "Seeds",
+    "Basil Seed Gel Shell",
+    "basil-high-inner"
+  ],
+  "retainedGeometry": [
+    {
+      "sourceNode": "G290_ClosedGlass",
+      "sourceMaterial": "basil-high-outer",
+      "material": "basil-web-outer",
+      "role": "body",
+      "triangles": 33792,
+      "vertices": 17804,
+      "referenceAccessorVertices": 18800,
+      "bufferSha256": "f797578a996da507241594528533630137b839fda223d6f631b5cc7de15e4643",
+      "geometryCopiedByteForByte": true
+    },
+    {
+      "sourceNode": "G290_HighNeck",
+      "sourceMaterial": "basil-high-neck",
+      "material": "basil-web-neck",
+      "role": "body",
+      "triangles": 8704,
+      "vertices": 4648,
+      "referenceAccessorVertices": 4648,
+      "bufferSha256": "f7506f7945fde4caa0a44257727679f5ef4834365b066446d1a5e52396caefdb",
+      "geometryCopiedByteForByte": true
+    },
+    {
+      "sourceNode": "Golden Cap",
+      "sourceMaterial": "basil-gold-cap",
+      "material": "basil-gold-cap",
+      "role": "cap",
+      "triangles": 9504,
+      "vertices": 6250,
+      "referenceAccessorVertices": 6250,
+      "bufferSha256": "17f4a676d72e03cd8736d4a730734a9b9495a5ec88ed3c9e5f04a5f800122837",
+      "geometryCopiedByteForByte": true
+    },
+    {
+      "sourceNode": "Label",
+      "sourceMaterial": "printed-label",
+      "material": "printed-label",
+      "role": "label",
+      "triangles": 6501,
+      "vertices": 3393,
+      "referenceAccessorVertices": 3393,
+      "bufferSha256": "f4cb2961b35c26a69a5278ff1c411e660dcc511f8869bcd34a95705e5cf560a2",
+      "geometryCopiedByteForByte": true
+    },
+    {
+      "sourceNode": "Water",
+      "sourceMaterial": "basil-liquid",
+      "material": "basil-web-liquid",
+      "role": "liquid",
+      "triangles": 4224,
+      "vertices": 2564,
+      "referenceAccessorVertices": 2564,
+      "bufferSha256": "1004094d6e7e281c0e177052cac1391b8b78dbfde3f3afe6a77460ffc2f53319",
+      "geometryCopiedByteForByte": true
+    }
+  ],
+  "seedInstances": {
+    "count": 330,
+    "representation": "same accepted High Float32 ellipsoid fits; runtime instanced opaque hydrated envelopes",
+    "gelThicknessNative": 0.00008321520913910748,
+    "nativeToGlbMatrix": [
+      -9.998172312577855,
+      0,
+      0,
+      0,
+      0,
+      0,
+      9.998172312577855,
+      -0.09023134544432466,
+      0,
+      -9.998172312577855,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    "sourceHighFloat32Exact": true,
+    "noSeedBvhTextures": true
+  },
+  "runtimeOptics": {
+    "profile": "basil-web-v1",
+    "shaderCreatedByRuntime": true,
+    "noHighDataRequest": true,
+    "environment": "shared viewer environment"
+  }
+}

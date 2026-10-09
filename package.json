@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:graphics": "node scripts/tests/graphics-mode.test.cjs",
+    "test:basil": "node scripts/tests/basil-high-optics.test.cjs && node scripts/tests/basil-high-paths.test.cjs && node scripts/tests/basil-bottle-materials.test.cjs && node scripts/tests/basil-neck-export.test.cjs && node --test scripts/import-basil-290-check.cjs && node --test scripts/tests/basil-web-optics.test.cjs scripts/tests/basil-web-load.test.cjs scripts/import-basil-web-check.cjs",
     "dev": "next dev",
     "dev:admin": "node scripts/dev-admin.cjs",
     "admin:api": "node scripts/admin-server.cjs",
@@ -18,7 +20,7 @@
     "test:translation": "node scripts/tests/catalog-translation.test.cjs",
     "test:resources": "node scripts/tests/admin-resources.test.cjs",
     "test:operations": "node scripts/tests/operations.test.cjs && node scripts/tests/operations-api.test.cjs",
-    "test:viewer": "node scripts/tests/product-viewer.test.cjs && node scripts/tests/product-hit-region.test.cjs && node scripts/tests/adaptive-aloe.test.cjs && node scripts/tests/appearance-required.test.cjs && node scripts/tests/product-viewer-loading.test.cjs && node scripts/tests/hero-resource-window.test.cjs && node scripts/tests/pooled-appearance.test.cjs && node scripts/tests/viewer-prefetch.test.cjs && node scripts/tests/bottle-materials.test.cjs && node scripts/tests/aloe-bottle-materials.test.cjs",
+    "test:viewer": "node scripts/tests/product-viewer.test.cjs && node scripts/tests/product-hit-region.test.cjs && node scripts/tests/appearance-required.test.cjs && node scripts/tests/product-viewer-loading.test.cjs && node scripts/tests/hero-resource-window.test.cjs && node scripts/tests/pooled-appearance.test.cjs && node scripts/tests/viewer-prefetch.test.cjs && node scripts/tests/bottle-materials.test.cjs && node scripts/tests/aloe-bottle-materials.test.cjs",
     "test:background": "node scripts/tests/background-motion.test.cjs && node scripts/tests/background-themes.test.cjs",
     "test:homepage-layout": "node scripts/tests/homepage-layout.test.cjs && node scripts/tests/accent-layer.test.cjs",
     "test:framing": "node scripts/tests/framing.test.cjs",

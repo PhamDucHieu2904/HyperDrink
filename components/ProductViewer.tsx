@@ -11,6 +11,7 @@ import type { ViewerResourceWindow } from '@/lib/viewer/resource-prefetch';
 import type { LiveMaterialOverrides } from '@/lib/viewer/material-adjustments';
 import { useLanguage } from './LanguageProvider';
 import { trackUsage } from '@/lib/operations/client';
+import type { GraphicsMode } from '@/lib/viewer/graphics-mode';
 
 export interface ProductViewerProps {
   asset: ProductAsset;
@@ -22,6 +23,7 @@ export interface ProductViewerProps {
   accentScene?: ProductAccentSceneInput;
   accentFlavor?: AccentFlavor;
   backdrop?: ProductViewerBackdropInput;
+  graphicsMode?: GraphicsMode;
   /** Optional presentation for the first load; the model poster remains an error fallback. */
   loadingFallback?: React.ReactNode;
   /** Homepage neighbors; callers without this prop keep on-demand loading. */
@@ -30,13 +32,13 @@ export interface ProductViewerProps {
 }
 
 /** Generic container: geometry, appearance and lighting are independent data contracts. */
-export default function ProductViewer({ asset, appearance, presentation, paused = false, resetKey, onStatus, accentScene, accentFlavor = 'citrus', backdrop, loadingFallback, resourceWindow, materialOverrides }: ProductViewerProps) {
+export default function ProductViewer({ asset, appearance, presentation, paused = false, resetKey, onStatus, accentScene, accentFlavor = 'citrus', backdrop, graphicsMode = 'standard', loadingFallback, resourceWindow, materialOverrides }: ProductViewerProps) {
   const { t } = useLanguage();
   const mountRef = useRef<HTMLDivElement>(null);
   const lastInteraction = useRef(0);
   const reportInteraction = () => {if(Date.now()-lastInteraction.current<3000)return;lastInteraction.current=Date.now();trackUsage('model_interact',asset.id);};
   const controller = useRef<ProductViewerController | null>(null);
-  const latest = useRef({ asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop, resourceWindow, materialOverrides });
+  const latest = useRef({ asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop, graphicsMode, resourceWindow, materialOverrides });
   const [status, setStatus] = useState<ViewerStatus>({ phase: 'loading', assetId: asset.id });
   // Plain JSON signatures prevent reinitializing WebGL when parents rebuild objects.
   const assetSignature = JSON.stringify(asset);
@@ -48,7 +50,7 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
   const resourceSignature = JSON.stringify(resourceWindow ?? null);
   const materialSignature = JSON.stringify(materialOverrides ?? {});
 
-  useEffect(() => { latest.current = { asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop, resourceWindow, materialOverrides }; });
+  useEffect(() => { latest.current = { asset, appearance, presentation, paused, onStatus, accentScene, accentFlavor, backdrop, graphicsMode, resourceWindow, materialOverrides }; });
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -61,6 +63,7 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
     };
     try {
       controller.current = createProductViewer(mount, resolveViewerPresentation(latest.current.presentation), publish);
+      controller.current.graphicsMode(latest.current.graphicsMode);
       controller.current.materials(latest.current.materialOverrides);
       controller.current.backdrop(latest.current.backdrop);
       controller.current.accents(latest.current.accentScene, `${latest.current.asset.id}:${latest.current.appearance?.id ?? ''}`, latest.current.accentFlavor);
@@ -90,6 +93,7 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
     controller.current?.accents(latest.current.accentScene, accentKey, latest.current.accentFlavor);
   }, [accentSignature, accentKey, accentFlavor]);
   useEffect(() => { controller.current?.backdrop(latest.current.backdrop); }, [backdrop?.state, backdropSignature]);
+  useEffect(() => { controller.current?.graphicsMode(graphicsMode); }, [graphicsMode]);
   useEffect(() => { controller.current?.pause(paused); }, [paused]);
   useEffect(() => { if (resetKey !== undefined) controller.current?.reset(); }, [resetKey]);
 
@@ -100,7 +104,7 @@ export default function ProductViewer({ asset, appearance, presentation, paused 
   return (
     <div className="scene-shell product-viewer" ref={mountRef} role="group" aria-roledescription={t('viewer.description')} onPointerDownCapture={reportInteraction} onKeyDownCapture={event=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))reportInteraction();}}
       aria-label={t('viewer.controls', { name: asset.packaging === 'can' ? t('viewer.canName', { volume: asset.volumeMl ?? '' }) : asset.name })}
-      aria-busy={loading} data-packaging={asset.packaging} data-asset-id={asset.id}
+      aria-busy={loading} data-packaging={asset.packaging} data-asset-id={asset.id} data-graphics-mode={graphicsMode}
       data-viewer-status={status.phase} data-environment-ready={status.environmentReady ? 'true' : 'false'}>
       {customLoading ? loadingFallback : showFallback && <div className="scene-fallback" aria-hidden="true">
         {asset.poster

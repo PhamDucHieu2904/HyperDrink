@@ -74,15 +74,19 @@ For a new registration, `--liquid-color=#rrggbb` sets the initial display's inde
 
 The delivered poster `public/models/bottles/pet-500-aloe-poster.webp` is a 640 × 640 WebP derived from the actual 2048 × 2048 transparent PNG exported by Mockup Studio. The full native export is saved at `docs/screenshots/aloe-500-final-export.png`. The import refreshes derived media checksums when the poster is replaced; the temporary bootstrap illustration has been replaced.
 
-## Current trial: external backdrop refraction with the optimized pulp
+## Current display: fixed white liquid reservoir
 
-The restored liquid-only branch follows the earlier v13 Snell ray, fitted full first-exit chord, five backdrop taps and neutral thin/body fill (0.2/0.75). The hero again lends the existing product-free capture containing grid, splash, fruit and leaves. Label and Cap remain excluded. Transparent Studio preview borrows the same decorative painter; white/solid views and native PNG detach it. The white liquid reservoir remains the fallback without a borrowed texture.
+Aloe 500 ml now always uses the approved lightweight white-Studio liquid appearance on the storefront and transparent Mockup preview. The adaptive frame classification, session decisions, hidden full-quality probes, prewarm draws and quality fades are removed. No device qualification or automatic mode change runs.
 
-The approved pulp shader, cached gesture proxy, frozen pointer-capture routing, shared splash decode and capture-only interior draw suppression are retained. Studio Still also keeps its suspended loop: its borrowed background updates on actual preview draws, including rotation, interaction or a setting change. No extra continuous refresh loop or quality downgrade accompanies this trial. The restored background shader has not been measured on the user's phone yet.
+The liquid shader no longer contains the external Snell ray, full first-exit scan, five decorative backdrop taps, borrowed samplers or backdrop matrix inverse. Aloe does not allocate the optional decorative painter/capture pass, even with native water accents. The shared backdrop pass remains available to other products' water decorations.
+
+Approved pulp colour, gel detail/depth fading, internal Three transmission, glossy PET/Ring, label/cap exclusions, geometry, label pooling, gesture proxy and capture-only interior suppression remain unchanged. Mockup Still stays suspended while idle. Native PNG and solid Studio views keep their linear/MSAA output and transparent export alpha.
+
+The v11–v18 external/adaptive notes and older browser proofs below describe earlier revisions. This removal is covered by viewer, shader, storefront and Mockup regressions; it does not establish FPS on the user's phone.
 
 ## Previous display: v14 white liquid reservoir
 
-The selected low-cost display renders Aloe water as in the approved white Studio view. Internal Three transmission, isotropic 12.74 mm capture thickness, glossy PET/Ring, clear same-hue pulp and path-dependent neck turbidity stay calibrated. Cap and Label remain excluded from the native refraction capture. No model, color preset or 320 ml material changes are required.
+The default low-cost display renders Aloe water as in the approved white Studio view. The storefront now offers an explicit shared graphics button to enable rear-scene refraction; see [the current graphics mode contract](GRAPHICS_MODE.md). Internal Three transmission, isotropic 12.74 mm capture thickness, glossy PET/Ring, clear same-hue pulp and path-dependent neck turbidity stay calibrated. Cap and Label remain excluded from the native refraction capture. No model or color preset changes are required.
 
 The liquid composes white into its remaining coverage after tone mapping and output-color conversion. This gives the white Studio appearance while hiding rear grid, fruit, leaves and splash through the liquid. The hero does not request the optional backdrop painter/capture pass for Aloe, including configurations with native water decorations. External Snell-ray scanning, five artwork texture taps, borrowed texture bindings and their matrix inversions are removed from the liquid shader. Pulp retains its fitted near/far depth calculation.
 

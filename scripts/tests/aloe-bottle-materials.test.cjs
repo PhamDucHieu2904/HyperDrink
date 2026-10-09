@@ -10,7 +10,7 @@ require('../register-admin-typescript.cjs');
 const materialAdjustments = require('../../lib/viewer/material-adjustments.ts');
 const source = fs.readFileSync(path.resolve(__dirname, '../../lib/viewer/aloe-bottle-materials.ts'), 'utf8');
 const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const loaded = { exports: {} }; new Function('require', 'module', 'exports', js)(name => name === './material-adjustments' ? materialAdjustments : require(name), loaded, loaded.exports);
+const loaded = { exports: {} }; new Function('require', 'module', 'exports', js)(name => name === './material-adjustments' ? materialAdjustments : name === './bottle-backdrop' ? require('../../lib/viewer/bottle-backdrop.ts') : require(name), loaded, loaded.exports);
 const aloe = loaded.exports;
 const asset = { id: 'aloe', name: 'Aloe', src: '/aloe.glb', packaging: 'pet', materialSlots: {
   body: ['Body Bottle - Rough_NormalMap', 'Body Bottle - z Glossy'], liquid: ['Aloe Vera Water'], inclusions: ['Aloe Pulp - Clear'],
@@ -344,67 +344,26 @@ test('hero and Studio contexts bind their actual transmission clear before every
   }
 });
 
-test('liquid restores the previous full-chord backdrop refraction and retains internal water plus white fallback', context => {
-  const f = fixture(context), optical = aloe.createAloeBottleMaterialContext(f.root, asset);
-  optical.configure(f.liquid.material, f.liquid, 'liquid', '#e84a3c');
-  const shader = compile(f.liquid.material);
-  assert.equal(f.liquid.material.transmission, 1); assert.equal(f.liquid.material.ior, 1.335);
-  assert.ok(shader.fragmentShader.includes('transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );'));
-  assert.ok(shader.fragmentShader.includes('return normalize( refractionVector ) * aloeWorldThickness;'));
-  const transmission = aloe.correctAloeTransmissionClear(THREE.ShaderChunk.transmission_pars_fragment, true);
-  assert.ok(transmission.includes('refract(-externalViewWorld, normalize(n), 1.0 / ior)'));
-  assert.ok(transmission.includes('aloeExitDistance(externalFrontMetric + externalRayMetric * externalInset, externalRayMetric)'));
-  assert.equal((transmission.match(/texture2D\(aloeBackdropTexture/g) ?? []).length, 5, 'Retain the former five-tap backdrop treatment');
-  assert.ok(shader.fragmentShader.includes('uniform sampler2D aloeBackdropTexture;'));
-  assert.ok(!shader.fragmentShader.includes('aloeExitDistance(vAloePosition'), 'Full fitted depth remains reserved for gel, not each liquid surface pixel');
-  const compositeAt = shader.fragmentShader.indexOf('gl_FragColor.rgb += vec3(1.0 - gl_FragColor.a);');
-  assert.ok(compositeAt > shader.fragmentShader.indexOf('#include <colorspace_fragment>'));
-  assert.ok(compositeAt > shader.fragmentShader.indexOf('#include <premultiplied_alpha_fragment>'));
-  assert.ok(shader.fragmentShader.includes('gl_FragColor.a = 1.0;'));
-  assert.ok(!aloe.correctAloeTransmissionClear(THREE.ShaderChunk.transmission_pars_fragment).includes('aloeBackdropTexture'),
-    'Ring retains its standalone clear-sentinel correction');
-});
-
-test('backdrop binds to current pooled liquid only and detaches without touching approved pulp or recompiling', context => {
+test('fixed white liquid retains internal water refraction and approved gel without external backdrop work', context => {
   const f = fixture(context), optical = aloe.createAloeBottleMaterialContext(f.root, asset);
   optical.configure(f.liquid.material, f.liquid, 'liquid', '#e84a3c');
   optical.configure(f.pulp.material, f.pulp, 'inclusions', '#e84a3c');
   const liquid = compile(f.liquid.material), pulp = compile(f.pulp.material);
-  const version = f.liquid.material.version, key = f.liquid.material.customProgramCacheKey();
-  const drawnRoot = f.root.clone(true), texture = new THREE.Texture({ width: 512, height: 384 });
-  context.after(() => texture.dispose());
-  aloe.setAloeBottleBackdrop(drawnRoot, texture);
-  assert.equal(liquid.uniforms.aloeBackdropTexture.value, texture);
-  assert.equal(liquid.uniforms.aloeBackdropEnabled.value, 1);
-  assert.deepEqual(liquid.uniforms.aloeBackdropTexel.value.toArray(), [1 / 512, 1 / 384]);
-  aloe.setAloeBottleBackdrop(drawnRoot, texture, 0);
-  assert.equal(liquid.uniforms.aloeBackdropEnabled.value, 1, 'Prewarm executes the real external branch behind the white appearance');
-  assert.equal(liquid.uniforms.aloeBackdropMix.value, 0);
-  aloe.setAloeBottleBackdrop(drawnRoot, texture, .5);
-  assert.equal(liquid.uniforms.aloeBackdropMix.value, .5);
-  assert.ok(liquid.fragmentShader.includes('mix(vec3(1.0), backdropDisplay, aloeBackdropMix)'));
-  aloe.setAloeBottleBackdrop(drawnRoot, texture, 2);
-  assert.equal(liquid.uniforms.aloeBackdropMix.value, 1);
-  assert.equal(pulp.uniforms.aloeBackdropTexture, undefined, 'Pulp gains no sampler, matrix binding or external ray');
-  assert.ok(!pulp.fragmentShader.includes('aloeBackdropTexture'));
+  assert.equal(f.liquid.material.transmission, 1); assert.equal(f.liquid.material.ior, 1.335);
+  assert.ok(liquid.fragmentShader.includes('transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );'));
+  assert.ok(liquid.fragmentShader.includes('return normalize( refractionVector ) * aloeWorldThickness;'));
+  for (const shader of [liquid, pulp]) {
+    assert.ok(!shader.fragmentShader.includes('aloeBackdrop'));
+    assert.ok(!shader.fragmentShader.includes('aloeWorldToMetric'));
+  }
+  assert.ok(!liquid.fragmentShader.includes('float aloeExitDistance('), 'Liquid no longer runs the external full-chord solver');
+  const compositeAt = liquid.fragmentShader.indexOf('gl_FragColor.rgb += vec3(1.0 - gl_FragColor.a);');
+  assert.ok(compositeAt > liquid.fragmentShader.indexOf('#include <colorspace_fragment>'));
+  assert.ok(compositeAt > liquid.fragmentShader.indexOf('#include <premultiplied_alpha_fragment>'));
+  assert.ok(liquid.fragmentShader.includes('gl_FragColor.a = 1.0;'));
   assert.ok(pulp.vertexShader.includes('vAloeDepth = aloeGelDetail.z > 0.5 ? 0.0 : aloeExitDistance'));
   assert.ok(!pulp.fragmentShader.includes('aloeNoise'));
-  const camera = new THREE.PerspectiveCamera(); camera.position.z = 2;
-  drawnRoot.rotation.set(.3, .7, .2); drawnRoot.scale.setScalar(2); drawnRoot.updateMatrixWorld(true); camera.updateMatrixWorld(true);
-  const drawn = drawnRoot.getObjectByName(f.liquid.name);
-  drawn.material.onBeforeRender({ getRenderTarget: () => null }, {}, camera, drawn.geometry, drawn, null);
-  const product = liquid.uniforms.aloeWorldToMetric.value.clone().multiply(liquid.uniforms.aloeMetricToWorld.value);
-  const identity = new THREE.Matrix4();
-  product.elements.forEach((value, i) => assert.ok(Math.abs(value - identity.elements[i]) < 1e-10));
-  aloe.setAloeBottleBackdrop(drawnRoot, null);
-  assert.equal(liquid.uniforms.aloeBackdropTexture.value, null); assert.equal(liquid.uniforms.aloeBackdropEnabled.value, 0);
-  assert.equal(f.liquid.material.version, version); assert.equal(f.liquid.material.customProgramCacheKey(), key);
-  const expanded = liquid.fragmentShader.replace('#include <transmission_pars_fragment>', transmissionChunk());
-  for (const [declared, used] of [['uniform vec4 aloeFloor[', 'float aloeFloorValue('],
-    ['float aloeExitDistance(', 'vec3 externalViewWorld'], ['uniform sampler2D aloeBackdropTexture;', 'vec3 externalViewWorld']]) {
-    assert.ok(expanded.indexOf(declared) >= 0 && expanded.indexOf(declared) < expanded.indexOf(used), `${declared} precedes ${used}`);
-  }
-  function transmissionChunk() { return aloe.correctAloeTransmissionClear(THREE.ShaderChunk.transmission_pars_fragment, true); }
+  assert.equal(f.pulp.material.customProgramCacheKey(), 'aloe-pet-v1:inclusions:16');
 });
 
 test('actual pooled draws use white preview while offscreen PNG preserves native alpha and restore without recompilation', context => {

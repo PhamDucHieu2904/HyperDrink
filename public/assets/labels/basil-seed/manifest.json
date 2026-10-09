@@ -1,0 +1,74 @@
+{
+  "labels": [
+    {
+      "key": "strawberry",
+      "name": "Strawberry",
+      "sourceFile": "Basil seed (3).webp",
+      "url": "/assets/labels/basil-seed/strawberry-64f1598ff408.webp",
+      "sha256": "64f1598ff4087246d472d4702cf47d74d430f2ce511bc8e0d206318ece35ace0"
+    },
+    {
+      "key": "mango",
+      "name": "Mango",
+      "sourceFile": "Basil seed (1).webp",
+      "url": "/assets/labels/basil-seed/mango-eefff2dbfd45.webp",
+      "sha256": "eefff2dbfd45639e99b890130f5a192a719c62b013ab12a092787e5694c66fd9"
+    },
+    {
+      "key": "passion-fruit",
+      "name": "Passion Fruit",
+      "sourceFile": "Basil seed (8).webp",
+      "url": "/assets/labels/basil-seed/passion-fruit-ee2fe8876fd5.webp",
+      "sha256": "ee2fe8876fd5016dc32ecba3fb2747e2d50c3c03d91bdd64dd808232d1de58a3"
+    },
+    {
+      "key": "red-grape",
+      "name": "Red Grape",
+      "sourceFile": "Basil seed (10).webp",
+      "url": "/assets/labels/basil-seed/red-grape-c591f5260ce0.webp",
+      "sha256": "c591f5260ce02bf8589a80509b7a8c9efe79c8ad51e7a7ff41bc982130bc2a6c"
+    },
+    {
+      "key": "blueberry",
+      "name": "Blueberry",
+      "sourceFile": "Basil seed (7).webp",
+      "url": "/assets/labels/basil-seed/blueberry-c12c3731c6ea.webp",
+      "sha256": "c12c3731c6ead95680663e46de2c17cfb7e04682d8e14a930fcf674ca83910a9"
+    },
+    {
+      "key": "mixed-fruit",
+      "name": "Mixed Fruit",
+      "sourceFile": "Basil seed (2).webp",
+      "url": "/assets/labels/basil-seed/mixed-fruit-d41efc9251f7.webp",
+      "sha256": "d41efc9251f784d585970f929912e8c1595305e66bb159557bbaa2aa6fbd2748"
+    },
+    {
+      "key": "pineapple",
+      "name": "Pineapple",
+      "sourceFile": "Basil seed (4).webp",
+      "url": "/assets/labels/basil-seed/pineapple-239d254eff13.webp",
+      "sha256": "239d254eff13c7366a6402198fd3b095c152eed8bb491b65828645ef45b5937e"
+    },
+    {
+      "key": "pomegranate",
+      "name": "Pomegranate",
+      "sourceFile": "Basil seed (5).webp",
+      "url": "/assets/labels/basil-seed/pomegranate-5bae90eede27.webp",
+      "sha256": "5bae90eede27e26e56fd45b5e8bd1e34c593d07e22cc44f284802b68c525b300"
+    },
+    {
+      "key": "lychee",
+      "name": "Lychee",
+      "sourceFile": "Basil seed (6).webp",
+      "url": "/assets/labels/basil-seed/lychee-dd344a6405f7.webp",
+      "sha256": "dd344a6405f7035d3acc782dba1b12cdb34f4250d4f91fcb1a65d2190459711a"
+    },
+    {
+      "key": "peach",
+      "name": "Peach",
+      "sourceFile": "Basil seed (9).webp",
+      "url": "/assets/labels/basil-seed/peach-3f2f8d8fdbef.webp",
+      "sha256": "3f2f8d8fdbef643737c56714a7c72517b2d5344f2ab92a6c674dcb4b640fe656"
+    }
+  ]
+}

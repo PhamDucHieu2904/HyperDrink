@@ -422,18 +422,27 @@ test('an uploaded flavor icon reaches the actual hero and shared water backdrop 
   assert.equal(fallback.themes[4].iconUrl, undefined); assert.equal(fallback.themes[4].icon, data.flavors[4].icon);
 });
 
-test('Aloe requests external capture even with image-only decorations while cans remain unchanged', () => {
+test('Aloe white liquid requests no external capture, including native water decorations', context => {
   const data = fixture();
   assert.equal(render(data).viewers[0].backdrop, undefined);
   data.packagingCategories[0].viewerKind = 'pet';
   data.models3d[0].materialSlots.liquid = ['Aloe Vera Water'];
   const { viewers } = render(data);
-  assert.ok(viewers[0].backdrop?.state);
+  assert.equal(viewers[0].backdrop, undefined);
   assert.ok(viewers[0].accentScene.nodes.every(node => !node.enabled || node.assetUrl || !['droplet', 'ice'].includes(node.kind)),
     'The production scene uses image decorations');
+  const { DEFAULT_PRODUCT_ACCENT_SCENE } = require('../../lib/viewer/accent-config.ts');
+  const drop = DEFAULT_PRODUCT_ACCENT_SCENE.nodes.find(node => node.kind === 'droplet');
+  const enabled = drop.enabled; context.after(() => { drop.enabled = enabled; });
+  drop.enabled = true;
+  const native = render(data).viewers[0];
+  assert.ok(native.accentScene.nodes.some(node => node.enabled && !node.assetUrl && node.kind === 'droplet'));
+  assert.equal(native.backdrop, undefined, 'Native water accents do not activate the optional Aloe capture');
+  data.models3d[0].materialSlots.liquid = [];
+  assert.ok(render(data).viewers[0].backdrop?.state, 'Other products retain their native water backdrop');
 });
 
-test('the registered Aloe release routes its real exported liquid name to the live refraction backdrop', () => {
+test('the registered Aloe release uses the fixed white liquid without a live refraction backdrop', () => {
   const data = JSON.parse(fs.readFileSync(require('node:path').resolve(__dirname, '../../public/catalog/current.json'), 'utf8')).data.catalog;
   const display = data.displays3d.find(item => item.id === 'aloe-pet500-strawberry-3d');
   const variant = data.productVariants.find(item => item.id === display.productVariantId);
@@ -441,6 +450,28 @@ test('the registered Aloe release routes its real exported liquid name to the li
   const { viewers } = render(data, { groupId: variant.groupId, slotId: slot.id, variantId: variant.id });
   assert.equal(viewers[0].asset.id, display.modelId);
   assert.deepEqual(viewers[0].asset.materialSlots.liquid, ['Aloe Vera Water']);
-  assert.ok(viewers[0].backdrop?.state,
-    'The actual exported liquid role enables refraction instead of only a synthetic material name');
+  assert.equal(viewers[0].backdrop, undefined, 'The actual exported Aloe name keeps the fixed white path');
+});
+
+test('the shared enhanced choice reaches registered Aloe, Basil and Cojo without changing their appearance or resource window', () => {
+  const data = JSON.parse(fs.readFileSync(require('node:path').resolve(__dirname, '../../public/catalog/current.json'), 'utf8')).data.catalog;
+  const ProductVisual = require('../../components/catalog-hero/ProductVisual.tsx').default;
+  for (const id of ['aloe-pet500-strawberry-3d', 'basil-glass290-red-grape-3d', 'cojo-pet320-watermelon-3d']) {
+    const display = data.displays3d.find(item => item.id === id);
+    const variant = data.productVariants.find(item => item.id === display.productVariantId);
+    const slot = data.packagingSlots.find(item => item.groupId === variant.groupId && item.packagingVariantId === variant.packagingVariantId);
+    const standard = render(data, { groupId: variant.groupId, slotId: slot.id, variantId: variant.id });
+    viewerCalls = [];
+    renderToStaticMarkup(React.createElement(LanguageProvider, null, React.createElement(ProductVisual, { ...standard.visuals[0], graphicsMode: 'enhanced' })));
+    const enhanced = viewerCalls[0];
+    assert.equal(enhanced.graphicsMode, 'enhanced');
+    assert.equal(enhanced.backdrop.state, standard.visuals[0].backgroundState);
+    assert.deepEqual(enhanced.asset, standard.viewers[0].asset);
+    assert.deepEqual(enhanced.appearance, standard.viewers[0].appearance);
+    assert.deepEqual(enhanced.resourceWindow, standard.viewers[0].resourceWindow);
+  }
+  const can = render(fixture()); viewerCalls = [];
+  renderToStaticMarkup(React.createElement(LanguageProvider, null, React.createElement(ProductVisual, { ...can.visuals[0], graphicsMode: 'enhanced' })));
+  assert.equal(viewerCalls[0].backdrop, undefined, 'Opaque cans do not allocate a bottle refraction pass');
+  assert.deepEqual(viewerCalls[0].appearance, can.viewers[0].appearance);
 });

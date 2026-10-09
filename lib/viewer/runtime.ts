@@ -20,8 +20,10 @@ import { createBackdropTexture, type ProductViewerBackdropInput } from './backdr
 import { createWaterBackdropPass } from './water-backdrop-pass';
 import { createProductHitRegion, hitVisibleProduct, visibleProductGestureMeshes } from './product-hit-region';
 import { renderBottleScene } from './bottle-materials';
-import { setAloeBottleBackdrop } from './aloe-bottle-materials';
-import { AdaptiveAloeQuality } from './adaptive-aloe';
+import { setBasilHighBackdrop } from './basil-bottle-materials';
+import { isBasilHighAsset, basilHighPresentation } from './basil-presentation';
+import type { GraphicsMode } from './graphics-mode';
+import { setBottleBackdrop } from './bottle-backdrop';
 
 export interface ViewerStatus {
   phase: 'loading' | 'ready' | 'error';
@@ -37,6 +39,7 @@ export interface ProductViewerController {
   configure(presentation: ViewerPresentation): void;
   accents(scene: ProductAccentSceneInput | undefined, key: string, flavor: AccentFlavor): void;
   backdrop(source?: ProductViewerBackdropInput): void;
+  graphicsMode(mode: GraphicsMode): void;
   pause(paused: boolean): void;
   reset(): void;
   dispose(): void;
@@ -58,6 +61,7 @@ export function createProductViewer(
   status: (value: ViewerStatus) => void,
 ): ProductViewerController {
   let presentation = initialPresentation;
+  let basePresentation = initialPresentation;
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: presentation.quality.antialias, powerPreference: 'high-performance' });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setClearColor('#000000', 0);
@@ -88,9 +92,6 @@ export function createProductViewer(
   let visible = true;
   let dragging = false;
   let dirty = true;
-  const aloeQuality = new AdaptiveAloeQuality();
-  let aloePrewarmFrames = 0;
-  let hiddenCanvasOpacity: string | undefined;
   let liveMaterialOverrides: LiveMaterialOverrides = {};
   let animationTime = 0;
   let lastTime = performance.now();
@@ -104,7 +105,6 @@ export function createProductViewer(
   let returnElapsed = 0;
   let cinematic: Transition | null = null;
   let packageTransition: PackageTransition | null = null;
-  let waitingAloeEntry = false;
   let active: LoadedProduct | null = null;
   let pendingProduct: LoadedProduct | null = null;
   let desiredAsset: ProductAsset | null = null;
@@ -135,7 +135,7 @@ export function createProductViewer(
       else resolve();
     }, 40);
   });
-  const canWarmNeighbors = () => !document.hidden && visible && !paused && !dragging && !cinematic && !packageTransition && !aloeQuality.probing && !aloePrewarmFrames;
+  const canWarmNeighbors = () => !document.hidden && visible && !paused && !dragging && !cinematic && !packageTransition;
   const yieldWarmup = (priority: AppearanceWarmupPriority) => {
     if (priority.isForeground()) return Promise.resolve();
     return new Promise<void>(resolve => {
@@ -245,60 +245,32 @@ export function createProductViewer(
   let waterBackdrop: ReturnType<typeof createWaterBackdropPass> | undefined;
   let backdropSource: ProductViewerBackdropInput | undefined;
   let backdropSignature = '';
-  let residentBackdropSource: ProductViewerBackdropInput | undefined;
-  let residentBackdropSignature = '';
-  let lastAloeBackdropSource: ProductViewerBackdropInput | undefined;
-  const isAloe = (model: LoadedProduct | null) => model?.asset.packaging === 'pet' && model.asset.materialSlots?.liquid?.includes('Aloe Vera Water') === true;
+  let graphicsMode: GraphicsMode = 'standard';
+  const syncBottleBackdrop = () => {
+    const texture = graphicsMode === 'enhanced' ? waterBackdrop?.texture ?? null : null;
+    setBottleBackdrop(scene, texture);
+    mount.dataset.backdropRefraction = texture ? 'true' : 'false';
+  };
   const releaseBackdrop = () => {
-    accents.setBackdrop(null); setAloeBottleBackdrop(product, null);
+    setBottleBackdrop(scene, null);
+    setBasilHighBackdrop(scene, null);
+    accents.setBackdrop(null);
     backdrop?.dispose(); backdrop = undefined;
-    waterBackdrop?.dispose(); waterBackdrop = undefined; residentBackdropSource = undefined; residentBackdropSignature = '';
-  };
-  const prepareBackdrop = (source: ProductViewerBackdropInput) => {
-    if (backdrop && waterBackdrop && residentBackdropSource?.state === source.state
-      && residentBackdropSignature === JSON.stringify(source.config)) return true;
-    releaseBackdrop();
-    try {
-      backdrop = createBackdropTexture(source.state, source.config, mount);
-      waterBackdrop = createWaterBackdropPass(renderer, scene, product);
-      residentBackdropSource = source; residentBackdropSignature = JSON.stringify(source.config); accents.setBackdrop(waterBackdrop.texture);
-      return true;
-    } catch { releaseBackdrop(); return false; }
-  };
-  const hideTrialCanvas = () => {
-    if (hiddenCanvasOpacity !== undefined) return;
-    hiddenCanvasOpacity = renderer.domElement.style.opacity || '';
-    renderer.domElement.style.opacity = '0'; hitRegion.clear();
-    mount.dataset.aloeProbe = 'true';
-  };
-  const revealTrialCanvas = () => {
-    if (hiddenCanvasOpacity === undefined) return;
-    renderer.domElement.style.opacity = hiddenCanvasOpacity; hiddenCanvasOpacity = undefined;
-    mount.dataset.aloeProbe = 'false'; dirty = true;
-  };
-  const cancelAloeTrial = () => {
-    const wasTrial = aloeQuality.probing || aloePrewarmFrames > 0;
-    if (aloePrewarmFrames) aloeQuality.deferFullEntry();
-    aloeQuality.cancelProbe(); aloePrewarmFrames = 0; revealTrialCanvas(); aloeQuality.resetCadence();
-    if (wasTrial) {
-      if (!backdropSource || (backdropSource.adaptiveAloe && !aloeQuality.needsBackdrop)) releaseBackdrop();
-      else if (!backdropSource.adaptiveAloe) prepareBackdrop(backdropSource);
-    }
-  };
-  const reportAloeQuality = () => {
-    mount.dataset.aloeQuality = aloeQuality.quality;
-    mount.dataset.aloeQualityReason = aloeQuality.reason;
-    mount.dataset.aloeRefractionMix = aloeQuality.mix.toFixed(3);
+    waterBackdrop?.dispose(); waterBackdrop = undefined;
   };
   const setBackdrop = (source?: ProductViewerBackdropInput) => {
     if (disposed) return;
-    const signature = JSON.stringify([source?.config ?? null, source?.adaptiveAloe ?? false]);
+    const signature = JSON.stringify(source?.config ?? null);
     if (source?.state === backdropSource?.state && signature === backdropSignature) return;
-    if (aloeQuality.probing) cancelAloeTrial();
     backdropSource = source; backdropSignature = signature;
-    if (source?.adaptiveAloe) lastAloeBackdropSource = source;
-    if (source && (!source.adaptiveAloe || (aloeQuality.needsBackdrop && !dragging))) prepareBackdrop(source);
-    else releaseBackdrop();
+    releaseBackdrop();
+    if (source) try {
+      backdrop = createBackdropTexture(source.state, source.config, mount);
+      waterBackdrop = createWaterBackdropPass(renderer, scene, product);
+      accents.setBackdrop(waterBackdrop.texture);
+      setBasilHighBackdrop(scene, waterBackdrop.texture);
+    } catch { releaseBackdrop(); }
+    syncBottleBackdrop();
     dirty = true;
   };
 
@@ -358,14 +330,11 @@ export function createProductViewer(
     dirty = true;
   };
   const resize = () => {
-    if (aloeQuality.probing || aloePrewarmFrames) cancelAloeTrial();
     const width = Math.max(1, mount.clientWidth);
     const height = Math.max(1, mount.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth <= 760 ? presentation.quality.mobileDpr : presentation.quality.maxDpr));
     renderer.setSize(width, height, false);
     renderer.getDrawingBufferSize(drawingBufferSize);
-    aloeQuality.configure(drawingBufferSize.x, drawingBufferSize.y, presentation.quality.maxFps);
-    reportAloeQuality();
     camera.aspect = width / height;
     fitCamera();
     camera.updateProjectionMatrix();
@@ -408,6 +377,11 @@ export function createProductViewer(
     });
   };
   const configure = (value: ViewerPresentation) => {
+    basePresentation = value;
+    if (isBasilHighAsset(desiredAsset)) {
+      const basil = basilHighPresentation();
+      value = { ...value, environment: basil.environment, lights: basil.lights, toneMapping: basil.toneMapping, exposure: basil.exposure };
+    }
     const poseChanged = value.pose.some((entry, index) => entry !== presentation.pose[index]);
     presentation = value;
     renderer.toneMapping = {
@@ -447,7 +421,6 @@ export function createProductViewer(
   };
   const clearPackageMotion = () => {
     packageTransition = null;
-    waitingAloeEntry = false;
     product.scale.setScalar(1); product.visible = true; product.position.y = 0;
     mount.dataset.transitionPhase = 'idle';
     dirty = true;
@@ -486,17 +459,7 @@ export function createProductViewer(
     mount.dataset.productId = active.asset.id;
     mount.dataset.appearanceId = appliedAppearanceIds.get(active) ?? '';
     fitCamera();
-    if (isAloe(active)) {
-      aloeQuality.enter();
-      if (aloeQuality.quality === 'full' && (dragging || paused || !lastAloeBackdropSource)) aloeQuality.deferFullEntry();
-      if (aloeQuality.quality === 'full' && lastAloeBackdropSource && !dragging && !paused) {
-        // A previously measured full mode still prepares its real framebuffer
-        // resources behind the loader/hidden package gap, never under a finger.
-        hideTrialCanvas(); aloePrewarmFrames = 2;
-        if (!prepareBackdrop(lastAloeBackdropSource)) { aloeQuality.rejectFull(); cancelAloeTrial(); }
-      }
-    }
-    if (!aloePrewarmFrames) emitStatus('ready');
+    emitStatus('ready');
     reportGeometry(); updatePrefetch(); warmNeighbors();
   };
   const applyAppearance = async (loaded: LoadedProduct, appearance: ProductAppearance | undefined) => {
@@ -554,11 +517,12 @@ export function createProductViewer(
   };
   const select = (asset: ProductAsset, appearance?: ProductAppearance) => {
     if (disposed) return;
-    if (aloeQuality.probing || aloePrewarmFrames) cancelAloeTrial();
     const nextAssetDefinitionKey = definitionOf(asset);
     const sameAssetDefinition = nextAssetDefinitionKey === assetDefinitionKey;
     assetDefinitionKey = nextAssetDefinitionKey;
+    const changesBasilPresentation = isBasilHighAsset(desiredAsset) !== isBasilHighAsset(asset);
     desiredAsset = asset;
+    if (changesBasilPresentation) configure(basePresentation);
     desiredAppearance = appearance;
     const appearanceKey = JSON.stringify(appearance ?? null);
     const retryAppearance = failedAppearanceKey === appearanceKey;
@@ -695,7 +659,6 @@ export function createProductViewer(
     });
   };
   const reset = () => {
-    cancelAloeTrial();
     activatePendingProduct();
     clearPackageMotion(); currentDistance = fitDistance;
     cinematic = null;
@@ -722,13 +685,12 @@ export function createProductViewer(
     dirty = true;
   };
   const interrupt = () => {
-    if (aloeQuality.probing || aloePrewarmFrames) cancelAloeTrial();
     // Begin from the visible quaternion, including any rocking/settling.
     cinematic = null; returnFrom = null; target.copy(pose);
     activatePendingProduct();
   };
   const pointerDown = (event: PointerEvent) => {
-    if (!active || packageTransition || aloePrewarmFrames || aloeQuality.probing || event.button !== 0 || pointers.has(event.pointerId)) return;
+    if (!active || packageTransition || event.button !== 0 || pointers.has(event.pointerId)) return;
     if ((event.pointerType === 'touch' || event.pointerType === 'pen') && event.target !== hitRegion.element) return;
     const rect = renderer.domElement.getBoundingClientRect();
     if (!(rect.width > 0 && rect.height > 0)) return;
@@ -819,24 +781,13 @@ export function createProductViewer(
           move.elapsed -= motion.packageOutSeconds; setPackagePhase('hold'); product.visible = false;
         }
       } else if (move.phase === 'hold') {
-        // First encounter stays white. Only an already stable white Aloe is
-        // qualified, once it leaves the screen during a packaging change.
-        if (!aloeQuality.probing && isAloe(active) && lastAloeBackdropSource && !paused && !dragging
-          && aloeQuality.beginProbe(now, !product.visible, pointers.size > 0)) {
-          hideTrialCanvas();
-          if (!prepareBackdrop(lastAloeBackdropSource)) cancelAloeTrial();
-        }
-        aloeQuality.checkDeadline(now);
         // The minimum 0.2s gap can extend only when the latest network/decode is unfinished.
-        if (!aloeQuality.probing && !aloePrewarmFrames && move.elapsed >= motion.packageHoldSeconds && (pendingProduct || waitingAloeEntry)) {
-          if (pendingProduct) activatePendingProduct();
+        if (move.elapsed >= motion.packageHoldSeconds && pendingProduct) {
+          activatePendingProduct();
           // Refit while invisible; size changes cannot perturb the outgoing or incoming frames.
           currentDistance = fitDistance;
-          waitingAloeEntry = Boolean(aloePrewarmFrames);
-          if (!waitingAloeEntry) {
-            move.elapsed = 0; move.inOrigin.copy(move.cap); move.inScale = 0.01;
-            setPackagePhase('in'); product.visible = true;
-          }
+          move.elapsed = 0; move.inOrigin.copy(move.cap); move.inScale = 0.01;
+          setPackagePhase('in'); product.visible = true;
         }
       } else {
         const t = Math.min(1, move.elapsed / motion.packageInSeconds);
@@ -913,17 +864,10 @@ export function createProductViewer(
     camera.position.z = currentDistance;
     const model = active ?? pendingProduct;
     if (model) camera.lookAt(new THREE.Vector3(...presentation.camera.target).multiplyScalar(model.radius));
-    const quiet = !dragging && !cinematic && !packageTransition && !paused;
-    if (aloeQuality.probing || aloePrewarmFrames || (isAloe(active) && aloeQuality.fading && quiet)) dirty = true;
     if (backdrop) {
-      try {
-        const version = backdrop.texture.version;
-        backdrop.update();
-        if (backdrop.texture.version !== version) dirty = true;
-      } catch (error) {
-        if (!aloeQuality.probing && !aloePrewarmFrames && !backdropSource?.adaptiveAloe) throw error;
-        aloeQuality.rejectFull('backdrop-update-failed'); cancelAloeTrial(); releaseBackdrop();
-      }
+      const version = backdrop.texture.version;
+      backdrop.update();
+      if (backdrop.texture.version !== version) dirty = true;
     }
     const accentFrame = accents.update({ deltaSeconds: dt, reducedMotion: false, paused,
       ready: Boolean(active && active.definitionKey === assetDefinitionKey && appearanceReady),
@@ -939,45 +883,9 @@ export function createProductViewer(
     const frameInterval = 1000 / presentation.quality.maxFps;
     const sinceDraw = now - lastDrawTime;
     if (dirty && sinceDraw >= frameInterval) {
-      const started = performance.now();
-      const hiddenTrial = aloeQuality.probing || aloePrewarmFrames > 0;
-      if (isAloe(active) && !hiddenTrial) aloeQuality.advance(Math.min(.035, sinceDraw / 1000), quiet);
-      if (backdropSource?.adaptiveAloe && !hiddenTrial) {
-        if (aloeQuality.needsBackdrop) {
-          if (aloeQuality.mix > 0 && !backdrop && quiet && !prepareBackdrop(backdropSource)) aloeQuality.rejectFull();
-        } else if (backdrop) releaseBackdrop();
-      }
-      hitRegion.update(active && !packageTransition && !hiddenTrial ? active.root : null, camera, mount.clientWidth, mount.clientHeight, now, dragging);
-      const beforeTrial = hiddenTrial ? { visible: product.visible, scale: product.scale.clone(), pose: product.quaternion.clone(), position: product.position.clone() } : undefined;
-      if (hiddenTrial) {
-        // Same default framebuffer/shader and viewport as real viewing. No
-        // second model, GPU readback, extra RAF or offscreen shader variant.
-        product.visible = true; product.scale.setScalar(1); product.quaternion.copy(rest); product.position.set(0, 0, 0);
-      }
-      try {
-        if (backdrop && waterBackdrop) waterBackdrop.render(backdrop.texture, camera);
-        setAloeBottleBackdrop(product, waterBackdrop?.texture ?? null,
-          isAloe(active) ? (hiddenTrial ? 1 : aloeQuality.mix) : 1);
-        renderBottleScene(renderer, scene, camera);
-      } catch (error) {
-        if (!hiddenTrial) throw error;
-        aloeQuality.rejectFull('trial-render-failed'); cancelAloeTrial(); releaseBackdrop();
-      } finally {
-        if (beforeTrial) { product.visible = beforeTrial.visible; product.scale.copy(beforeTrial.scale); product.quaternion.copy(beforeTrial.pose); product.position.copy(beforeTrial.position); }
-      }
-      aloeQuality.frame(now, performance.now() - started,
-        hiddenTrial || (isAloe(active) && appearanceReady && environmentReady && !paused && !cinematic && !packageTransition && document.hidden === false && visible));
-      if (hiddenCanvasOpacity !== undefined && !aloeQuality.probing) {
-        if (aloePrewarmFrames > 0) aloePrewarmFrames--;
-        if (!aloePrewarmFrames) {
-          revealTrialCanvas();
-          if (!backdropSource) releaseBackdrop();
-          else if (!backdropSource.adaptiveAloe) prepareBackdrop(backdropSource);
-          else if (!aloeQuality.needsBackdrop) releaseBackdrop();
-          if (active?.definitionKey === assetDefinitionKey && appearanceReady) emitStatus('ready');
-        }
-      }
-      reportAloeQuality();
+      hitRegion.update(active && !packageTransition ? active.root : null, camera, mount.clientWidth, mount.clientHeight, now, dragging);
+      if (backdrop && waterBackdrop) waterBackdrop.render(backdrop.texture, camera);
+      renderBottleScene(renderer, scene, camera);
       mount.dataset.viewerReady = active ? 'true' : 'false';
       sampleDraws++;
       if (previousDrawAt) sampleLongestGap = Math.max(sampleLongestGap, now - previousDrawAt);
@@ -993,8 +901,7 @@ export function createProductViewer(
     }
   };
   const syncVisibility = () => {
-    if (document.hidden || !visible) { cancelAloeTrial(); cancelPointers(); hitRegion.clear(); }
-    aloeQuality.resetCadence();
+    if (document.hidden || !visible) { cancelPointers(); hitRegion.clear(); }
     renderer.setAnimationLoop(!document.hidden && visible ? render : null);
     lastTime = performance.now();
     frameSampleAt = lastTime; sampleDraws = 0; previousDrawAt = 0; sampleLongestGap = 0;
@@ -1003,7 +910,6 @@ export function createProductViewer(
   };
   const contextLost = (event: Event) => {
     event.preventDefault(); renderer.setAnimationLoop(null);
-    cancelAloeTrial();
     cancelPointers();
     emitStatus('error', 'Phiên 3D bị gián đoạn. Tải lại trang để khôi phục.');
   };
@@ -1037,11 +943,11 @@ export function createProductViewer(
     },
     configure,
     backdrop: setBackdrop,
+    graphicsMode(mode) { if (disposed) return; graphicsMode = mode; syncBottleBackdrop(); dirty = true; },
     accents: (value, key, flavor) => accents.configure(value, key, flavor),
     pause(value) {
       paused = value;
       if (paused) {
-        cancelAloeTrial();
         const changingPackage = Boolean(packageTransition);
         cinematic = null; clearPackageMotion(); activatePendingProduct(); currentDistance = fitDistance;
         if (changingPackage) pose.copy(rest);
@@ -1053,7 +959,6 @@ export function createProductViewer(
     reset,
     dispose() {
       if (disposed) return;
-      cancelAloeTrial();
       disposed = true; assetRevision += 1; environmentRevision += 1;
       warmRevision++; prefetch.dispose();
       renderer.setAnimationLoop(null);
@@ -1070,9 +975,7 @@ export function createProductViewer(
       discard(active); discard(pendingProduct);
       geometryCache.forEach(discard); geometryCache.clear();
       accents.dispose();
-      setAloeBottleBackdrop(product, null);
-      backdrop?.dispose(); backdrop = undefined;
-      waterBackdrop?.dispose(); waterBackdrop = undefined;
+      releaseBackdrop();
       ownedEnvironmentTargets.forEach((target) => target.dispose());
       environmentTargets.clear();
       pmrem.dispose(); draco.dispose(); basis.dispose();

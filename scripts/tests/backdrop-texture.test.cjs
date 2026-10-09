@@ -23,7 +23,7 @@ const painter = loadSource('lib/viewer/backdrop-texture.ts', name => {
   throw new Error(`Unexpected painter dependency: ${name}`);
 });
 
-function fixture(context, { mobile = false, withHero = true, withStudio = false } = {}) {
+function fixture(context, { mobile = false, withHero = true } = {}) {
   let time = 0, reads = 0, resize, disconnected = false;
   const images = [], observed = [], fills = [], transforms = [], gradients = [], patterns = [];
   const drawing = {
@@ -41,7 +41,7 @@ function fixture(context, { mobile = false, withHero = true, withStudio = false 
   const light = rect({ left: 580, top: 100, width: 900, height: 1000 });
   const hero = { ...rect({ left: 20, top: 30, width: 1800, height: 1000 }), querySelector: () => light };
   const mountBounds = { left: 650, top: 150, width: 800, height: 900 };
-  const mount = { ...rect(mountBounds), closest: selector => withHero || withStudio && selector.includes('[data-refraction-backdrop]') ? hero : null };
+  const mount = { ...rect(mountBounds), closest: () => withHero ? hero : null };
   const previous = new Map(['document', 'Image', 'DOMMatrix', 'ResizeObserver', 'matchMedia', 'performance'].map(key => [key, global[key]]));
   Object.assign(global, {
     document: { createElement: () => canvas }, matchMedia: () => ({ matches: mobile }), performance: { now: () => time },
@@ -62,16 +62,6 @@ function fixture(context, { mobile = false, withHero = true, withStudio = false 
     at: value => { time = value; }, reads: () => reads, resize: () => resize(), disconnected: () => disconnected,
     disposalEvents: () => disposalEvents };
 }
-
-test('Studio refraction crops its own live grid/icons and glow in the same coordinates as FlavorBackground', context => {
-  const f = fixture(context, { withHero: false, withStudio: true });
-  f.images.forEach(image => { image.complete = true; image.onload(); });
-  f.state.setPatternOffset(17, -8); f.at(100); f.update();
-  assert.equal(f.observed.length, 3, 'The Studio surface, viewer and aligned glow all invalidate the crop');
-  assert.ok(f.patterns.length > 0, 'A Studio preview needs the live patterned surface, not the generic solid fallback');
-  assert.ok(f.patterns.every(pattern => pattern.matrix.x === 17 && pattern.matrix.y === -8));
-  assert.equal(f.gradients.length > 0, true);
-});
 
 test('backdrop matches viewer crop, CSS theme compositing, live SVG origins and overlay light while throttling uploads', context => {
   const f = fixture(context);

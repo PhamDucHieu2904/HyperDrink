@@ -2,7 +2,6 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import type { ProductAsset, ProductAppearance } from '@/lib/viewer-config';
-import type { ProductViewerBackdropInput } from '@/lib/viewer/backdrop-texture';
 import type { LiveMaterialOverrides } from '@/lib/viewer/material-adjustments';
 import type { MockupAnimation, MockupBackground, MockupFocalPreset, MockupRuntime, MockupStatus } from '@/lib/mockup/contracts';
 import styles from './mockup.module.css';
@@ -16,7 +15,6 @@ interface Props {
   asset: ProductAsset; appearance?: ProductAppearance; frontYaw?: number;
   materialOverrides?: LiveMaterialOverrides;
   background: MockupBackground; animation: MockupAnimation; aspect: number; focal: MockupFocalPreset;
-  backdrop?: ProductViewerBackdropInput;
   label: string; onStatus: (status: MockupStatus) => void; onInteraction: () => void; onReset: () => void; retry: number; locked: boolean;
 }
 
@@ -42,7 +40,6 @@ const MockupCanvas = forwardRef<MockupCanvasHandle, Props>(function MockupCanvas
       runtime.current = controller;
       const next = latest.current;
       controller.setAspect(next.aspect); controller.setFocalLength(next.focal); controller.setBackground(next.background); controller.setAnimation(next.animation);
-      controller.setBackdrop(next.backdrop);
       controller.select(next.asset, next.appearance, next.frontYaw);
       controller.setMaterialOverrides(next.materialOverrides);
     }).catch(() => {
@@ -53,7 +50,6 @@ const MockupCanvas = forwardRef<MockupCanvasHandle, Props>(function MockupCanvas
   useEffect(() => { runtime.current?.select(props.asset, props.appearance, props.frontYaw); }, [props.asset, props.appearance, props.frontYaw]);
   useEffect(() => { runtime.current?.setMaterialOverrides(props.materialOverrides); }, [props.materialOverrides]);
   useEffect(() => { runtime.current?.setBackground(props.background); }, [props.background]);
-  useEffect(() => { runtime.current?.setBackdrop(props.backdrop); }, [props.backdrop]);
   useEffect(() => { runtime.current?.setAnimation(props.animation); }, [props.animation]);
   useEffect(() => { runtime.current?.setAspect(props.aspect); }, [props.aspect]);
   useEffect(() => { runtime.current?.setFocalLength(props.focal); }, [props.focal]);

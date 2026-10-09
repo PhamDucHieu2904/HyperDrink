@@ -158,6 +158,8 @@ export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset
       const requiredSlots = new Set(appearance?.requiredSlots ?? []);
       const appliedSlots = new Set<string>();
       try {
+        // Basil High's immutable optical buffers load once before its material compiles.
+        if (bottle?.ready) await bottle.ready;
         for (const slot of requiredSlots) {
           const matching = bindings.filter(binding => slotFor(binding) === slot);
           if (!matching.length || matching.some(binding => !(binding.original instanceof THREE.MeshStandardMaterial))) {
@@ -184,7 +186,7 @@ export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset
           let material: THREE.MeshStandardMaterial;
           if (binding.original instanceof THREE.MeshPhysicalMaterial) material = binding.original.clone();
           else if (binding.original instanceof THREE.MeshStandardMaterial) {
-            if (bottleRole === 'liquid' || ['transmission', 'ior', 'thickness', 'clearcoat', 'clearcoatRoughness'].some((key) => key in override)) {
+            if (bottleRole === 'liquid' || (bottleRole === 'body' && binding.original.userData.basilProfile === 'basil-web-v1') || ['transmission', 'ior', 'thickness', 'clearcoat', 'clearcoatRoughness'].some((key) => key in override)) {
               const physical = new THREE.MeshPhysicalMaterial();
               THREE.MeshStandardMaterial.prototype.copy.call(physical, binding.original);
               physical.defines = { STANDARD: '', PHYSICAL: '' };
@@ -245,7 +247,7 @@ export function createAppearanceHandle(root: THREE.Object3D, asset: ProductAsset
         liveBindings.push({ material, slot, waterColor, base: { color: `#${material.color.getHexString()}`, metalness: material.metalness, roughness: material.roughness, textureOffsetX: material.map?.offset.x ?? 0 } });
       });
     },
-    dispose() { disposed = true; revision += 1; restore(); },
+    dispose() { if (disposed) return; disposed = true; revision += 1; restore(); bottle?.dispose?.(); },
   };
 }
 
@@ -256,6 +258,7 @@ export function disposeProduct(root: THREE.Object3D) {
   const textures = new Set<THREE.Texture>();
   root.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
+    if (child instanceof THREE.InstancedMesh) child.dispose();
     geometry.add(child.geometry);
     (Array.isArray(child.material) ? child.material : [child.material]).forEach((material) => {
       materials.add(material);
