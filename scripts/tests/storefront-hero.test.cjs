@@ -18,7 +18,13 @@ let viewerCalls = [];
 let visualCalls = [];
 const dynamicBoundaries = [];
 const originalLoad = Module._load;
+let sceneResourcePhase = 'ready';
+const acquireSceneUrl = url => ({ url, release() {} });
 Module._load = function(request, ...args) {
+  if (request === './catalog-hero/useSceneResources') return { __esModule: true, default: () => ({
+    progress: { phase: sceneResourcePhase, completed: sceneResourcePhase === 'ready' ? 10 : 0, total: 10, failed: 0, cachedBytes: 0 },
+    acquireUrl: acquireSceneUrl, onViewerReady() {}, retry() {},
+  }) };
   if (request === 'next/dynamic') return (loader, options) => {
     dynamicBoundaries.push(options);
     return props => {
@@ -39,6 +45,28 @@ const ProductDetailPanel = require('../../components/product-detail/ProductDetai
 const { resolveProductDetail } = require('../../lib/catalog/product-detail.ts');
 const { catalogProducts, parsePublishedCatalog } = require('../../lib/catalog/storefront.ts');
 Module._load = originalLoad;
+
+test('staged homepage keeps the selected product interactive, gates decorations and neighbor decoding, then restores the full scene', () => {
+  try {
+    for (const phase of ['waiting', 'core', 'effects', 'error']) {
+      sceneResourcePhase = phase;
+      const { html, viewers } = render(fixture());
+      assert.equal(viewers[0].asset.src, '/api/public/v1/media/uploaded-can-model');
+      assert.equal(viewers[0].appearance.slots.label.baseColorMap, '/api/public/v1/media/uploaded-label-4');
+      assert.equal(viewers[0].accentScene.enabled, false);
+      assert.deepEqual(viewers[0].accentScene.nodes, []);
+      assert.equal(viewers[0].resourceWindow.ready.length > 0, phase === 'effects');
+      assert.deepEqual(viewers[0].resourceWindow.files, [], 'One page-wide queue owns compressed downloads');
+      assert.match(html, /aria-label="Enhanced graphics"/);
+      assert.match(html, /scene-effects-toggle/);
+    }
+    sceneResourcePhase = 'ready';
+    const { viewers } = render(fixture());
+    assert.ok(viewers[0].accentScene.enabled && viewers[0].accentScene.nodes.length);
+    assert.ok(viewers[0].resourceWindow.ready.length);
+    assert.equal(viewers[0].resourceWindow.acquireUrl, acquireSceneUrl);
+  } finally { sceneResourcePhase = 'ready'; }
+});
 
 test('homepage published switches reach the actual viewer without changing model, label or refraction when all accents are off', () => {
   const data = fixture();

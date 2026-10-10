@@ -2,7 +2,12 @@ import { publicUrl } from '../public-url';
 import { assetUrl, type ProductAppearance, type ProductAsset } from '../viewer-config';
 
 export interface ViewerResourceCandidate { asset: ProductAsset; appearance?: ProductAppearance }
-export interface ViewerResourceWindow { ready: ViewerResourceCandidate[]; files: ViewerResourceCandidate[] }
+export interface ViewerResourceWindow {
+  ready: ViewerResourceCandidate[];
+  files: ViewerResourceCandidate[];
+  /** Page-wide staged downloads can coexist with a small decoded-neighbor pool. */
+  acquireUrl?: (source: string) => ResourceUrlLease;
+}
 export interface ResourcePrefetchDiagnostics { entries: number; bytes: number; queued: number; inFlight: number }
 export interface ResourceUrlLease { url: string; release(): void }
 export interface ResourcePrefetchOptions {

@@ -8,6 +8,7 @@ import { accentImageExtent, accentImageSize, adaptAccentFrame } from './accent-l
 import { createDropletMaterial, updateDropletMaterial } from './droplet-material';
 import { createIceMaterial, updateIceMaterial } from './ice-material';
 import { createBlendedAccentHost, createHardLightCaptureProxy } from './blended-accent';
+import type { ResourceUrlLease } from './resource-prefetch';
 
 type BlendedHost = NonNullable<ReturnType<typeof createBlendedAccentHost>>;
 type AccentObject = { node: ProductAccentNode; group: THREE.Group; materials: THREE.Material[]; resources: Array<{ dispose(): void }>; imageSize: [number, number]; ready: boolean; blended?: ReturnType<BlendedHost['add']> };
@@ -35,7 +36,7 @@ const SUBJECT_UVS: Record<string, [number, number, number, number]> = {
 
 /** Scene-local resources; never parented to the spinning product. Approved GLBs
  * can replace each demo sprite/mesh without changing choreography or layout. */
-export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invalidate: () => void, mount?: HTMLDivElement) {
+export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invalidate: () => void, mount?: HTMLDivElement, acquireUrl?: (source: string) => ResourceUrlLease) {
   const root = new THREE.Group();
   root.name = 'product-accent-scene';
   scene.add(root);
@@ -87,12 +88,14 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       return cached.promise;
     }
     pendingTextureLoads += 1;
+    const lease = !imageSource ? acquireUrl?.(src) : undefined;
+    const load = imageSource ? undefined : colorMaps.loadAsync(lease?.url ?? publicUrl(src));
     const source = imageSource ? imageSource.then(image => {
       if (!image) throw new Error('Cannot load blended accent image');
       const texture = new THREE.Texture(image);
       texture.needsUpdate = true;
       return texture;
-    }) : colorMaps.loadAsync(publicUrl(src));
+    }) : lease ? load!.finally(() => lease.release()) : load!;
     const promise = source.then(texture => {
       // TextureLoader cannot cancel a started image request. An evicted result
       // is released immediately, even if this URL has since been requested anew.
@@ -206,7 +209,9 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
       const item: AccentObject = { node, group: new THREE.Group(), resources: [], materials: [], imageSize: [size, size], ready: false };
       item.group.name = node.id; item.group.visible = false; root.add(item.group);
       if (node.assetUrl && /\.glb(?:\?|$)/i.test(node.assetUrl)) {
-        loader.loadAsync(publicUrl(node.assetUrl)).then(gltf => {
+        const lease = acquireUrl?.(node.assetUrl);
+        const request = loader.loadAsync(lease?.url ?? publicUrl(node.assetUrl));
+        (lease ? request.finally(() => lease.release()) : request).then(gltf => {
           if (disposed || thisRevision !== revision) { disposeProduct(gltf.scene); return; }
           const unwanted: THREE.Object3D[] = [];
           gltf.scene.traverse(child => { if (child instanceof THREE.Light || child instanceof THREE.Camera) unwanted.push(child); });
@@ -249,7 +254,8 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
           if (blendedHost) {
             // Discover the LCP decoration before any Three texture has loaded.
             // Product settling and the existing fade still own its reveal.
-            item.blended = blendedHost.add(node.assetUrl, image => {
+            const lease = acquireUrl?.(node.assetUrl);
+            item.blended = blendedHost.add(lease?.url ?? node.assetUrl, image => {
               if (disposed || thisRevision !== revision) return;
               if (image) {
                 item.imageSize = accentImageSize(image.naturalWidth, image.naturalHeight, size);
@@ -258,6 +264,7 @@ export function createAccentLayer(scene: THREE.Scene, loader: GLTFLoader, invali
               item.ready = true;
               invalidate();
             });
+            void item.blended.source.then(() => lease?.release());
             item.resources.push(item.blended);
           }
         }

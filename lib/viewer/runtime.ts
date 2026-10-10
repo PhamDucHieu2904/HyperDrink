@@ -163,7 +163,8 @@ export function createProductViewer(
     });
   };
   const poolOf = (loaded: LoadedProduct | null) => loaded?.appearance && 'setWindow' in loaded.appearance ? loaded.appearance as PooledAppearanceHandle : null;
-  const updatePrefetch = () => prefetch.setEnabled(Boolean(resourceWindow && active && appearanceReady && !document.hidden && visible && !paused));
+  const updatePrefetch = () => prefetch.setEnabled(Boolean(resourceWindow && !resourceWindow.acquireUrl && active && appearanceReady && !document.hidden && visible && !paused));
+  const acquireResourceUrl = (source: string) => resourceWindow?.acquireUrl?.(source) ?? prefetch.acquireUrl(source);
   const rememberLoaded = (asset: ProductAsset, appearance?: ProductAppearance) => {
     if (!resourceWindow) return;
     prefetch.markLoaded(asset.src);
@@ -174,7 +175,7 @@ export function createProductViewer(
   const createHandle = (content: THREE.Group, asset: ProductAsset): AppearanceHandle => resourceWindow ? createPooledAppearanceHandle(content, asset, {
     capacity: window.innerWidth <= 760 ? 3 : 5,
     maxTextureBytes: (window.innerWidth <= 760 ? 20 : 32) * 1024 * 1024,
-    acquireUrl: prefetch.acquireUrl,
+    acquireUrl: acquireResourceUrl,
     onChange: (ready, pending, textureBytes) => {
       if (definitionOf(asset) !== assetDefinitionKey) return;
       mount.dataset.labelPoolReady = String(ready);
@@ -239,7 +240,7 @@ export function createProductViewer(
   const draco = new DRACOLoader().setDecoderPath(publicUrl(presentation.decoders.dracoPath)).setWorkerLimit(2);
   const basis = new KTX2Loader().setTranscoderPath(publicUrl(presentation.decoders.basisPath)).setWorkerLimit(2).detectSupport(renderer);
   loader.setMeshoptDecoder(MeshoptDecoder).setDRACOLoader(draco).setKTX2Loader(basis);
-  const accents = createAccentLayer(scene, loader, () => { dirty = true; }, mount);
+  const accents = createAccentLayer(scene, loader, () => { dirty = true; }, mount, acquireResourceUrl);
   const drawingBufferSize = new THREE.Vector2(1, 1);
   let backdrop: ReturnType<typeof createBackdropTexture> | undefined;
   let waterBackdrop: ReturnType<typeof createWaterBackdropPass> | undefined;
@@ -571,7 +572,7 @@ export function createProductViewer(
       geometryCache.forEach(discard); geometryCache.clear();
       mount.dataset.modelLoads = String(++modelLoads);
     }
-    const lease = !cached && resourceWindow ? prefetch.acquireUrl(src) : undefined;
+    const lease = !cached && resourceWindow ? acquireResourceUrl(src) : undefined;
     loader.setResourcePath(THREE.LoaderUtils.extractUrlBase(publicUrl(src)));
     const modelRequest = cached ? Promise.resolve(null) : loader.loadAsync(lease?.url ?? publicUrl(src));
     loader.setResourcePath('');

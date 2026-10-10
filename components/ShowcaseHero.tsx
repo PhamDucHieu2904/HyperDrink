@@ -19,6 +19,8 @@ import ProductDetailPanel from './product-detail/ProductDetailPanel';
 import { publicUrl } from '@/lib/public-url';
 import { mockupCopy } from '@/lib/i18n/mockup';
 import GraphicsToggle, { useGraphicsMode } from './GraphicsToggle';
+import SceneEffectsToggle, { useSceneEffects } from './SceneEffectsToggle';
+import useSceneResources from './catalog-hero/useSceneResources';
 
 const backgroundSettings = normalizeBackgroundConfig(backgroundConfig);
 const glassStyle = { backdropFilter: 'blur(28px) saturate(148%) brightness(1.04)', WebkitBackdropFilter: 'blur(28px) saturate(148%) brightness(1.04)' } as React.CSSProperties;
@@ -39,6 +41,8 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
   const graphicsMode = useGraphicsMode();
   const resolved = useMemo(() => resolveStorefrontSelection(catalog, selection), [catalog, selection]);
   const products = useMemo(() => catalogProducts(catalog), [catalog]);
+  const sceneResources = useSceneResources(catalog, products, releaseId);
+  const sceneEffects = useSceneEffects();
   const { groups, group, slot, variants, variant, flavor, packaging } = resolved;
   const product = products.find(item => item.variant.id === variant?.id && item.slot.id === slot?.id);
   const resourceDisplays = useMemo(() => {
@@ -142,7 +146,7 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
         <button type="button" className="btn btn-ghost" onClick={() => openDetail('flavor')}><Play size={18} fill="currentColor" /> {t('nav.flavors')}</button>
       </div>
     </div>
-    <div ref={productRef} className="showcase-product"><ProductVisual catalog={catalog} releaseId={releaseId} seed={sessionSeed} slot={slot} variant={variant} display3d={product?.display3d} display2d={product?.display2d} image2d={product?.image2d} model={product?.model} resourceDisplays={resourceDisplays} backgroundState={backgroundState} backgroundConfig={backgroundSettings} graphicsMode={graphicsMode} onViewerUnavailable={() => setFailedVisual(renderKey)} /><GraphicsToggle /></div>
+    <div ref={productRef} className="showcase-product"><ProductVisual catalog={catalog} releaseId={releaseId} seed={sessionSeed} slot={slot} variant={variant} display3d={product?.display3d} display2d={product?.display2d} image2d={product?.image2d} model={product?.model} resourceDisplays={resourceDisplays} backgroundState={backgroundState} backgroundConfig={backgroundSettings} graphicsMode={graphicsMode} effectsVisible={sceneResources.progress.phase === 'ready' && sceneEffects} resourcesReady={sceneResources.progress.phase === 'effects' || sceneResources.progress.phase === 'ready'} acquireResourceUrl={sceneResources.acquireUrl} onViewerReady={sceneResources.onViewerReady} onViewerUnavailable={() => setFailedVisual(renderKey)} /><GraphicsToggle /><SceneEffectsToggle progress={sceneResources.progress} onRetry={sceneResources.retry} /></div>
     {productPicker}
     <FlavorCarousel items={carouselItems} selectedId={variant.id} onSelect={onSelectVariant} />
     <div className="showcase-details">

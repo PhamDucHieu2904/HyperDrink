@@ -429,12 +429,12 @@ function runtimeFixture(context, immediateAppearance = false, pixelRatio = 1, op
     }
   });
   const appearanceBoundary = {
-    createAppearanceHandle(root, asset) {
+    createAppearanceHandle(root, asset, appearanceOptions = {}) {
       return {
         setLiveOverrides() {},
         materialValues() { return {}; },
         apply(value) {
-          appearanceCalls.push({ root, assetId: asset.id, asset, value });
+          appearanceCalls.push({ root, assetId: asset.id, asset, value, options: appearanceOptions });
           if (immediateAppearance) {
             if (options.labelTextures && value?.slots?.label?.baseColorMap) {
               const texture = new THREE.Texture(); texture.name = value.id;
@@ -846,6 +846,30 @@ test('hero resources reuse geometry for A to B to A and keep only two models whe
   assert.equal(f.mount.dataset.modelPoolSize, '2');
   f.viewer.dispose();
   assert.equal(f.disposedCount(), 4, 'Both evictions and both retained model instances are released once');
+});
+
+test('the staged page cache supplies selected GLBs and label loaders while preserving bounded on-demand geometry', async context => {
+  const f = runtimeFixture(context, true), leased = [], released = [];
+  const acquireUrl = source => { leased.push(source); return { url: `blob:staged-${source}`, release() { released.push(source); } }; };
+  const a = f.asset('a'), b = f.asset('b');
+  f.viewer.pause(true);
+  f.viewer.resources({ ready: [], files: [], acquireUrl });
+  f.viewer.select(a, { id: 'a-label' });
+  assert.equal(f.geometryRequests[0].src, 'blob:staged-/a.glb');
+  assert.deepEqual(released, []);
+  f.geometryRequests[0].resolve(f.model()); await f.flush();
+  assert.deepEqual(released, ['/a.glb']);
+  const labelLease = f.appearanceCalls[0].options.acquireUrl('/label.webp');
+  assert.equal(labelLease.url, 'blob:staged-/label.webp'); labelLease.release();
+  assert.equal(f.mount.dataset.modelPoolSize, '1');
+  f.viewer.select(b, { id: 'b-label' });
+  assert.equal(f.geometryRequests[1].src, 'blob:staged-/b.glb');
+  f.geometryRequests[1].resolve(f.model()); await f.flush();
+  f.viewer.select(a, { id: 'a-label' }); await f.flush();
+  assert.equal(f.geometryRequests.length, 2, 'Cached geometry stays reusable without eager parsing of other models');
+  assert.equal(f.mount.dataset.modelPoolSize, '2');
+  assert.deepEqual(leased, ['/a.glb', '/label.webp', '/b.glb']);
+  assert.deepEqual(released, leased);
 });
 
 test('hero label pool switches back to a ready appearance without repeating its loader or shader warmup', async context => {

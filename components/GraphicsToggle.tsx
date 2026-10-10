@@ -15,14 +15,13 @@ const labels = {
   de: ['Verbesserte Grafik', 'An · Transparente Brechung', 'Aus · Flüssige Darstellung'],
 } as const;
 export function useGraphicsMode() { return useSyncExternalStore(subscribeGraphicsMode, graphicsModeSnapshot, graphicsModeServerSnapshot); }
-export default function GraphicsToggle() {
+export default function GraphicsToggle({ className = '' }: { className?: string }) {
   const { locale } = useLanguage();
   const mode = useGraphicsMode(), enhanced = mode === 'enhanced';
   const copy = labels[locale], detail = copy[enhanced ? 1 : 2];
-  return <button type="button" className="graphics-toggle" aria-label={copy[0]} aria-pressed={enhanced}
+  return <button type="button" className={`graphics-toggle${className ? ` ${className}` : ''}`} aria-label={copy[0]} aria-pressed={enhanced}
     aria-describedby="graphics-toggle-description" onClick={() => setGraphicsMode(enhanced ? 'standard' : 'enhanced')}>
     <Gem size={21} strokeWidth={1.6} aria-hidden="true" />
-    <span className="graphics-toggle-indicator" aria-hidden="true" />
     <span id="graphics-toggle-description" className="graphics-toggle-caption"><strong>{copy[0]}</strong><span>{detail}</span></span>
   </button>;
 }

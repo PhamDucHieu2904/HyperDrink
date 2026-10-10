@@ -47,7 +47,7 @@ function deferredRequest(url) {
   const promise = new Promise((success, failure) => { resolve = success; reject = failure; });
   return { url, promise, resolve, reject };
 }
-async function harness(run, mount) {
+async function harness(run, mount, acquireUrl) {
   const textureRequests = [], gltfRequests = [];
   const loadTexture = THREE.TextureLoader.prototype.loadAsync;
   THREE.TextureLoader.prototype.loadAsync = url => {
@@ -57,7 +57,7 @@ async function harness(run, mount) {
   let invalidations = 0;
   const layer = createAccentLayer(scene, {
     loadAsync(url) { const request = deferredRequest(url); gltfRequests.push(request); return request.promise; },
-  }, () => { invalidations += 1; }, mount);
+  }, () => { invalidations += 1; }, mount, acquireUrl);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 10);
   camera.position.z = 4;
   const update = overrides => layer.update(frame({ camera, ...overrides }));
@@ -75,6 +75,20 @@ async function harness(run, mount) {
 }
 
 const { projectAccentImage, createHardLightCaptureProxy } = loadSource('lib/viewer/blended-accent.ts');
+test('decorations reuse staged Blob files and release successful, failed and obsolete image/GLB leases', async () => {
+  const acquired = [], released = [];
+  const acquireUrl = source => { acquired.push(source); return { url: `blob:staged-${source}`, release() { released.push(source); } }; };
+  await harness(async ({ layer, textureRequests, gltfRequests, update }) => {
+    layer.configure(sceneConfig([node('fruit', { assetUrl: '/fruit.webp' }), node('model', { assetUrl: '/ice.glb' })]), 'staged', 'citrus');
+    update();
+    assert.equal(textureRequests[0].url, 'blob:staged-/fruit.webp');
+    assert.equal(gltfRequests[0].url, 'blob:staged-/ice.glb');
+    assert.deepEqual(released, []);
+    layer.dispose(); textureRequests[0].resolve(fakeTexture()); gltfRequests[0].reject(new Error('Cancelled model'));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(acquired.sort(), released.sort());
+  }, undefined, acquireUrl);
+});
 test('homepage all-off creates no accent meshes and starts no image or GLB downloads', async () => harness(async ({ layer, root, textureRequests, gltfRequests, settle }) => {
   layer.configure(filterHomepageAccents(DEFAULT_PRODUCT_ACCENT_SCENE, decodeHomepageLayout('00000')), 'performance-off', 'citrus');
   const state = await settle();

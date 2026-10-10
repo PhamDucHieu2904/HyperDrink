@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "test:graphics": "node scripts/tests/graphics-mode.test.cjs",
+    "test:scene-resources": "node --test scripts/tests/scene-resources.test.cjs",
     "test:basil": "node scripts/tests/basil-high-optics.test.cjs && node scripts/tests/basil-high-paths.test.cjs && node scripts/tests/basil-bottle-materials.test.cjs && node scripts/tests/basil-neck-export.test.cjs && node --test scripts/import-basil-290-check.cjs && node --test scripts/tests/basil-web-optics.test.cjs scripts/tests/basil-web-load.test.cjs scripts/import-basil-web-check.cjs",
     "dev": "next dev",
     "dev:admin": "node scripts/dev-admin.cjs",
