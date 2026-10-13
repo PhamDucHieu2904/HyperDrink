@@ -1,14 +1,13 @@
-.collection-section { color:#163d43; padding-block:80px 96px; }
+.collection-section { color:#163d43; padding-block:40px 96px; }
 .collection-section .section-kicker,.collection-kicker { color:#ad4b27; font-size:11px; font-weight:700; letter-spacing:normal; text-transform:uppercase; }
 .collection-section .section-description { color:#527279; }
 .collection-heading-end { display:grid; justify-items:end; gap:5px; }
 .collection-see-all { display:inline-flex; align-items:center; gap:12px; min-height:44px; color:#1d5b58; font-weight:600; font-size:13px; border-bottom:1px solid transparent; }
 .collection-see-all:hover { border-bottom-color:currentColor; }
-.collection-section .section-heading { margin-bottom:56px; }
+.collection-section .section-heading { margin-bottom:32px; }
 .collection-rows { display:grid; gap:58px; }
-.collection-row-heading { display:flex; align-items:end; justify-content:space-between; gap:20px; margin-bottom:24px; }
-.collection-row-heading h3 { margin:5px 0 0; font:700 clamp(28px,3vw,42px)/1.1 'Space Grotesk',sans-serif; letter-spacing:-.04em; }
-.collection-row-count { color:#66837e; font-size:11px; letter-spacing:.06em; }
+.collection-row-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.collection-row-heading h3 { min-width:0; margin:0; font:700 clamp(28px,3vw,42px)/1.1 'Space Grotesk',sans-serif; letter-spacing:-.04em; }
 .collection-row-tools { display:flex; align-items:center; gap:26px; flex-wrap:wrap; }
 .collection-pager { display:flex; align-items:center; gap:10px; font-size:11px; color:#617c78; }
 .collection-pager button { width:44px; height:44px; flex-shrink:0; display:grid; place-items:center; border:1px solid #bed6ce; border-radius:50%; color:#204d47; background:#fff; cursor:pointer; transition:background .2s,border-color .2s; }

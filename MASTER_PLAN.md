@@ -9,6 +9,10 @@
 
 **Cập nhật kiến trúc 30/09/2026:** `docs/product-viewer.md`, `docs/model-pipeline.md`, `docs/background-system.md` và `IMPLEMENTATION_HANDOFF.md` mô tả bản hiện hành. Các phần dưới giữ baseline và quyết định lịch sử; pipeline OBJ, CanScene, ảnh nền tĩnh và điều khiển pause/reset hiển thị đã được thay thế. Hiện dùng ProductViewer tổng quát, HDRI studio, background pattern động và halo Overlay; admin chưa được triển khai.
 
+**Cập nhật giao diện 13/10/2026:** Banner giới thiệu 5 hương nằm phía trên các hàng collection, tự trượt sang trái mỗi 3 giây và lặp liên tục. Nền pastel, ảnh lon nền trong suốt và pool trái cây/lá/đá bám theo ảnh mẫu; CTA mở đúng sản phẩm trong catalog. Dùng ảnh tĩnh từ Mockup Studio, tải khi cuộn tới banner, cùng điều khiển trước/sau và chọn slide. Đã bỏ khối “Find your vibe”, số lượng ở tiêu đề hàng và nút pause theo yêu cầu. Quy tắc dữ liệu, responsive và kiểm chứng được ghi trong `docs/featured-banner.md`.
+
+**Cập nhật catalog 13/10/2026:** `/products/` dùng banner tràn hai mép không bo góc, bộ lọc ngang và lưới sản phẩm tận dụng chiều rộng màn hình (6 cột ở desktop rộng, 3 cột tablet, 2 cột điện thoại). Nền xanh nhạt có lưới/icon lá xanh đậm hơn, autodrift và hướng theo chuột bằng bộ chuyển động dùng chung với homepage. Chi tiết và kiểm chứng ở `docs/catalog-refactor.md`.
+
 > Đây là nguồn sự thật cấp dự án cho thiết kế, nội dung, kiến trúc, animation, asset pipeline và tiêu chí nghiệm thu. Mọi page-specific plan, component spec hoặc quyết định code mới phải tham chiếu tài liệu này và ghi rõ phần override nếu có.
 
 ---

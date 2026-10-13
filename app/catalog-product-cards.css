@@ -1,0 +1,7 @@
+.products-card-grid .collection-card { border-radius:25px; }
+.products-card-grid .collection-card-link { padding:14px; }
+.products-card-grid .collection-card-image { border-radius:17px; }
+.products-card-grid .collection-card-copy { padding:16px 2px 0; }
+.products-card-grid .collection-card-copy h3 { font-size:clamp(19px,1.4vw,23px); line-height:1.15; }
+.products-card-grid .collection-card-copy p { font-size:11px; }
+.products-card-grid .collection-card-action { font-size:12px; padding-top:8px; }

@@ -1,0 +1,27 @@
+.catalog-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #eff7f3;
+  contain: strict;
+}
+
+.catalog-background__pattern {
+  position: absolute;
+  background-repeat: repeat;
+  will-change: transform;
+}
+
+.catalog-background__wash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 25%, rgb(239 247 243 / 52%), transparent 75%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-background__pattern {
+    will-change: auto;
+  }
+}

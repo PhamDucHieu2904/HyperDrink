@@ -13,6 +13,7 @@
     "catalog:export": "node scripts/export-public-catalog.cjs",
     "test:catalog": "node scripts/tests/catalog-collections.test.cjs && node scripts/tests/storefront-catalog.test.cjs && node scripts/tests/static-catalog.test.cjs && node scripts/tests/storefront-hero.test.cjs",
     "test:carousel": "node scripts/tests/flavor-carousel.test.cjs",
+    "test:featured": "node scripts/tests/featured-banner.test.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

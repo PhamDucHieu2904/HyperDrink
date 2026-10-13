@@ -8,6 +8,10 @@ import './flavor-carousel.css';
 import './desktop-showcase.css';
 import './storefront-catalog.css';
 import './catalog-collection.css';
+import './featured-banner.css';
+import './catalog-background.css';
+import './catalog-product-cards.css';
+import './catalog-page.css';
 import './contact.css';
 
 export const metadata: Metadata = {

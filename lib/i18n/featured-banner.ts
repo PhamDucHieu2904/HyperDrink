@@ -1,0 +1,17 @@
+import type { Locale } from './catalog';
+
+interface FeaturedCopy {
+  label: string; featured: string; title: string; tagline: string; description: string;
+  discover: string; flavor: string; ready: string; pause: string; play: string; slide: string;
+}
+const copies: Record<Locale, FeaturedCopy> = {
+  en: { label: 'Featured flavors', featured: 'Featured flavor', title: '{flavor} Juice', tagline: 'A little tropical sunshine in every sip.', description: 'Meet {flavor} from our {collection} collection. Discover a refreshing flavor and find your next favorite.', discover: 'Discover {flavor}', flavor: 'Full of flavor', ready: 'Ready to enjoy', pause: 'Pause banner', play: 'Play banner', slide: 'Show {flavor}' },
+  fr: { label: 'Saveurs à découvrir', featured: 'Saveur à la une', title: 'Jus {flavor}', tagline: 'Un peu de soleil tropical à chaque gorgée.', description: 'Découvrez {flavor} de notre collection {collection}. Une saveur rafraîchissante pour trouver votre nouvelle favorite.', discover: 'Découvrir {flavor}', flavor: 'Plein de saveur', ready: 'Prêt à déguster', pause: 'Mettre en pause', play: 'Lancer le défilement', slide: 'Afficher {flavor}' },
+  zh: { label: '精选口味', featured: '精选口味', title: '{flavor}果汁', tagline: '每一口，都有热带阳光。', description: '探索{collection}系列中的{flavor}。发现清爽风味，找到下一款心仪饮品。', discover: '探索{flavor}', flavor: '丰富风味', ready: '随时享用', pause: '暂停轮播', play: '播放轮播', slide: '显示{flavor}' },
+  es: { label: 'Sabores destacados', featured: 'Sabor destacado', title: 'Jugo de {flavor}', tagline: 'Un poco de sol tropical en cada sorbo.', description: 'Conoce {flavor} de nuestra colección {collection}. Descubre un sabor refrescante y encuentra tu próximo favorito.', discover: 'Descubre {flavor}', flavor: 'Mucho sabor', ready: 'Listo para disfrutar', pause: 'Pausar banner', play: 'Reproducir banner', slide: 'Mostrar {flavor}' },
+  ar: { label: 'نكهات مميزة', featured: 'نكهة مميزة', title: 'عصير {flavor}', tagline: 'لمسة من الشمس الاستوائية في كل رشفة.', description: 'اكتشف {flavor} من مجموعة {collection}. نكهة منعشة قد تصبح مشروبك المفضل القادم.', discover: 'اكتشف {flavor}', flavor: 'نكهة غنية', ready: 'جاهز للاستمتاع', pause: 'إيقاف العرض مؤقتًا', play: 'تشغيل العرض', slide: 'عرض {flavor}' },
+  ru: { label: 'Избранные вкусы', featured: 'Вкус дня', title: 'Сок {flavor}', tagline: 'Немного тропического солнца в каждом глотке.', description: 'Откройте {flavor} из коллекции {collection}. Освежающий вкус, который может стать вашим новым любимым.', discover: 'Откройте {flavor}', flavor: 'Яркий вкус', ready: 'Готов к наслаждению', pause: 'Приостановить баннер', play: 'Запустить баннер', slide: 'Показать {flavor}' },
+  ko: { label: '추천 맛', featured: '추천 맛', title: '{flavor} 주스', tagline: '한 모금마다 만나는 열대의 햇살.', description: '{collection} 컬렉션의 {flavor}를 만나보세요. 상쾌한 맛과 함께 새로운 취향을 찾아보세요.', discover: '{flavor} 살펴보기', flavor: '풍부한 맛', ready: '바로 즐기세요', pause: '배너 일시 정지', play: '배너 재생', slide: '{flavor} 표시' },
+  de: { label: 'Ausgewählte Geschmacksrichtungen', featured: 'Geschmack im Fokus', title: '{flavor}-Saft', tagline: 'Ein wenig tropische Sonne in jedem Schluck.', description: 'Entdecke {flavor} aus unserer Kollektion {collection}. Ein erfrischender Geschmack, der dein neuer Favorit werden könnte.', discover: '{flavor} entdecken', flavor: 'Voller Geschmack', ready: 'Bereit zum Genießen', pause: 'Banner pausieren', play: 'Banner abspielen', slide: '{flavor} anzeigen' },
+};
+export const featuredBannerCopy = (locale: Locale) => copies[locale];

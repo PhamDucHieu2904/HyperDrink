@@ -24,7 +24,7 @@ export function CollectionPager({ page, totalPages, onPage, label }: { page: num
 }
 
 function CollectionRow({ catalog, section }: { catalog: CatalogData; section: CollectionSection }) {
-  const { locale, t } = useLanguage();
+  const { locale } = useLanguage();
   const copy = collectionCopy(locale);
   const row = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(6);
@@ -38,7 +38,7 @@ function CollectionRow({ catalog, section }: { catalog: CatalogData; section: Co
   }, []);
   const AllArrow = locale === 'ar' ? ArrowLeft : ArrowRight;
   return <section className="collection-row" aria-labelledby={`collection-${section.group.id}`}>
-    <div className="collection-row-heading"><div><span className="collection-row-count">{t(section.products.length === 1 ? 'collection.countOne' : 'collection.count', { count: section.products.length })}</span><h3 id={`collection-${section.group.id}`}><bdi>{section.title}</bdi></h3></div><div className="collection-row-tools"><a href={`${publicUrl('/products/')}?group=${encodeURIComponent(section.group.id)}`} className="collection-see-all">{copy.allProducts}<AllArrow size={18} /></a><CollectionPager label={section.title} page={result.page} totalPages={result.totalPages} onPage={page => { setPage(page); trackUsage('collection_open', section.group.id); }} /></div></div>
+    <div className="collection-row-heading"><h3 id={`collection-${section.group.id}`}><bdi>{section.title}</bdi></h3><div className="collection-row-tools"><a href={`${publicUrl('/products/')}?group=${encodeURIComponent(section.group.id)}`} className="collection-see-all">{copy.allProducts}<AllArrow size={18} /></a><CollectionPager label={section.title} page={result.page} totalPages={result.totalPages} onPage={page => { setPage(page); trackUsage('collection_open', section.group.id); }} /></div></div>
     <div ref={row} className="collection-row-cards" style={{ '--row-count': size } as React.CSSProperties}>
       {result.items.map(product => <CatalogCard key={product.variant.id} catalog={catalog} product={product} />)}
     </div>

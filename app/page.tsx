@@ -6,17 +6,17 @@ import LanguageSelector from '@/components/LanguageSelector';
 import ContactSection from '@/components/ContactSection';
 import { storefrontMarketingCopy } from '@/lib/i18n/storefront-marketing';
 import { LanguageProvider, useLanguage } from '@/components/LanguageProvider';
-import { collectionCopy } from '@/lib/i18n/collection-copy';
 import { collectionProducts, collectionSections, filterCollectionProducts } from '@/lib/catalog/collection';
 import { publicUrl } from '@/lib/public-url';
 import CollectionRows from '@/components/collection/CollectionRows';
+import FeaturedBanner from '@/components/collection/FeaturedBanner';
 import { storefrontStatus } from '@/lib/i18n/storefront-status';
 import { usePublishedCatalog } from '@/components/usePublishedCatalog';
 import { useTranslatedCatalog } from '@/components/useTranslatedCatalog';
 import { useStorefrontTelemetry } from '@/components/useStorefrontTelemetry';
 import { randomStorefrontEntry, resolveStorefrontSelection, type StorefrontSelectionRequest } from '@/lib/catalog/storefront';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Menu, Search, X } from 'lucide-react';
+import { Menu, Search, X } from 'lucide-react';
 import Image from 'next/image';
 
 
@@ -41,7 +41,6 @@ function Storefront() {
   const { t, locale } = useLanguage();
   const track = useStorefrontTelemetry(locale);
   const copy = storefrontStatus[locale];
-  const collectionText = collectionCopy(locale);
   const marketingText = storefrontMarketingCopy(locale);
   const { published, loading, error, refresh } = usePublishedCatalog();
   const usingSnapshotFallback = published?.source === 'static' && process.env.NEXT_PUBLIC_CATALOG_MODE !== 'static';
@@ -127,11 +126,8 @@ function Storefront() {
       </section>}
       {published && (error || usingSnapshotFallback) && <div className="catalog-update-notice" role="status"><span>{copy.refreshFailed}</span><button type="button" disabled={loading} onClick={() => void refresh()}>{copy.retry}</button></div>}
 
-      <section id="collection" className="section collection-section" aria-labelledby="collection-title">
-        <div className="section-heading">
-          <div><p className="section-kicker">{t('collection.kicker')}</p><h2 id="collection-title" className="section-title">{t('collection.title')}</h2></div>
-          <div className="collection-heading-end"><p className="section-description">{t('collection.copy')}</p><a className="collection-see-all" href={publicUrl('/products/')}>{collectionText.allProducts}<ArrowRight size={18} /></a></div>
-        </div>
+      <section id="collection" className="section collection-section" aria-label={t('collection.title')}>
+        {data && <FeaturedBanner catalog={data} sections={sections} />}
         {data && sections.length > 0 ? <CollectionRows catalog={data} sections={sections} /> : <p className="collection-empty" role="status">{!published ? (loading ? copy.loading : error ? copy.unavailable : copy.empty) : !products.length || !searchQuery.trim() ? copy.empty : t('collection.emptySearch')}</p>}
       </section>
 
