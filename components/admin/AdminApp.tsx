@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Box, CheckCircle2, ChevronRight, CircleHelp, Copy, Droplets, ExternalLink, FileImage, FlaskConical, ImageIcon, Layers3, LayoutDashboard, Leaf, LoaderCircle, LogOut, Menu, Package, Plus, RefreshCw, RotateCcw, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Box, CheckCircle2, ChevronRight, CircleHelp, Copy, Droplets, ExternalLink, FileImage, FlaskConical, ImageIcon, Images, Layers3, LayoutDashboard, Leaf, LoaderCircle, LogOut, Menu, Package, Plus, RefreshCw, RotateCcw, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AdminSession, CatalogData, CatalogRecord, CollectionName, DeleteRecordHandler, DisplayDraftResult, DisplayDraftSave, Flavor, MediaAsset, MediaRole, ValidationIssue } from '@/lib/catalog/contracts';
 import { issueRemedy, type DisplayIssueRemedy } from '@/lib/catalog/issue-remedies';
@@ -28,7 +28,7 @@ import { MediaThumbnail } from './ui/MediaPicker';
 import { imageUploadHelp, mediaSummary, uploadPendingText } from './ui/upload-info';
 import styles from '@/app/admin/admin.module.css';
 
-export type AdminModule = 'dashboard' | 'analytics' | 'security' | 'flavors' | 'productGroups' | 'packaging' | 'drinkTypes' | 'labels' | 'models3d' | 'displays3d' | 'displays2d' | 'publishing' | 'media' | 'icons' | 'productDetails';
+export type AdminModule = 'dashboard' | 'analytics' | 'security' | 'flavors' | 'productGroups' | 'packaging' | 'drinkTypes' | 'labels' | 'models3d' | 'displays3d' | 'displays2d' | 'publishing' | 'media' | 'icons' | 'productDetails' | 'banners';
 export interface WorkspaceHelpers {
   onNavigate: (module: AdminModule) => void;
   onSave: (collection: CollectionName, record: CatalogRecord, expectedRevision: number | null) => Promise<CatalogRecord>;
@@ -54,12 +54,12 @@ export interface AdminAppProps {
   renderWorkspace?: (module: AdminModule, data: CatalogData, helpers: WorkspaceHelpers) => React.ReactNode;
 }
 
-const emptyCatalog: CatalogData = { schemaVersion: 1, drinkTypes: [], packagingCategories: [], packagingVariants: [], flavors: [], flavorAssets: [], productGroups: [], productVariants: [], packagingSlots: [], media: [], labels: [], models3d: [], assets2d: [], displays3d: [], displays2d: [], productDetails: [], catalogCollections: [], catalogItems: [] };
+const emptyCatalog: CatalogData = { schemaVersion: 1, drinkTypes: [], packagingCategories: [], packagingVariants: [], flavors: [], flavorAssets: [], productGroups: [], productVariants: [], packagingSlots: [], media: [], labels: [], models3d: [], assets2d: [], displays3d: [], displays2d: [], productDetails: [], catalogCollections: [], catalogItems: [], banners: [] };
 const navigation: { group: string; items: { key: AdminModule; label: string; icon: LucideIcon }[] }[] = [
   { group: 'KHÔNG GIAN LÀM VIỆC', items: [{ key: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard }, { key:'analytics', label:'Thống kê truy cập', icon:BarChart3 }, { key:'security', label:'An ninh & log', icon:ShieldAlert }] },
   { group: 'DANH MỤC', items: [{ key: 'productGroups', label: 'Product Display', icon: Layers3 }, { key: 'packaging', label: 'Packaging List', icon: Package }, { key: 'drinkTypes', label: 'Type of Drink', icon: Droplets }, { key: 'flavors', label: 'Flavor Data', icon: Leaf }, { key: 'productDetails', label: 'Product Detail', icon: FileImage }, { key: 'models3d', label: '3D Model', icon: Box }, { key: 'labels', label: 'Label', icon: FileImage }] },
   { group: 'TÀI NGUYÊN', items: [{ key: 'media', label: 'Kho tài nguyên', icon: ImageIcon }] },
-  { group: 'HIỂN THỊ & XUẤT BẢN', items: [{ key: 'displays3d', label: '3D Display', icon: Sparkles }, { key: 'displays2d', label: '2D Display', icon: FileImage }, { key: 'publishing', label: 'Phát hành', icon: Upload }] },
+  { group: 'HIỂN THỊ & XUẤT BẢN', items: [{ key: 'displays3d', label: '3D Display', icon: Sparkles }, { key: 'displays2d', label: '2D Display', icon: FileImage }, { key: 'banners', label: 'Banner', icon: Images }, { key: 'publishing', label: 'Phát hành', icon: Upload }] },
 ];
 
 function referenceCount(data: CatalogData, id: string): number {
@@ -191,7 +191,7 @@ export default function AdminApp({ initialData, session, backendReady, onSave, o
     finally { setBusy(null); }
   }
 
-  const collection: CollectionName | null = subCollection ?? ({ flavors: 'flavors', productGroups: 'productGroups', packaging: 'packagingVariants', drinkTypes: 'drinkTypes', productDetails: 'productDetails', labels: 'labels', models3d: 'models3d', media: 'media', icons: 'media' } as Partial<Record<AdminModule, CollectionName>>)[module] ?? null;
+  const collection: CollectionName | null = subCollection ?? ({ flavors: 'flavors', productGroups: 'productGroups', packaging: 'packagingVariants', drinkTypes: 'drinkTypes', productDetails: 'productDetails', labels: 'labels', models3d: 'models3d', banners: 'banners', media: 'media', icons: 'media' } as Partial<Record<AdminModule, CollectionName>>)[module] ?? null;
   const definition = collection ? definitions[collection] : null;
   const title = module === 'media' && !subCollection ? 'Kho tài nguyên' : definition?.title ?? navigation.flatMap(group => group.items).find(item => item.key === module)?.label ?? 'Tổng quan';
   const records = collection ? (catalog[collection] ?? []).filter(record => {

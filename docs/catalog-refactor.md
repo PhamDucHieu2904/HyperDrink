@@ -11,3 +11,11 @@ Catalog cards use the original compact collection UI at the user's request: whit
 UI/UX Pro Max guidance was applied to wrapping filters, touch targets, keyboard focus, contrast, image loading and responsive overflow. The existing Space Grotesk and Be Vietnam Pro fonts are retained. Controls are at least 44px high. Mobile artwork follows the text in normal flow to accommodate translated headings; the language popover is layered above the grid.
 
 Validation covers TypeScript, targeted ESLint, the 41 featured-banner/collection/storefront/background tests, desktop/tablet/mobile browser interaction and the static Pages production build. Browser checks include search plus packaging, empty-state clearing, beverage types, pagination, product details, exact banner CTA, English/German layouts, moving background and autoplay. Screenshots are saved in `artifacts/catalog-refactor/`.
+
+## Product-detail view modes — 14 October 2026
+
+Catalog detail dialogs open in 2D with the existing hold-to-inspect image. The top-left segmented control offers 3D only when the same Product Detail label, flavour and packaging resolve to an active, enabled, compatible sales display with ready model and label media. Editorial IDs remain independent from sales variants; a missing 3D association never removes a 2D card. An explicitly 2D-only sales slot suppresses 3D.
+
+Selecting 3D loads the existing interactive viewer on demand with the display's exact label, liquid/cap colours and UV offset, without scene decorations. Switching back or closing disposes the viewer. Loading uses the shared localized indicator; runtime failure returns to 2D with localized feedback and keeps 3D available for retry. Buttons have 44px touch targets, pressed state and keyboard focus. The two modes reserve the same square visual area on mobile. The homepage editorial poster remains unchanged.
+
+Validated with TypeScript, targeted ESLint, the catalog suite including exact-match/invalid-3D graph cases, desktop/mobile browser mode switching and keyboard viewer controls, and the static Pages production build. The committed catalog's Apple is a verified 2D-only example; Guava has the matching interactive 3D model.

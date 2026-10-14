@@ -4,6 +4,7 @@ import type { MediaAsset, MediaRole } from '@/lib/catalog/contracts';
 export function imageUploadHelp(role: MediaRole): string {
   if (role === 'model') return 'GLB được kiểm tra và lưu ở định dạng gốc. Ảnh poster được tải lên riêng.';
   if (role === 'icon') return 'Nhận PNG, JPG, WebP và SVG tĩnh. Tự tối ưu thành WebP tối đa 256 px, giữ tỷ lệ và vùng trong suốt. Biểu tượng nằm trọn trong ô nền; file lưu trong Kho tài nguyên → Icon để dùng lại.';
+  if (role === 'banner') return 'Nhận PNG, JPG và WebP. Giữ nguyên tỷ lệ banner ngang, tự tối ưu WebP tối đa 4.096 px cạnh dài; ảnh hiển thị nguyên bản, không phủ thêm chữ hoặc nút.';
   const maxEdge = role === 'label' ? 2048 : role === 'thumbnail' ? 512 : 1600;
   return `Nhận PNG, JPG và WebP. Tự chuyển sang WebP, giảm cạnh dài xuống tối đa ${maxEdge.toLocaleString('vi-VN')} px, giữ tỷ lệ và vùng trong suốt; không phóng lớn ảnh nhỏ hoặc cắt ảnh.`;
 }

@@ -1,11 +1,13 @@
 import type { CatalogData, DrinkType, ProductGroup } from './contracts';
 import { catalogProducts, type StorefrontProduct } from './storefront';
+import { checkDisplay3DCompatibility } from './compatibility';
+import { hasValidationErrors } from './validation';
 import { normalizeSearch } from '../i18n/catalog';
 
 export interface CollectionSection { group: ProductGroup; title: string; products: StorefrontProduct[] }
 const usesLegacyCollections = (data: CatalogData) => data.catalogCollections === undefined || (!data.catalogCollections.length && data.productGroups.some(group => group.collectionVisible === true));
 
-/** Resolve only editorial 2D items; no geometry or hero slots are needed. */
+/** Editorial images define collection eligibility; exact sales 3D is optional. */
 export function collectionProducts(data: CatalogData): StorefrontProduct[] {
   if (usesLegacyCollections(data)) return catalogProducts(data, 'catalog');
   const products: StorefrontProduct[] = [];
@@ -20,8 +22,20 @@ export function collectionProducts(data: CatalogData): StorefrontProduct[] {
       const category = data.packagingCategories.find(record => record.id === packaging?.categoryId && record.lifecycle === 'active');
       const image2d = data.media.find(record => record.id === item.mediaId && record.lifecycle === 'active' && record.status === 'ready' && record.role === 'image-2d');
       if (!detail || !label || !packaging || !category || !image2d || !label.compatibilities.some(entry => entry.packagingVariantId === packaging.id)) continue;
+      // Editorial IDs are independent of sales IDs. Match the exact label and
+      // packaging, keeping unrelated flavours and generic geometry out of 3D.
+      const display3d = data.displays3d.find(display => {
+        if (display.lifecycle !== 'active' || !display.enabled || display.labelId !== label.id || hasValidationErrors(checkDisplay3DCompatibility(data, display))) return false;
+        const variant = data.productVariants.find(record => record.id === display.productVariantId);
+        if (!variant || variant.lifecycle !== 'active' || !variant.enabled || variant.packagingVariantId !== packaging.id || variant.flavorId !== label.flavorId) return false;
+        if (!data.flavors.some(record => record.id === variant.flavorId && record.lifecycle === 'active')) return false;
+        const groupMatches = data.productGroups.some(record => record.id === variant.groupId && record.lifecycle === 'active' && record.drinkTypeId === collection.drinkTypeId);
+        const slotMatches = data.packagingSlots.some(record => record.lifecycle === 'active' && record.enabled && record.mode !== '2d' && record.groupId === variant.groupId && record.packagingVariantId === packaging.id);
+        return groupMatches && slotMatches;
+      });
+      const model = display3d ? data.models3d.find(record => record.id === display3d.modelId) : undefined;
       const flavor = data.flavors.find(record => record.id === label.flavorId) ?? { ...item, shortName: item.name, description: '', accentColor: '#bfd9c8', backgroundColor: '#eaf2e3', textColor: '#153e32', icon: 'leaf', iconId: null, thumbnailId: null, position: item.position };
-      products.push({ group, packaging, category, flavor, label, image2d, productDetail: detail, catalogItem: item,
+      products.push({ group, packaging, category, flavor, label, image2d, productDetail: detail, catalogItem: item, display3d, model,
         variant: { ...item, groupId: collection.id, packagingVariantId: packaging.id, flavorId: flavor.id, code: '', description: detail.subtitle },
         slot: { ...collection, groupId: collection.id, packagingVariantId: packaging.id, regionKey: 'packaging-picker', buttonLabel: packaging.name, mode: '2d', defaultVariantId: item.id } });
     }

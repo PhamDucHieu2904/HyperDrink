@@ -23,6 +23,18 @@ function fixture() {
   data.catalogItems.push({ ...entity('catalog-citrus', 'Citrus'), collectionId: 'summer-juice', mediaId: 'catalog-image', productDetailId: 'catalog-detail', packagingVariantId: 'can-330', enabled: true, position: 0 });
   return data;
 }
+function fixtureWith3d() {
+  const data = fixture();
+  const model = data.models3d.find(item => item.packagingVariantId === 'can-330');
+  const image = data.media.find(item => item.id === 'catalog-image');
+  data.media.push({ ...image, ...entity('model-poster'), role: 'poster' });
+  model.posterId = 'model-poster';
+  data.productGroups[0].visible = true;
+  data.productVariants.push({ ...entity('sales-citrus'), groupId: data.productGroups[0].id, packagingVariantId: 'can-330', flavorId: data.labels[0].flavorId, code: '', description: '', enabled: true });
+  data.packagingSlots.push({ ...entity('sales-can'), groupId: data.productGroups[0].id, packagingVariantId: 'can-330', regionKey: 'packaging-picker', buttonLabel: '330 ml', mode: 'auto', defaultVariantId: 'sales-citrus', enabled: true, position: 0 });
+  data.displays3d.push({ ...entity('catalog-3d'), productVariantId: 'sales-citrus', modelId: model.id, labelId: 'catalog-label', liquidColor: '#abcdef', capColor: '#123456', labelOffset: 12, enabled: true });
+  return data;
+}
 const errors = data => preflightCatalog(data).filter(issue => issue.severity === 'error');
 
 test('a 2D collection publishes with no hero slots, products or geometry', () => {
@@ -75,4 +87,46 @@ test('ordering and original-language search use editorial collection and item na
   assert.deepEqual(products.map(item => item.variant.name), ['Lime', 'Bright Citrus']);
   const translated = structuredClone(products); translated[1].variant.name = 'Agrume'; translated[1].group.name = 'Jus'; translated[1].group.collectionTitle = 'Jus';
   assert.equal(filterCollectionProducts(translated, 'Summer Bright', data)[0].variant.id, 'catalog-citrus');
+});
+
+test('editorial details offer only the exact compatible published sales 3D while keeping their 2D identity', () => {
+  const data = fixtureWith3d();
+  const product = collectionProducts(data)[0];
+  assert.equal(product.variant.id, 'catalog-citrus');
+  assert.equal(product.slot.mode, '2d');
+  assert.equal(product.display3d.productVariantId, 'sales-citrus');
+  assert.equal(product.display3d.labelId, product.label.id);
+  assert.equal(product.model.packagingVariantId, product.packaging.id);
+  assert.equal(product.image2d.id, 'catalog-image');
+  assert.equal(collectionProducts(collectPublicCatalog(data))[0].display3d.id, 'catalog-3d');
+});
+
+test('missing, disabled, archived, foreign or unready 3D never removes the editorial 2D product', () => {
+  const changes = [
+    data => data.displays3d = [],
+    data => data.displays3d[0].enabled = false,
+    data => data.displays3d[0].lifecycle = 'archived',
+    data => data.displays3d[0].labelId = 'another-label',
+    data => data.productVariants[0].enabled = false,
+    data => data.productVariants[0].lifecycle = 'archived',
+    data => data.productVariants[0].packagingVariantId = 'can-320',
+    data => data.productVariants[0].flavorId = data.flavors[1].id,
+    data => data.productGroups[0].lifecycle = 'archived',
+    data => data.packagingSlots[0].mode = '2d',
+    data => data.packagingSlots[0].enabled = false,
+    data => data.packagingSlots[0].lifecycle = 'archived',
+    data => data.models3d.find(model => model.id === data.displays3d[0].modelId).lifecycle = 'archived',
+    data => data.models3d.find(model => model.id === data.displays3d[0].modelId).layoutProfile = 'foreign-layout',
+    data => data.media.find(media => media.id === data.models3d.find(model => model.id === data.displays3d[0].modelId).mediaId).status = 'processing',
+    data => data.media.find(media => media.id === 'catalog-artwork').status = 'failed',
+    data => data.media.find(media => media.id === 'model-poster').lifecycle = 'archived',
+  ];
+  for (const change of changes) {
+    const data = fixtureWith3d(); change(data);
+    const products = collectionProducts(data);
+    assert.equal(products.length, 1);
+    assert.equal(products[0].image2d.id, 'catalog-image');
+    assert.equal(products[0].display3d, undefined);
+    assert.equal(products[0].model, undefined);
+  }
 });

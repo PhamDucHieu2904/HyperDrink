@@ -98,7 +98,7 @@ function Storefront() {
         <BrandMark />
         <nav id="primary-navigation" className={`main-nav ${menuOpen ? 'is-open' : ''}`} aria-label={t('nav.label')}>
           <a className="nav-link" aria-current="page" href="#top" onClick={() => setMenuOpen(false)}>{t('nav.home')}</a>
-          <a className="nav-link" href="#collection" onClick={() => setMenuOpen(false)}>{t('nav.flavors')}</a>
+          <a className="nav-link" href={publicUrl('/mockup/')} onClick={() => setMenuOpen(false)}>Mockup Side</a>
           <a className="nav-link" href={publicUrl('/products/')} onClick={() => setMenuOpen(false)}>{t('nav.products')}</a>
           <a className="nav-link" href="#contact" onClick={() => setMenuOpen(false)}>{t('nav.contact')}</a>
         </nav>

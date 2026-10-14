@@ -5,7 +5,7 @@ import { isImageMedia } from './media-roles';
 import { resolveFlavorFruitImage } from './flavor-media';
 import { isHomepageLayout } from './homepage-layout';
 
-export const CATALOG_COLLECTIONS = ['drinkTypes', 'packagingCategories', 'packagingVariants', 'flavors', 'flavorAssets', 'productGroups', 'productVariants', 'packagingSlots', 'media', 'labels', 'models3d', 'assets2d', 'displays3d', 'displays2d', 'productDetails', 'catalogCollections', 'catalogItems'] as const satisfies readonly CollectionName[];
+export const CATALOG_COLLECTIONS = ['drinkTypes', 'packagingCategories', 'packagingVariants', 'flavors', 'flavorAssets', 'productGroups', 'productVariants', 'packagingSlots', 'media', 'labels', 'models3d', 'assets2d', 'displays3d', 'displays2d', 'productDetails', 'catalogCollections', 'catalogItems', 'banners'] as const satisfies readonly CollectionName[];
 export interface ValidationOptions { mode?: 'draft' | 'publish' }
 export const hasValidationErrors = (issues: ValidationIssue[]) => issues.some(issue => issue.severity === 'error');
 
@@ -24,6 +24,7 @@ const fields: Record<CollectionName, readonly string[]> = {
   productVariants: ['groupId', 'packagingVariantId', 'flavorId', 'code', 'description', 'enabled'],
   packagingSlots: ['groupId', 'packagingVariantId', 'regionKey', 'position', 'buttonLabel', 'mode', 'defaultVariantId', 'enabled'],
   media: ['role', 'status', 'url', 'storageKey', 'mime', 'bytes', 'sha256', 'width', 'height', 'imageBounds', 'error'],
+  banners: ['mediaId', 'position', 'enabled', 'alt'],
   labels: ['drinkTypeId', 'flavorId', 'mediaId', 'compatibilities', 'mockupVisible', 'mockupPosition'],
   models3d: ['packagingVariantId', 'mediaId', 'posterId', 'layoutProfile', 'materialSlots', 'orientation', 'mockupVisible', 'mockupPosition', 'mockupFrontYaw'],
   assets2d: ['packagingVariantId', 'drinkTypeId', 'flavorId', 'mediaId', 'galleryIds', 'description'],
@@ -92,7 +93,7 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
     case 'productVariants': ref('groupId', false, publishing); ref('packagingVariantId', false, publishing); ref('flavorId', false, publishing); str('code', 128); str('description', 5000); bool('enabled'); break;
     case 'packagingSlots': ref('groupId', false, publishing); ref('packagingVariantId', false, publishing); oneOf('regionKey', ['packaging-picker']); position(); str('buttonLabel', 100, publishing); oneOf('mode', ['3d', '2d', 'auto']); ref('defaultVariantId', true, publishing); bool('enabled'); break;
     case 'media': {
-      oneOf('role', ['fruit', 'leaf', 'splash', 'ice', 'thumbnail', 'icon', 'label', 'model', 'poster', 'image-2d']); oneOf('status', ['uploaded', 'processing', 'ready', 'failed']);
+      oneOf('role', ['fruit', 'leaf', 'splash', 'ice', 'thumbnail', 'icon', 'label', 'model', 'poster', 'image-2d', 'banner']); oneOf('status', ['uploaded', 'processing', 'ready', 'failed']);
       str('url', 2048, publishing); str('storageKey', 512); str('mime', 100, publishing); num('bytes', publishing ? 1 : 0, Number.MAX_SAFE_INTEGER, true);
       str('sha256', 64, publishing, /^[0-9a-f]{64}$/i); num('width', 1, 32768, true, true); num('height', 1, 32768, true, true); str('error', 2000);
       if (record.url && !isSafeAssetUrl(record.url)) add('url', 'URL phải là đường dẫn cùng website hoặc HTTPS không có thông tin đăng nhập.', 'unsafe_url');
@@ -140,6 +141,7 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
     }
     case 'catalogCollections': ref('drinkTypeId', false, publishing); bool('homeVisible'); bool('enabled'); num('position', 0, 100000, true); break;
     case 'catalogItems': ref('collectionId', false, publishing); ref('mediaId', true, publishing); ref('productDetailId', true, publishing); ref('packagingVariantId', false, publishing); num('position', 0, 100000, true); bool('enabled'); break;
+    case 'banners': ref('mediaId', true, publishing); num('position', 0, 100000, true); bool('enabled'); str('alt', 200); break;
     case 'assets2d': ref('packagingVariantId', false, publishing); ref('drinkTypeId', false, publishing); ref('flavorId', true); ref('mediaId', true, publishing); refsArray('galleryIds'); str('description', 5000); break;
     case 'displays3d':
       if (record.labelOffset !== undefined && (typeof record.labelOffset !== 'number' || !Number.isFinite(record.labelOffset) || record.labelOffset < -50 || record.labelOffset > 50)) add('labelOffset', 'Offset nhãn phải là số từ -50 đến 50%.');
@@ -179,6 +181,7 @@ export const CATALOG_REFERENCES: readonly Reference[] = [
   { collection: 'catalogItems', field: 'mediaId', target: 'media', nullable: true },
   { collection: 'catalogItems', field: 'productDetailId', target: 'productDetails', nullable: true },
   { collection: 'catalogItems', field: 'packagingVariantId', target: 'packagingVariants' },
+  { collection: 'banners', field: 'mediaId', target: 'media', nullable: true },
   { collection: 'packagingVariants', field: 'categoryId', target: 'packagingCategories' },
   { collection: 'flavors', field: 'thumbnailId', target: 'media', nullable: true },
   { collection: 'flavors', field: 'iconId', target: 'media', nullable: true },
@@ -202,7 +205,7 @@ export function validateCatalog(input: unknown, options: ValidationOptions = {})
   if (input.homepageLayout !== undefined && !isHomepageLayout(input.homepageLayout)) add('productGroups', '', 'homepageLayout', 'invalid_value', 'Cấu hình trang chính cần đủ 5 giá trị bật/tắt hợp lệ.');
   for (const collection of CATALOG_COLLECTIONS) {
     const records = input[collection];
-    if (['productDetails', 'catalogCollections', 'catalogItems'].includes(collection) && records === undefined) continue;
+    if (['productDetails', 'catalogCollections', 'catalogItems', 'banners'].includes(collection) && records === undefined) continue;
     if (!Array.isArray(records) || records.length > 10000) { add(collection, '', '', 'invalid_collection', 'Collection phải là danh sách tối đa 10.000 bản ghi.'); continue; }
     for (const record of records) issues.push(...validateRecord(collection, record));
   }

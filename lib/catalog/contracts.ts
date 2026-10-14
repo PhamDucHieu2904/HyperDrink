@@ -2,7 +2,7 @@
 export type EntityId = string;
 export type Lifecycle = 'active' | 'archived';
 export type MediaStatus = 'uploaded' | 'processing' | 'ready' | 'failed';
-export type MediaRole = 'fruit' | 'leaf' | 'splash' | 'ice' | 'thumbnail' | 'icon' | 'label' | 'model' | 'poster' | 'image-2d';
+export type MediaRole = 'fruit' | 'leaf' | 'splash' | 'ice' | 'thumbnail' | 'icon' | 'label' | 'model' | 'poster' | 'image-2d' | 'banner';
 export type RenderMode = '3d' | '2d' | 'auto';
 export type AdminRole = 'owner' | 'editor';
 
@@ -185,6 +185,12 @@ export interface CatalogItem extends Entity {
   position: number;
   enabled: boolean;
 }
+export interface Banner extends Entity {
+  mediaId: string | null;
+  position: number;
+  enabled: boolean;
+  alt: string;
+}
 export interface CatalogData {
   schemaVersion: 1;
   homepageLayout?: import('./homepage-layout').HomepageLayout;
@@ -205,10 +211,11 @@ export interface CatalogData {
   productDetails: ProductDetail[];
   catalogCollections: CatalogCollection[];
   catalogItems: CatalogItem[];
+  banners: Banner[];
 }
 /** New editorial data does not invalidate immutable releases created before this collection existed. */
 export function catalogWithDefaults(data: CatalogData): CatalogData {
-  return { ...data, productDetails: data.productDetails ?? [], catalogCollections: data.catalogCollections ?? [], catalogItems: data.catalogItems ?? [] };
+  return { ...data, productDetails: data.productDetails ?? [], catalogCollections: data.catalogCollections ?? [], catalogItems: data.catalogItems ?? [], banners: data.banners ?? [] };
 }
 export type CollectionName = Exclude<keyof CatalogData, 'schemaVersion' | 'homepageLayout'>;
 export type CatalogRecord = CatalogData[CollectionName][number];

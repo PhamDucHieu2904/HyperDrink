@@ -54,3 +54,12 @@ export function featuredBannerSlides(catalog: CatalogData, sections: CollectionS
 
 export const FEATURED_SLIDE_INTERVAL = 3000;
 export const featuredSlideIndex = (position: number, count: number) => count > 0 ? ((position % count) + count) % count : 0;
+
+export interface ManagedBannerSlide { id: string; image: string; alt: string }
+/** Published banner records take precedence over generated product artwork. */
+export function managedBannerSlides(catalog: CatalogData): ManagedBannerSlide[] {
+  return (catalog.banners ?? []).filter(banner => banner.lifecycle === 'active' && banner.enabled).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)).flatMap(banner => {
+    const media = banner.mediaId ? catalog.media.find(item => item.id === banner.mediaId && item.role === 'banner' && item.status === 'ready' && item.url) : null;
+    return media ? [{ id: banner.id, image: mediaUrl(media), alt: banner.alt || banner.name }] : [];
+  });
+}

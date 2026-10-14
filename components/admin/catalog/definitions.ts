@@ -32,6 +32,10 @@ export const definitions: Partial<Record<CollectionName, CollectionDefinition>> 
     { key: 'productDetailId', label: 'Product Detail', kind: 'select', relation: 'productDetails', nullable: true },
     packaging, position, { key: 'enabled', label: 'Hiển thị sản phẩm', kind: 'checkbox' },
   ] },
+  banners: { title: 'Banner trang chủ', singular: 'banner', description: 'Ảnh banner toàn màn hình. Chỉ ảnh được hiển thị; thứ tự và trạng thái có thể chỉnh trước khi phát hành.', fields: [
+    { key: 'mediaId', label: 'Ảnh banner', kind: 'media', roles: ['banner'], nullable: true, required: true, help: 'Tỷ lệ khuyến nghị 2458×640 hoặc tương đương. Không thêm chữ hay nút phủ lên ảnh.' },
+    { key: 'alt', label: 'Mô tả ảnh (alt)', kind: 'text', help: 'Dùng cho khả năng tiếp cận.' }, position, { key: 'enabled', label: 'Hiển thị banner', kind: 'checkbox' },
+  ] },
   productDetails: { title: 'Product Detail', singular: 'chi tiết sản phẩm', description: 'Poster và nội dung giới thiệu gắn với một nhãn. Dùng lại cho các sản phẩm mang nhãn này; lưu nháp rồi phát hành để cập nhật website.', fields: [
     { key: 'labelId', label: 'Nhãn liên kết', kind: 'select', relation: 'labels', required: true, help: 'Mỗi nhãn có một Product Detail đang hoạt động. Website tự mở đúng nội dung theo nhãn của lon được chọn.' },
     { key: 'enabled', label: 'Hiển thị nội dung chi tiết', kind: 'checkbox' },
@@ -80,6 +84,7 @@ export function newRecord(collection: CollectionName, context: Record<string, un
     labels: { drinkTypeId: '', flavorId: null, mediaId: null, compatibilities: [], mockupVisible: false },
     models3d: { packagingVariantId: '', mediaId: null, posterId: null, layoutProfile: '', materialSlots: { label: [] }, orientation: [0, 0, 0], mockupVisible: false },
     assets2d: { packagingVariantId: '', drinkTypeId: '', flavorId: null, mediaId: null, galleryIds: [], description: '' },
+    banners: { mediaId: null, alt: '', position: 0, enabled: true },
   };
   return { ...base, ...defaults[collection], ...context } as CatalogRecord;
 }

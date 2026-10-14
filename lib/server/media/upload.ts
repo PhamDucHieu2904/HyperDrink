@@ -15,6 +15,7 @@ const imageLimits: Record<Exclude<MediaRole, 'model'>, number> = {
   ice: 1600,
   poster: 1600,
   'image-2d': 1600,
+  banner: 4096,
 };
 const decoderOptions = { failOn: 'warning' as const, limitInputPixels: 32_000_000 };
 

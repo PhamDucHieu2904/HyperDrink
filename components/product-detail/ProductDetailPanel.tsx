@@ -1,20 +1,23 @@
 'use client';
 
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { ArrowUpRight, Leaf, MapPin, X } from 'lucide-react';
-import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import type { CatalogData, ProductDetail } from '@/lib/catalog/contracts';
 import type { StorefrontProduct } from '@/lib/catalog/storefront';
-import { mediaUrl, resolveFlavorFruitImage } from '@/lib/catalog/resolve';
+import { mediaUrl, resolveDisplay3D, resolveFlavorFruitImage } from '@/lib/catalog/resolve';
 import { productDetailPoster, resolveProductDetail } from '@/lib/catalog/product-detail';
-import { productDetailCopy } from '@/lib/i18n/product-detail-copy';
+import { productDetailCopy, productViewCopy } from '@/lib/i18n/product-detail-copy';
 import { useLanguage } from '../LanguageProvider';
 import CatalogProductImage from '../collection/CatalogProductImage';
 import InspectableProductImage from '../collection/InspectableProductImage';
+import ViewerLoading from '../catalog-hero/ViewerLoading';
 import styles from './product-detail.module.css';
 
 type DetailTab = 'story' | 'ingredients' | 'nutrition';
 const tabs: DetailTab[] = ['story', 'ingredients', 'nutrition'];
+const ProductViewer = dynamic(() => import('../ProductViewer'), { ssr: false, loading: () => <div className="scene-shell product-detail-viewer-loading"><ViewerLoading /></div> });
 
 export default function ProductDetailPanel({ catalog, product, onClose, preview, catalogImage = false }: { catalog: CatalogData; product: StorefrontProduct; onClose: () => void; preview?: ProductDetail; catalogImage?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -22,15 +25,23 @@ export default function ProductDetailPanel({ catalog, product, onClose, preview,
   const id = useId();
   const { locale } = useLanguage();
   const copy = productDetailCopy(locale);
+  const viewCopy = productViewCopy(locale);
   const detail = preview ?? resolveProductDetail(catalog, product);
   const poster = productDetailPoster(catalog, detail);
   const fruit = resolveFlavorFruitImage(catalog, product.flavor.id);
   const [tab, setTab] = useState<DetailTab>('story');
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
+  const [viewerFailed, setViewerFailed] = useState(false);
   const [failedPoster, setFailedPoster] = useState('');
   const [fruitFailed, setFruitFailed] = useState(false);
   const title = detail?.headline || (catalogImage ? product.variant.name : product.flavor.name);
   const volume = detail?.netContent || (product.packaging.volumeMl ? `${product.packaging.volumeMl} ml` : product.packaging.name);
   const rows = detail?.nutrition.filter(row => row.label.trim()) ?? [];
+  const resolved3d = useMemo(() => {
+    if (!catalogImage || !product.display3d) return null;
+    return resolveDisplay3D(catalog, product.display3d, `catalog-detail:${product.display3d.id}:${product.variant.id}`);
+  }, [catalog, catalogImage, product.display3d, product.variant.id]);
+  const activeViewMode = resolved3d ? viewMode : '2d';
 
   useEffect(() => {
     const element = dialog.current;
@@ -42,6 +53,11 @@ export default function ProductDetailPanel({ catalog, product, onClose, preview,
   }, []);
 
   function chooseTab(next: DetailTab) { setTab(next); }
+  function chooseViewMode(next: '2d' | '3d') {
+    if (next === '3d' && !resolved3d) return;
+    if (next === '3d') setViewerFailed(false);
+    setViewMode(next);
+  }
   function tabKeys(event: KeyboardEvent<HTMLButtonElement>) {
     const rtl = locale === 'ar';
     const direction = event.key === 'ArrowRight' ? (rtl ? -1 : 1) : event.key === 'ArrowLeft' ? (rtl ? 1 : -1) : 0;
@@ -56,7 +72,17 @@ export default function ProductDetailPanel({ catalog, product, onClose, preview,
     <button type="button" autoFocus className={styles.close} aria-label={copy.close} onClick={onClose}><X size={22} strokeWidth={1.6} /></button>
     <div className={styles.layout}>
       <div className={`${styles.poster} ${catalogImage ? styles.catalogPoster : ''}`} style={{ '--detail-color': product.flavor.backgroundColor, '--detail-accent': product.flavor.accentColor } as CSSProperties}>
-        {catalogImage ? product.image2d ? <InspectableProductImage image={product.image2d} name={product.variant.name} /> : <CatalogProductImage catalog={catalog} product={product} /> : poster && mediaUrl(poster) !== failedPoster ? <Image unoptimized className={styles.posterImage} src={mediaUrl(poster)} alt={title} width={poster.width || 900} height={poster.height || 1200} sizes="(max-width:760px) 100vw, 45vw" onError={() => setFailedPoster(mediaUrl(poster))} /> : <div className={styles.composedPoster}>
+        {catalogImage && <div className={styles.modeSwitch} role="group" aria-label={viewCopy.mode} dir="ltr">
+          <button type="button" className={styles.modeButton} aria-pressed={activeViewMode === '2d'} aria-controls={`${id}-visual`} onClick={() => chooseViewMode('2d')}>2D</button>
+          {resolved3d && <button type="button" className={styles.modeButton} aria-pressed={activeViewMode === '3d'} aria-controls={`${id}-visual`} onClick={() => chooseViewMode('3d')}>3D</button>}
+        </div>}
+        {catalogImage ? <div id={`${id}-visual`} className={styles.catalogMedia}>
+          {activeViewMode === '3d' && resolved3d ? <div className={styles.viewerVisual}>
+            <div className={styles.viewer}><ProductViewer asset={resolved3d.asset} appearance={resolved3d.appearance} presentation={{ camera: { fill: .94, mobileFill: .94, productScale: 1.15, mobileProductScale: 1.15 }, motion: { idleSpeed: 0, rocking: 0 }, pose: [0, 0, 0] }} loadingFallback={<ViewerLoading />} onStatus={status => { if (status.assetId === resolved3d.asset.id && status.phase === 'error') { setViewerFailed(true); setViewMode('2d'); } }} /></div>
+            <p className={styles.viewerHint}>{viewCopy.rotate}</p>
+          </div> : product.image2d ? <InspectableProductImage image={product.image2d} name={product.variant.name} /> : <CatalogProductImage catalog={catalog} product={product} />}
+          {viewerFailed && <p className={styles.viewerNotice} role="status">{viewCopy.unavailable}</p>}
+        </div> : poster && mediaUrl(poster) !== failedPoster ? <Image unoptimized className={styles.posterImage} src={mediaUrl(poster)} alt={title} width={poster.width || 900} height={poster.height || 1200} sizes="(max-width:760px) 100vw, 45vw" onError={() => setFailedPoster(mediaUrl(poster))} /> : <div className={styles.composedPoster}>
           <div className={styles.posterBrand} dir="ltr"><Leaf size={23} strokeWidth={1.5} /><span>VINUT</span></div>
           <p className={styles.posterEyebrow}>{detail?.eyebrow || copy.collection}</p>
           <div className={styles.posterHeadline}><bdi>{product.flavor.shortName || product.flavor.name}</bdi><span>{product.group.collectionTitle || product.group.name}</span></div>

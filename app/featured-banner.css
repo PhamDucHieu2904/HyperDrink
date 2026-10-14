@@ -9,6 +9,10 @@
 .featured-track-snap { transition:none; }
 .featured-slide { position:relative; isolation:isolate; flex:0 0 100%; min-width:0; min-height:390px; background:radial-gradient(ellipse at 18% 15%,#fff9 0%,transparent 48%),linear-gradient(110deg,#fff3ed,var(--featured-color)); overflow:hidden; }
 .featured-slide::after { content:''; position:absolute; inset:0; z-index:-1; background:linear-gradient(100deg,#fff4edbb 0%,#fff4ed66 32%,transparent 57%); pointer-events:none; }
+.featured-banner-managed { width:100vw; margin-left:50%; transform:translateX(-50%); border:0; border-radius:0; box-shadow:none; background:#dff1ed; }
+.featured-banner-managed .featured-slide-image { min-height:0; aspect-ratio:2458 / 640; background:#dff1ed; }
+.featured-banner-managed .featured-slide-image::after { display:none; }
+.featured-banner-managed .featured-slide-image img { object-fit:cover; }
 .featured-copy { position:relative; z-index:2; width:47%; padding:42px 0 28px; margin-left:8.6%; }
 .featured-eyebrow { display:flex; align-items:center; gap:14px; margin:0 0 10px; color:#b83a19; font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; }
 .featured-eyebrow span { width:52px; height:1px; background:#b83a195e; }

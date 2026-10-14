@@ -12,3 +12,15 @@ const copies: Record<Locale, DetailCopy> = {
   de: { story: 'Die Geschichte', ingredients: 'Zutaten', nutrition: 'Nährwertangaben', productInfo: 'Produktinformationen', serving: 'Bezugsmenge', nutrient: 'Nährstoff', amount: 'Menge', daily: 'Tageswert', allergens: 'Allergeninformationen', manufacturer: 'Hergestellt von', origin: 'Herkunftsland', volume: 'Nettofüllmenge', storage: 'Lagerung und Genuss', shelfLife: 'Haltbarkeit', notProvided: 'Information noch nicht verfügbar.', collection: 'Die Fruchtkollektion', close: 'Produktdetails schließen' },
 };
 export const productDetailCopy = (locale: Locale) => copies[locale];
+
+const viewCopies: Record<Locale, { mode: string; rotate: string; unavailable: string }> = {
+  en: { mode: 'Product view mode', rotate: 'Drag to rotate · Arrow keys to rotate · R to reset', unavailable: '3D could not load. Showing the 2D image.' },
+  fr: { mode: 'Mode de présentation du produit', rotate: 'Glissez ou utilisez les flèches pour tourner · R pour réinitialiser', unavailable: 'Le modèle 3D n’a pas pu être chargé. L’image 2D est affichée.' },
+  zh: { mode: '产品显示模式', rotate: '拖动或使用方向键旋转 · 按 R 重置', unavailable: '3D 模型加载失败，已显示 2D 图片。' },
+  es: { mode: 'Modo de vista del producto', rotate: 'Arrastra o usa las flechas para girar · R para restablecer', unavailable: 'No se pudo cargar el modelo 3D. Se muestra la imagen 2D.' },
+  ar: { mode: 'وضع عرض المنتج', rotate: 'اسحب أو استخدم الأسهم للتدوير · اضغط R لإعادة الضبط', unavailable: 'تعذر تحميل العرض ثلاثي الأبعاد. تُعرض الصورة ثنائية الأبعاد.' },
+  ru: { mode: 'Режим просмотра продукта', rotate: 'Перетаскивайте или используйте стрелки для вращения · R для сброса', unavailable: 'Не удалось загрузить 3D-модель. Показано 2D-изображение.' },
+  ko: { mode: '제품 보기 모드', rotate: '드래그 또는 방향키로 회전 · R 키로 초기화', unavailable: '3D 모델을 불러올 수 없어 2D 이미지를 표시합니다.' },
+  de: { mode: 'Produktansicht', rotate: 'Ziehen oder Pfeiltasten zum Drehen · R zum Zurücksetzen', unavailable: 'Das 3D-Modell konnte nicht geladen werden. Das 2D-Bild wird angezeigt.' },
+};
+export const productViewCopy = (locale: Locale) => viewCopies[locale];
