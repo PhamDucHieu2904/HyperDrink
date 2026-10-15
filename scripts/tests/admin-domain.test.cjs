@@ -227,6 +227,7 @@ test('every catalog collection supports draft deletion with structurally valid r
   for (const collection of validation.CATALOG_COLLECTIONS) {
     const data = fixture();
     if (collection === 'productDetails') data.productDetails.push(detailRecord());
+    if (collection === 'banners') data.banners = [{ ...entity('test-banner'), mediaId: null, alt: '', position: 0, enabled: false }];
     if (collection === 'catalogCollections' || collection === 'catalogItems') {
       data.productDetails.push(detailRecord());
       data.catalogCollections = [{ ...data.productGroups[0], id: 'collection-2d', slug: 'collection-2d', drinkTypeId: 'juice', position: 0, homeVisible: true, enabled: true }];

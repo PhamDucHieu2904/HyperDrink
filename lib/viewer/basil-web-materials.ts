@@ -4,14 +4,11 @@ import type { ProductAsset } from '../viewer-config';
 import { liquidColorUpdates } from './material-adjustments';
 import { aloeTransmissionClearRadiance, correctAloeTransmissionClear } from './aloe-bottle-materials';
 import { BASIL_WEB_OPTICS, BASIL_WEB_VOLUME_GLSL, basilWebAbsorption, configureBasilWebInclusions, createBasilWebUniforms, fitBasilWebProfile } from './basil-web-optics';
+import { BASIL_WEB_SEED_MATERIAL, isBasilWebSeedMetadata } from './basil-web-seed-contract';
 
 type Role = 'body' | 'ring' | 'liquid' | 'liquid-back' | 'inclusions' | 'cap' | 'label';
 const PROFILE = 'basil-web-v1';
 const GOLD = [.9528302, .8926178, .3460751] as const;
-interface SeedMetadata {
-  formatVersion: number; count: number; nativeToGlbMatrix: number[]; gelThicknessNative: number;
-  seeds: Array<{ center: number[]; inverseX: number[]; inverseY: number[]; inverseZ: number[] }>;
-}
 
 export function basilWebMaterialRole(asset: ProductAsset, mesh: THREE.Mesh, material: THREE.Material): Role | undefined {
   if (asset.packaging !== 'glass' || (mesh.userData.basilProfile !== PROFILE && material.userData.basilProfile !== PROFILE)) return;
@@ -33,14 +30,13 @@ export function prepareBasilWebLayers(root: THREE.Object3D, asset: ProductAsset)
   let owner: THREE.Object3D | undefined;
   root.traverse(node => { if (node.userData.basilWebSeeds) owner = node; });
   if (!owner || owner.children.some(child => child.userData.basilWebGenerated)) return;
-  const metadata = owner.userData.basilWebSeeds as SeedMetadata;
-  if (metadata.formatVersion !== 1 || metadata.count !== 330 || metadata.seeds.length !== metadata.count ||
-      metadata.nativeToGlbMatrix.length !== 16 || !metadata.nativeToGlbMatrix.every(Number.isFinite) || !(metadata.gelThicknessNative > 0))
+  const metadata: unknown = owner.userData.basilWebSeeds;
+  if (!isBasilWebSeedMetadata(metadata))
     throw new Error('Basil web gel metadata is invalid');
   const geometry = new THREE.SphereGeometry(1, 10, 6);
   const ratios = new Float32Array(metadata.count * 3);
   const material = new THREE.MeshStandardMaterial({ color: 'white' });
-  material.name = 'basil-web-seed-gel'; material.userData.basilProfile = PROFILE;
+  material.name = BASIL_WEB_SEED_MATERIAL; material.userData.basilProfile = PROFILE;
   const mesh = new THREE.InstancedMesh(geometry, material, metadata.count);
   mesh.name = 'Basil hydrated seeds'; mesh.userData = { basilProfile: PROFILE, basilWebGenerated: true };
   const nativeToGlb = new THREE.Matrix4().set(...metadata.nativeToGlbMatrix as Parameters<THREE.Matrix4['set']>);

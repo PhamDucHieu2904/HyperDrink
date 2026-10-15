@@ -11,6 +11,8 @@ const { createAppearanceHandle } = require('../../lib/viewer/appearance.ts');
 const { createPooledAppearanceHandle } = require('../../lib/viewer/pooled-appearance.ts');
 const { renderBottleScene } = require('../../lib/viewer/bottle-materials.ts');
 const { isBasilHighAsset } = require('../../lib/viewer/basil-presentation.ts');
+const { checkModelMaterialSlots, checkModelLabelGeometry } = require('../../lib/server/media/model-slots.ts');
+const { inspectMedia } = require('../../lib/server/media/inspect.ts');
 
 const bytes = fs.readFileSync(path.resolve(__dirname, '../../public/models/bottles/glass-290-basil-web.glb'));
 const gltf = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString('utf8').trimEnd());
@@ -22,6 +24,37 @@ const shader = material => {
   material.onBeforeCompile(result, {}); return result;
 };
 const seedLayers = root => { const result = []; root.traverse(node => { if (node.userData.basilWebGenerated) result.push(node); }); return result; };
+const catalogModel = { id: 'basil-web', name: 'Basil Web', layoutProfile: 'glass-290-basil-wrap-v1', materialSlots: asset.materialSlots };
+const inspected = inspectMedia(bytes, 'model').model;
+const glbNames = new Set([...inspected.materialNames, ...inspected.meshNames]);
+function metadataBytes(change) {
+  const json = structuredClone(gltf); change(json);
+  const text = Buffer.from(JSON.stringify(json)), padded = Buffer.alloc(Math.ceil(text.length / 4) * 4, 32); text.copy(padded);
+  const bin = bytes.subarray(20 + bytes.readUInt32LE(12)), result = Buffer.alloc(20 + padded.length + bin.length);
+  bytes.subarray(0, 20).copy(result); result.writeUInt32LE(result.length, 8); result.writeUInt32LE(padded.length, 12);
+  padded.copy(result, 20); bin.copy(result, 20 + padded.length); return result;
+}
+
+test('publication accepts the actual runtime seed material while still checking GLB slots and label UVs', () => {
+  assert.ok(!glbNames.has('basil-web-seed-gel'));
+  assert.deepEqual(checkModelMaterialSlots(catalogModel, bytes, glbNames), []);
+  assert.deepEqual(checkModelLabelGeometry(catalogModel, bytes), []);
+  for (const [role, name] of [['body', 'misspelled-body'], ['label', 'basil-web-seed-gel'], ['inclusions', 'misspelled-seeds']]) {
+    const model = { ...catalogModel, materialSlots: { ...asset.materialSlots, [role]: [name] } };
+    assert.equal(checkModelMaterialSlots(model, bytes, glbNames)[0]?.code, 'material_slot_missing');
+  }
+});
+
+test('publication cannot exempt missing, inactive or malformed seed metadata from material checks', () => {
+  const changes = [
+    json => { for (const node of json.nodes) if (node.extras) delete node.extras.basilWebSeeds; },
+    json => { json.scenes[json.scene ?? 0].nodes = []; },
+    json => { json.nodes.find(node => node.extras?.basilWebSeeds).extras.basilWebSeeds.count = 329; },
+    json => { json.nodes.find(node => node.extras?.basilWebSeeds).extras.basilWebSeeds.seeds[0].inverseX = [0, 0, 0]; },
+  ];
+  for (const change of changes) assert.equal(checkModelMaterialSlots(catalogModel, metadataBytes(change), glbNames)[0]?.code, 'material_slot_missing');
+  assert.equal(checkModelMaterialSlots({ ...catalogModel, layoutProfile: 'can-wrap-v1' }, bytes, glbNames)[0]?.code, 'material_slot_missing');
+});
 function fixture(context) {
   const root = new THREE.Group(); root.userData.basilWebSeeds = structuredClone(metadata);
   const meshes = {};

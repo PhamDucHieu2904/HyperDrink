@@ -1,4 +1,25 @@
 import type { Model3D, ValidationIssue } from '../../catalog/contracts';
+import { BASIL_WEB_SEED_MATERIAL, isBasilWebSeedMetadata } from '../../viewer/basil-web-seed-contract';
+
+/** Runtime-created inclusions are valid only when their active GLB node can generate them. */
+export function checkModelMaterialSlots(model: Model3D, bytes: Buffer, names: ReadonlySet<string>): ValidationIssue[] {
+  const gltf = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString('utf8').trimEnd());
+  let generatedSeeds = false;
+  const visited = new Set<number>();
+  const visit = (id: number) => {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const node = gltf.nodes?.[id];
+    if (!node) return;
+    // Matches the last metadata owner visited by prepareBasilWebLayers.
+    if (node.extras?.basilWebSeeds) generatedSeeds = isBasilWebSeedMetadata(node.extras.basilWebSeeds);
+    for (const child of node.children ?? []) visit(child);
+  };
+  for (const id of gltf.scenes?.[gltf.scene ?? 0]?.nodes ?? []) visit(id);
+  const missing = Object.entries(model.materialSlots).flatMap(([role, bindings]) => bindings.filter(name =>
+    !names.has(name) && !(role === 'inclusions' && name === BASIL_WEB_SEED_MATERIAL && model.layoutProfile === 'glass-290-basil-wrap-v1' && generatedSeeds)));
+  return missing.length ? [{ code: 'material_slot_missing', message: `Model “${model.name}” khai báo tên vật liệu/mesh không có trong GLB: ${missing.join(', ')}. Kiểm tra lại material slots.`, collection: 'models3d', entityId: model.id, field: 'materialSlots', severity: 'error' }] : [];
+}
 
 /** Called after inspectMedia has validated the self-contained GLB structure.
  * A UV on an unrelated mesh cannot validate the model's printable label slot. */
