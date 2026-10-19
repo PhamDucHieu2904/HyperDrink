@@ -2,6 +2,7 @@ import type { Locale } from './catalog';
 
 type Copy = { translating: string; downloading: string; activate: string; unsupported: string; ready: string; error: string };
 export const translationStatus: Record<Locale, Copy> = {
+  vi: { translating: 'Đang dịch nội dung sản phẩm…', downloading: 'Đang chuẩn bị bản dịch…', activate: 'Dịch nội dung sản phẩm', unsupported: 'Trình duyệt này chưa hỗ trợ tự động dịch nội dung sản phẩm. Nội dung gốc đang được hiển thị.', ready: 'Nội dung sản phẩm đã được dịch tự động.', error: 'Một số nội dung chưa dịch được. Vui lòng thử lại.' },
   en: { translating: 'Translating product text…', downloading: 'Preparing translation…', activate: 'Translate product text', unsupported: 'This browser cannot translate product text automatically. Original text is shown.', ready: 'Product text translated automatically.', error: 'Some text could not be translated. Try again.' },
   fr: { translating: 'Traduction des textes produits…', downloading: 'Préparation de la traduction…', activate: 'Traduire les textes produits', unsupported: 'Ce navigateur ne peut pas traduire les textes produits automatiquement. Le texte original est affiché.', ready: 'Textes produits traduits automatiquement.', error: 'Certains textes n’ont pas pu être traduits. Réessayez.' },
   zh: { translating: '正在翻译产品文字…', downloading: '正在准备翻译…', activate: '翻译产品文字', unsupported: '此浏览器无法自动翻译产品文字，现显示原文。', ready: '产品文字已自动翻译。', error: '部分文字无法翻译，请重试。' },

@@ -93,6 +93,20 @@
 .previewControls { display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; margin-top:12px; }
 .previewControls button { min-height:40px; padding:8px 11px; }
 .previewNote { margin:15px 0 0; font-size:12px; line-height:1.65; color:var(--muted); }
+.labelFinish { margin-top:16px; padding:20px; }
+.labelFinish h3 { margin-bottom:16px; }
+.labelFinish fieldset { min-width:0; margin:0; padding:0; border:0; display:grid; gap:12px; }
+.finishPreview .previewControls .tabs { margin-bottom:0; }
+@media(min-width:1081px) { .finishPreview .stage:not(.mobileStage) { height:clamp(320px,38dvh,420px); min-height:320px; } }
+.srOnly { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+.finishSlider { min-width:0; }
+.finishSliderHeading { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:13px; font-weight:650; }
+.finishSliderHeading output { color:var(--accent); font-variant-numeric:tabular-nums; }
+.finishSlider input { display:block; width:100%; min-height:44px; margin:0; accent-color:var(--accent); cursor:pointer; }
+.finishSlider input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:5px; }
+.finishSliderEnds { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:12px; }
+.labelFinish fieldset:disabled { opacity:.55; }
+.labelFinish input:disabled { cursor:not-allowed; }
 .mediaGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(185px,1fr)); gap:16px; }
 .mediaCard { border:1px solid var(--border); border-radius:10px; padding:12px; background:#fff; min-width:0; }
 .mediaCard img { width:100%; height:132px; object-fit:contain; background:#f4f7f3; border-radius:7px; padding:8px; }

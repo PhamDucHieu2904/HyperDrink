@@ -72,3 +72,27 @@ test('saved horizontal percent resolves identically in storefront and Studio; no
   for (const labelOffset of [NaN, Infinity, -51, 51, '12', null]) assert.ok(validateRecord('displays3d', { ...display, labelOffset }).some(i => i.field === 'labelOffset'));
   assert.equal(validateRecord('displays3d', { ...display, labelOffset: undefined }).filter(i => i.field === 'labelOffset').length, 0);
 });
+
+test('saved label finish resolves in storefront and Studio with independent presets and unchanged legacy defaults', () => {
+  const catalog = structuredClone(require('../../public/catalog/current.json').data.catalog);
+  const display = catalog.displays3d.find(d => d.id === 'aloe-pet500-original-3d');
+  const legacy = resolveDisplay3D(catalog, display);
+  assert.equal(legacy.appearance.slots.label.roughness, .15);
+  assert.equal(legacy.appearance.slots.label.metalness, 0);
+  const untouched = structuredClone(catalog.labels);
+  for (const [labelSmoothness, labelMetalness] of [[0, 1], [1, 0], [.72, .36]]) {
+    Object.assign(display, { labelSmoothness, labelMetalness });
+    const sales = resolveDisplay3D(catalog, display);
+    const studio = resolveMockupProduct(catalog, resolveMockupSelection(catalog, { display: display.id }));
+    assert.equal(sales.appearance.slots.label.roughness, 1 - labelSmoothness);
+    assert.equal(sales.appearance.slots.label.metalness, labelMetalness);
+    assert.deepEqual(studio.appearance.slots.label, sales.appearance.slots.label);
+    assert.notEqual(sales.appearance.id, legacy.appearance.id, 'Finish is part of the appearance cache key');
+    assert.deepEqual(validateRecord('displays3d', display), []);
+  }
+  assert.deepEqual(catalog.labels, untouched, 'Editing a display must not change shared labels');
+  for (const field of ['labelSmoothness', 'labelMetalness']) {
+    for (const value of [NaN, Infinity, -0.01, 1.01, '0.5', null]) assert.ok(validateRecord('displays3d', { ...display, [field]: value }).some(i => i.field === field));
+    assert.ok(!validateRecord('displays3d', { ...display, [field]: undefined }).some(i => i.field === field));
+  }
+});

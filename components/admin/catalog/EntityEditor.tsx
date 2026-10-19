@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, Check, ChevronDown, Eye, LoaderCircle, Plus, Save, Trash2, X } from 'lucide-react';
 import type { CatalogData, CatalogRecord, CollectionName, Flavor, Label, MediaAsset, MediaRole, Model3D, NutritionRow, ProductDetail } from '@/lib/catalog/contracts';
+import { rowsForNutritionTemplate, type NutritionTemplateId } from '@/lib/catalog/nutrition-templates';
 import { NutritionFields, ExtraDetailFields } from './DetailFields';
 import ProductDetailPanel from '@/components/product-detail/ProductDetailPanel';
 import { catalogProducts } from '@/lib/catalog/storefront';
@@ -32,7 +33,13 @@ export interface EntityEditorProps {
 export default function EntityEditor({ collection, record, isNew, data, disabled, onClose, onSave, onUpload, initialIssue }: EntityEditorProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
-  const [draft, setDraft] = useState<Record<string, unknown>>(() => ({ ...record, ...(collection === 'productGroups' && 'visible' in record ? { ...heroProductMessages(record), collectionVisible: record.collectionVisible ?? record.visible, collectionTitle: record.collectionTitle ?? '', collectionPosition: record.collectionPosition ?? record.position } : {}) }));
+  const [draft, setDraft] = useState<Record<string, unknown>>(() => {
+    const initial = { ...record, ...(collection === 'productGroups' && 'visible' in record ? { ...heroProductMessages(record), collectionVisible: record.collectionVisible ?? record.visible, collectionTitle: record.collectionTitle ?? '', collectionPosition: record.collectionPosition ?? record.position } : {}) } as Record<string, unknown>;
+    if (collection === 'productDetails' && Array.isArray(initial.nutrition)) {
+      initial.nutrition = rowsForNutritionTemplate(initial.nutritionTemplate as NutritionTemplateId | undefined, initial.nutrition as NutritionRow[]);
+    }
+    return initial;
+  });
   const [materialJson, setMaterialJson] = useState(() => JSON.stringify('materialSlots' in record ? record.materialSlots : {}, null, 2));
   const [errors, setErrors] = useState<Record<string, string>>(() => initialIssue?.field ? { [initialIssue.field]: initialIssue.message } : {});
   const [saving, setSaving] = useState(false);
@@ -145,7 +152,7 @@ export default function EntityEditor({ collection, record, isNew, data, disabled
     }
     let control: React.ReactNode;
     if (field.kind === 'flavor-icon') control = <FlavorIconField data={data} flavor={draft as unknown as Flavor} disabled={disabled || saving} onChange={change} onUpload={onUpload} />;
-    else if (field.kind === 'nutrition') control = <NutritionFields rows={(value ?? []) as NutritionRow[]} disabled={disabled || saving} onChange={rows => change(field.key, rows)} />;
+    else if (field.kind === 'nutrition') control = <NutritionFields rows={(value ?? []) as NutritionRow[]} template={draft.nutritionTemplate as NutritionTemplateId | undefined} disabled={disabled || saving} onChange={rows => change(field.key, rows)} onTemplateChange={next => change('nutritionTemplate', next)} />;
     else if (field.kind === 'detail-sections') control = <ExtraDetailFields rows={(value ?? []) as ProductDetail['sections']} disabled={disabled || saving} onChange={rows => change(field.key, rows)} />;
     else if (field.kind === 'media') control = <MediaPicker data={data} value={typeof value === 'string' ? value : null} onChange={next => change(field.key, next)} roles={collection === 'flavorAssets' ? [draft.role as MediaRole] : field.roles} label={field.label} disabled={disabled || saving} onUpload={onUpload} />;
     else if (field.kind === 'textarea') control = <textarea {...common} rows={3} value={String(value ?? '')} onChange={event => change(field.key, event.target.value)} />;

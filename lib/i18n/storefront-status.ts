@@ -2,6 +2,7 @@ import type { Locale } from './catalog';
 
 /** UI status copy only. Catalog names and descriptions remain authored in admin. */
 export const storefrontStatus: Record<Locale, { loading: string; unavailable: string; retry: string; empty: string; refreshFailed: string; artwork: string }> = {
+  vi: { loading: 'Đang tải bộ sưu tập…', unavailable: 'Bộ sưu tập hiện không khả dụng.', retry: 'Thử lại', empty: 'Chưa có sản phẩm nào được xuất bản.', refreshFailed: 'Không thể tải bản cập nhật mới nhất. Bạn vẫn có thể xem bộ sưu tập đã tải.', artwork: 'Thiết kế nhãn' },
   en: { loading: 'Loading the collection…', unavailable: 'The collection is currently unavailable.', retry: 'Try again', empty: 'No products have been published yet.', refreshFailed: 'The latest update could not be loaded. You can still explore the loaded collection.', artwork: 'Label artwork' },
   fr: { loading: 'Chargement de la collection…', unavailable: 'La collection est momentanément indisponible.', retry: 'Réessayer', empty: 'Aucun produit n’a encore été publié.', refreshFailed: 'La dernière mise à jour n’a pas pu être chargée. La collection déjà chargée reste disponible.', artwork: 'Visuel de l’étiquette' },
   zh: { loading: '正在加载产品系列…', unavailable: '产品系列暂时无法加载。', retry: '重试', empty: '尚未发布任何产品。', refreshFailed: '无法加载最新更新。您仍可浏览已加载的产品系列。', artwork: '标签图稿' },

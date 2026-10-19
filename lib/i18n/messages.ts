@@ -87,7 +87,7 @@ export const english = {
   'story.data': 'Clear product information',
   'story.interactive': 'An interactive 3D experience',
   'story.viewAll': 'View the full collection',
-  'footer.copy': '© 2026 Vinut. Taste the extraordinary.',
+  'footer.copy': '© 2026 Vinut. We make your trust.',
   'viewer.description': '3D product viewer',
   'viewer.controls': '{name}. Drag to rotate. Use the arrow keys to rotate; press R to reset the view.',
   'viewer.canName': '{volume} ml can',

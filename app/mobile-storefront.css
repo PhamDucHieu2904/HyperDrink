@@ -1,0 +1,124 @@
+/* Keep mobile rules together so desktop art direction cannot resize text rows. */
+@media (max-width: 1150px) {
+  .catalog-showcase { --hero-info-backdrop: blur(20px) saturate(110%); }
+  .site-header { left: 16px; width: calc(100% - 32px); grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .site-header .brand-mark { width: clamp(68px, 21vw, 88px); }
+  .site-header .header-actions { gap: 8px; }
+  .site-header .main-nav.is-open { top: 68px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 8px; border-radius: 20px; background: #f7faeffa; }
+  .site-header .main-nav .nav-link { min-width: 0; color: #254c39; white-space: normal; text-shadow: none; line-height: 1.5; }
+  .site-header .main-nav .nav-link[aria-current='page'] { color: #174b32; background: #e2efdb; }
+  .site-header .search-popover { top: 68px; width: 100%; min-height: 52px; }
+  .site-header .search-popover input, .site-header .language-search input { font-size: 16px; }
+  .site-header .language-popover { top: 68px; max-height: calc(100dvh - 100px); background: #f7faef; }
+
+  .catalog-showcase { padding: 136px 20px 28px; gap: 12px; }
+  .catalog-showcase .showcase-intro { height: auto; min-height: 36px; }
+  .catalog-showcase .showcase-copy h1 { overflow: visible; white-space: normal; font-size: clamp(16px, 4.5vw, 20px); line-height: 1.45; text-wrap: balance; }
+  .catalog-showcase .showcase-product { width: calc(100% + 40px); height: max(240px, calc(100svh - 370px)); }
+  .catalog-showcase .model-picker { height: auto; min-height: 44px; }
+  .catalog-showcase .model-picker-label { font-size: 11px; line-height: 1.5; margin-bottom: 6px; }
+  .catalog-showcase .model-options { height: auto; min-height: 44px; gap: 8px; padding-bottom: 2px; }
+  .catalog-showcase .model-options button { min-height: 44px; height: auto; max-height: none; padding: 10px 14px; line-height: 1.4; }
+  .catalog-showcase .catalog-flavor-dock { width: calc(100% + 40px); }
+  .catalog-showcase .showcase-details { margin: 12px 0 20px; min-width: 0; }
+  .catalog-showcase .notes-stack { width: 100%; gap: 12px; }
+  .catalog-showcase .notes-card { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 20px; }
+  .catalog-showcase .notes-card > img,
+  .catalog-showcase .notes-card > .catalog-image-placeholder { width: 52px; height: 52px; max-width: 52px; flex: none; margin: 0; border-radius: 12px; }
+  .catalog-showcase .notes-card strong { display: block; margin: 0 0 4px; font-size: 14px; line-height: 1.45; }
+  .catalog-showcase .notes-card span span { display: block; font-size: 13px; line-height: 1.6; -webkit-line-clamp: unset; }
+  .catalog-showcase .notes-card > svg { display: block; width: 28px; height: 28px; padding: 5px; flex: none; margin-inline-start: auto; }
+  .catalog-showcase .notes-card:hover { transform: none; }
+  .catalog-showcase .showcase-certifications { gap: 8px 16px; border-top: 0; padding: 16px 0; font-size: 11px; line-height: 1.6; letter-spacing: 0; }
+  .catalog-showcase .showcase-certifications span::after { display: none; }
+  .catalog-showcase .showcase-product-facts { gap: 12px; padding-top: 16px; }
+  .catalog-showcase .showcase-product-facts > span { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); align-items: start; gap: 16px; padding-bottom: 12px; }
+  .catalog-showcase .showcase-product-facts strong { font-size: 11px; line-height: 1.6; letter-spacing: .03em; overflow-wrap: anywhere; }
+  .catalog-showcase .showcase-product-facts bdi { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+  .catalog-showcase .showcase-stats { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+  .catalog-showcase .showcase-stats > div,
+  .catalog-showcase .showcase-stats > .showcase-mockup-link { display: flex; align-items: flex-start; min-width: 0; min-height: 84px; gap: 6px; padding: 12px 10px; border-radius: 18px; }
+  .catalog-showcase .showcase-stats > .glass-surface > span { min-width: 0; }
+  .catalog-showcase .showcase-stats svg { width: 30px; height: 30px; padding: 6px; align-self: center; }
+  .catalog-showcase .showcase-stats strong { font-size: clamp(22px, 6vw, 24px); line-height: 1.2; }
+  .catalog-showcase .showcase-stats small { font-size: 12px; }
+  .catalog-showcase .showcase-stats span span { margin-top: 4px; font-size: 12px; line-height: 1.5; }
+  .catalog-showcase .showcase-stats .showcase-mockup-arrow { width: 12px; height: 12px; padding: 0; }
+  .catalog-showcase .showcase-feature { max-width: 480px; padding: 56px 20px 24px; border-radius: 28px; }
+  .catalog-showcase .flavor-portrait-ring { width: 58%; max-width: 200px; }
+  .catalog-showcase .showcase-feature h2 { font-size: 24px; line-height: 1.3; }
+  .catalog-showcase .showcase-product-messages { margin: 18px 0; }
+  .catalog-showcase .showcase-product-message bdi { font-size: 12px; }
+  .catalog-showcase .feature-description { font-size: 13px; line-height: 1.65; }
+  .catalog-showcase .feature-description > span { display: block; -webkit-line-clamp: unset; }
+
+  .site-shell > .collection-section { width: calc(100% - 40px); padding-block: 32px 48px; }
+  .site-shell .collection-row-heading h3 { font-size: 28px; line-height: 1.2; }
+  .site-shell .collection-row-tools { align-items: center; }
+  .site-shell .collection-row-tools .collection-see-all { flex: 1; min-width: 0; font-size: 12px; line-height: 1.5; }
+  .site-shell .collection-row-tools .collection-pager { flex: none; }
+  .site-shell .collection-row-tools .collection-pager span { min-width: 0; max-width: 80px; line-height: 1.4; }
+  .site-shell .collection-row-cards .collection-card-copy p { font-size: 12px; }
+  .site-shell > .contact-section { padding-block: 56px 64px; }
+  .site-shell .contact-content { gap: 32px; }
+  .site-shell .contact-intro h2 { font-size: clamp(34px, 9.5vw, 48px); line-height: 1.1; }
+  .site-shell .contact-email-card, .site-shell .contact-company-card { padding: 24px; }
+  .site-shell .contact-email-card .contact-email { font-size: clamp(24px, 7.4vw, 30px); }
+  .site-shell .site-footer { gap: 12px; font-size: 12px; line-height: 1.6; }
+  .site-shell .site-footer > span:nth-child(2) { flex-basis: 100%; order: 1; }
+  .site-shell .footer-links { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+  .site-shell .footer-links a { display: inline-flex; align-items: center; min-height: 44px; }
+}
+
+/* Tablet has room for the viewer and feature together, but not three sidebars. */
+@media (min-width: 761px) and (max-width: 1150px) {
+  .site-shell:has(.catalog-showcase) .site-header { padding-top: 12px; }
+  .site-header .brand-mark { width: 88px; }
+  .site-header .header-actions { grid-column: 2; grid-row: 1; }
+  .site-shell:has(.catalog-showcase) .header-actions .icon-btn { width: 44px; height: 44px; }
+  .site-header .category-rail { grid-column: 1 / -1; grid-row: 2; padding: 2px 0; }
+  .site-header .category-set button { min-height: 44px; font-size: 12px; }
+  .site-header .main-nav { display: none; }
+  .site-header .main-nav.is-open { position: absolute; left: 0; z-index: 10; width: 100%; }
+  .site-header .main-nav .nav-link { min-height: 44px; padding: 12px; font-size: 14px; }
+
+  .catalog-showcase {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, .78fr);
+    grid-template-areas: 'intro intro' 'product feature' 'models models' 'flavors flavors' 'details details';
+    grid-template-rows: repeat(5, auto);
+    align-items: center;
+    align-content: start;
+    min-height: 100svh;
+    column-gap: 24px;
+    row-gap: 24px;
+    padding: 136px 32px 40px;
+  }
+  .catalog-showcase .quick-rail { display: none; }
+  .catalog-showcase .showcase-intro { display: grid; place-items: center; width: 100%; text-align: center; }
+  .catalog-showcase .showcase-intro .eyebrow,
+  .catalog-showcase .showcase-intro .showcase-tagline,
+  .catalog-showcase .showcase-intro .showcase-actions,
+  .catalog-showcase .showcase-title-desktop { display: none; }
+  .catalog-showcase .showcase-title-mobile { display: inline; }
+  .catalog-showcase .showcase-copy h1 { font-size: 24px; text-transform: uppercase; letter-spacing: .06em; }
+  .catalog-showcase .showcase-product { width: 100%; height: clamp(400px, 60vw, 560px); align-self: center; }
+  .catalog-showcase .showcase-product .scene-shell { inset: 0; width: 100%; height: 100%; min-height: 0; }
+  .catalog-showcase .showcase-feature { width: 100%; min-height: 0; max-width: none; align-self: center; gap: 10px; }
+  .catalog-showcase .showcase-badge { top: 18px; right: 20px; padding: 8px 14px; font-size: 11px; }
+  .catalog-showcase .feature-subtitle { font-size: 13px; }
+  .catalog-showcase .showcase-metrics strong { font-size: 26px; }
+  .catalog-showcase .showcase-metrics small { font-size: 13px; }
+  .catalog-showcase .showcase-product-messages { min-height: 70px; margin: 12px 0; }
+  .catalog-showcase .showcase-feature .btn { min-height: 48px; font-size: 14px; }
+  .catalog-showcase .model-picker { width: 100%; margin: 0; text-align: center; }
+  .catalog-showcase .model-options { justify-content: center; }
+  .catalog-showcase .model-options button { font-size: 12px; }
+  .catalog-showcase .catalog-flavor-dock { grid-area: flavors; position: relative; left: auto; bottom: auto; width: 100%; transform: none; padding: 0; }
+  .catalog-showcase .catalog-flavor-dock .flavor-track { --flavor-gap: 24px; }
+  .catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice { min-width: 76px; min-height: 100px; font-size: 12px; }
+  .catalog-showcase .catalog-flavor-dock .flavor-set .flavor-choice > span { width: 64px; height: 64px; }
+  .catalog-showcase .catalog-flavor-dock img { width: 46px; height: 46px; }
+  .catalog-showcase .showcase-details { width: min(100%, 680px); justify-self: center; margin: 0; }
+  .catalog-showcase .notes-stack { grid-template-columns: 1fr; }
+}

@@ -11,6 +11,14 @@ interface MarketingCopy {
 }
 
 const copy: Record<Locale, MarketingCopy> = {
+  vi: {
+    volume: 'Dung tích thực', flavors: 'Đa dạng lựa chọn hương vị', origin: 'Trái cây thật từ Việt Nam',
+    contactKicker: 'LIÊN HỆ VINUT', contactTitle: 'Kết nối hôm nay. Lan tỏa hương vị.',
+    contactIntro: 'Bạn đang tìm thức uống yêu thích mới hay cơ hội hợp tác kinh doanh? Hãy trò chuyện cùng chúng tôi.',
+    emailLabel: 'CÙNG KẾT NỐI', emailCta: 'Gửi thư cho chúng tôi', emailHint: 'Chia sẻ với chúng tôi về sản phẩm bạn quan tâm.',
+    companyLabel: 'CÔNG TY CHÚNG TÔI', addressLabel: 'ĐỊA CHỈ', country: 'Việt Nam',
+    productCta: 'Khám phá sản phẩm', contactNote: 'Hương vị từ Việt Nam.',
+  },
   en: {
     volume: 'Net content', flavors: 'Many flavor choices', origin: 'Real fruit from Vietnam',
     contactKicker: 'CONTACT VINUT', contactTitle: 'Good conversations. Great flavors.',

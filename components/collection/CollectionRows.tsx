@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CatalogData } from '@/lib/catalog/contracts';
 import type { CollectionSection } from '@/lib/catalog/collection';
 import { productPage } from '@/lib/catalog/collection';
@@ -45,6 +45,6 @@ function CollectionRow({ catalog, section }: { catalog: CatalogData; section: Co
   </section>;
 }
 
-export default function CollectionRows({ catalog, sections }: { catalog: CatalogData; sections: CollectionSection[] }) {
-  return <div className="collection-rows">{sections.map(section => <CollectionRow key={section.group.id} catalog={catalog} section={section} />)}</div>;
+export default function CollectionRows({ catalog, sections, beforeSection }: { catalog: CatalogData; sections: CollectionSection[]; beforeSection?: (section: CollectionSection) => ReactNode }) {
+  return <div className="collection-rows">{sections.map(section => <div className="collection-row-block" key={section.group.id}>{beforeSection?.(section)}<CollectionRow catalog={catalog} section={section} /></div>)}</div>;
 }

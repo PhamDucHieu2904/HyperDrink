@@ -4,6 +4,9 @@ import ShowcaseHero from '@/components/ShowcaseHero';
 import BeverageCategoryRail from '@/components/BeverageCategoryRail';
 import LanguageSelector from '@/components/LanguageSelector';
 import ContactSection from '@/components/ContactSection';
+import WhyChooseSection from '@/components/WhyChooseSection';
+import FavoritesPanel from '@/components/favorites/FavoritesPanel';
+import FavoritesTrigger from '@/components/favorites/FavoritesTrigger';
 import { storefrontMarketingCopy } from '@/lib/i18n/storefront-marketing';
 import { LanguageProvider, useLanguage } from '@/components/LanguageProvider';
 import { collectionProducts, collectionSections, filterCollectionProducts } from '@/lib/catalog/collection';
@@ -15,8 +18,9 @@ import { usePublishedCatalog } from '@/components/usePublishedCatalog';
 import { useTranslatedCatalog } from '@/components/useTranslatedCatalog';
 import { useStorefrontTelemetry } from '@/components/useStorefrontTelemetry';
 import { randomStorefrontEntry, resolveStorefrontSelection, type StorefrontSelectionRequest } from '@/lib/catalog/storefront';
+import { mediaUrl, resolveFlavorIcon } from '@/lib/catalog/resolve';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Menu, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import Image from 'next/image';
 
 
@@ -54,6 +58,7 @@ function Storefront() {
   const [searchQuery, setSearchQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
 
   useEffect(() => {
     const catalog = published?.catalog;
@@ -71,6 +76,8 @@ function Storefront() {
 
   const visibleProducts = useMemo(() => filterCollectionProducts(products, searchQuery, published?.catalog), [products, searchQuery, published?.catalog]);
   const sections = useMemo(() => data ? collectionSections(data, visibleProducts) : [], [data, visibleProducts]);
+  // Keep banner slots attached to their rows even when search hides another collection.
+  const bannerCollectionIds = useMemo(() => data ? collectionSections(data, products).slice(0, 2).map(section => section.group.id) : [], [data, products]);
 
   useEffect(() => {
     if (!searchOpen) return;
@@ -104,9 +111,9 @@ function Storefront() {
         </nav>
         <BeverageCategoryRail />
         <div className="header-actions">
+          <FavoritesTrigger className="icon-btn" open={favoritesOpen} onOpen={() => { setLanguageOpen(false); setMenuOpen(false); setSearchOpen(false); setFavoritesOpen(true); }} />
           <button type="button" className="icon-btn" aria-label={searchOpen ? t('search.close') : t('search.open')} aria-expanded={searchOpen} onClick={() => { if(!searchOpen)track('search_open'); setLanguageOpen(false); setMenuOpen(false); setSearchOpen((open) => !open); }}>{searchOpen ? <X /> : <Search />}</button>
           <LanguageSelector open={languageOpen} onOpenChange={open => { setLanguageOpen(open); if (open) { setSearchOpen(false); setMenuOpen(false); } }} />
-          <button type="button" className="icon-btn menu-toggle" aria-label={menuOpen ? t('nav.closeMenu') : t('nav.openMenu')} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => { if(!menuOpen)track('menu_open'); setLanguageOpen(false); setSearchOpen(false); setMenuOpen((open) => !open); }}>{menuOpen ? <X /> : <Menu />}</button>
         </div>
         {searchOpen && (
           <form className="search-popover" role="search" onSubmit={(event) => { event.preventDefault(); scrollTo('collection'); }}>
@@ -118,6 +125,7 @@ function Storefront() {
       </header>
 
       {data && published && entryReady ? <ShowcaseHero catalog={data} releaseId={published.releaseId} selection={selection}
+        favoritesOpen={favoritesOpen} onFavoritesOpen={() => setFavoritesOpen(true)}
         onSelectGroup={id => { track('group_select',id); setSelection({ groupId: id }); }}
         onSelectVariant={id => { track('flavor_select',id); setSelection({ groupId: current?.group?.id, slotId: current?.slot?.id, variantId: id }); }}
         onExplore={() => scrollTo('collection')} /> : <section className="catalog-placeholder" aria-busy={loading || Boolean(data && !entryReady)}>
@@ -127,13 +135,18 @@ function Storefront() {
       {published && (error || usingSnapshotFallback) && <div className="catalog-update-notice" role="status"><span>{copy.refreshFailed}</span><button type="button" disabled={loading} onClick={() => void refresh()}>{copy.retry}</button></div>}
 
       <section id="collection" className="section collection-section" aria-label={t('collection.title')}>
-        {data && <FeaturedBanner catalog={data} sections={sections} />}
-        {data && sections.length > 0 ? <CollectionRows catalog={data} sections={sections} /> : <p className="collection-empty" role="status">{!published ? (loading ? copy.loading : error ? copy.unavailable : copy.empty) : !products.length || !searchQuery.trim() ? copy.empty : t('collection.emptySearch')}</p>}
+        {data && sections.length > 0 ? <CollectionRows catalog={data} sections={sections} beforeSection={section => {
+          const placement = section.group.id === bannerCollectionIds[0] ? 'home-1' : section.group.id === bannerCollectionIds[1] ? 'home-2' : null;
+          return placement ? <FeaturedBanner catalog={data} sections={sections} placement={placement} /> : null;
+        }} /> : <p className="collection-empty" role="status">{!published ? (loading ? copy.loading : error ? copy.unavailable : copy.empty) : !products.length || !searchQuery.trim() ? copy.empty : t('collection.emptySearch')}</p>}
       </section>
 
-      <ContactSection catalog={data} />
+      <WhyChooseSection />
+
+      <ContactSection catalog={data} flavorColor={current?.flavor?.backgroundColor} flavorAccent={current?.flavor?.accentColor} flavorIcon={current?.flavor?.icon} flavorIconUrl={data && current?.flavor ? mediaUrl(resolveFlavorIcon(data, current.flavor)) || undefined : undefined} />
 
       <footer className="site-footer"><span className="footer-brand">VINUT</span><span>{t('footer.copy')}</span><div className="footer-links"><a href={publicUrl('/products/')}>{t('nav.products')}</a><a href="#contact">{t('nav.contact')}</a><a href="mailto:hello@vinut.com">{marketingText.emailCta}</a></div></footer>
+      {favoritesOpen && <FavoritesPanel catalog={data} products={products} onClose={() => setFavoritesOpen(false)} />}
     </main>
   );
 }

@@ -31,6 +31,28 @@ function translated(values: string[]): MockupCopy {
 }
 
 export const mockupCopy: Record<Locale, MockupCopy> = {
+  vi: {
+    open: 'Mở phòng thiết kế Mockup', back: 'Về website', title: 'Phòng thiết kế Mockup', eyebrow: 'Sản phẩm của bạn. Góc nhìn của bạn.',
+    intro: 'Chọn bao bì, tìm nhãn phù hợp và tạo thiết kế của riêng bạn.', library: 'Thư viện sản phẩm', models: 'Mô hình', presets: 'Mẫu 3D', labels: 'Nhãn',
+    search: 'Tìm trong thư viện', searchPlaceholder: 'Tìm theo tên hoặc hương vị…', packaging: 'Bao bì', volume: 'Dung tích', drink: 'Loại đồ uống', all: 'Tất cả',
+    clear: 'Xóa bộ lọc', results: 'kết quả', noResults: 'Không có kết quả phù hợp', tryFilters: 'Hãy thử từ khóa khác hoặc xóa bộ lọc.',
+    noLabels: 'Chưa có nhãn tương thích', noLabelsCopy: 'Bạn có thể xem và xuất hình bao bì này mà không cần nhãn. Hãy chọn mô hình khác để khám phá thêm thiết kế.',
+    blank: 'Không có nhãn', removeLabel: 'Gỡ nhãn', compatible: 'Nhãn tương thích', previous: 'Trang trước', next: 'Trang sau', page: 'Trang', of: '/',
+    focal: 'Tiêu cự', front: 'Mặt trước', backView: 'Mặt sau', left: 'Bên trái', right: 'Bên phải', threeQuarter: 'Góc 3/4', top: 'Góc từ trên',
+    background: 'Nền', white: 'Trắng', gray: 'Xám', dark: 'Tối', color: 'Màu đơn', gradient: 'Chuyển sắc', transparent: 'Trong suốt', colorStart: 'Màu nền', colorEnd: 'Màu cuối chuyển sắc',
+    animation: 'Chuyển động', off: 'Đứng yên', turntable: 'Xoay sản phẩm', showcase: 'Chế độ website', play: 'Phát chuyển động', pause: 'Tạm dừng chuyển động', speed: 'Tốc độ',
+    zoomIn: 'Phóng to', zoomOut: 'Thu nhỏ', reset: 'Đặt lại góc nhìn', hint: 'Kéo để khám phá · Cuộn để thu phóng', keyboard: 'Dùng phím mũi tên để xoay, + hoặc − để thu phóng và R để đặt lại.',
+    export: 'Xuất hình ảnh', frame: 'Khung hình', square: 'Vuông', portrait: 'Dọc', landscape: 'Ngang', resolution: 'Độ phân giải', download: 'Tải PNG',
+    exportCopy: 'Góc nhìn hiện tại của bạn, sẵn sàng để chia sẻ.', transparentCopy: 'Ảnh PNG có nền trong suốt; không bao gồm nền của phòng thiết kế.',
+    preparing: 'Đang chuẩn bị cảnh…', loadingModel: 'Đang tải mô hình…', loadingLabel: 'Đang áp dụng nhãn…', ready: 'Sẵn sàng xuất ảnh', exporting: 'Đang tạo ảnh PNG…',
+    loadError: 'Không thể tải thư viện.', sceneError: 'Không thể chuẩn bị cảnh này.', webglError: 'Trình duyệt này không hỗ trợ 3D. Hãy thử trình duyệt khác hoặc quay lại website.',
+    exportError: 'Không thể xuất ảnh. Hãy thử độ phân giải 1024 px hoặc thử lại.', retry: 'Thử lại', downloaded: 'Ảnh PNG đã sẵn sàng. Quá trình tải xuống đã bắt đầu.',
+    unavailable: 'Thiết kế yêu cầu không có trong thư viện. Một thiết kế đã xuất bản được chọn thay thế.', incompatible: 'Nhãn này không phù hợp với bao bì đã chọn. Hãy chọn nhãn tương thích bên dưới.',
+    empty: 'Thư viện Mockup chưa khả dụng.', emptyCopy: 'Truy cập website để khám phá bộ sưu tập đã xuất bản.', newRelease: 'Có thư viện sản phẩm mới.', reload: 'Tải thư viện mới',
+    release: 'Thư viện công khai', model: 'Mô hình', label: 'Nhãn', selected: 'Đã chọn', help: 'Điều khiển góc nhìn',
+    lastImage: 'Ảnh xuất gần nhất', downloadAgain: 'Tải lại ảnh PNG', viewImage: 'Mở ảnh PNG đã xuất',
+    ultraWide: 'Góc siêu rộng', wide: 'Góc rộng', standard: 'Tiêu chuẩn', long: 'Tiêu cự dài', telephoto: 'Ống kính tele',
+  },
   en: english,
   fr: translated([
     'Ouvrir le studio Mockup','Retour au site','Studio Mockup','Votre produit. Votre point de vue.','Choisissez un emballage et son étiquette, puis créez votre image.','Bibliothèque de produits','Modèles','Préréglages 3D','Étiquettes','Rechercher dans la bibliothèque','Rechercher un nom ou une saveur…','Emballage','Volume','Catégorie de boisson','Tous','Effacer les filtres','résultats','Aucun résultat pour ces filtres','Essayez une autre recherche ou effacez les filtres.','Aucune étiquette compatible','Vous pouvez explorer et exporter cet emballage sans étiquette. Essayez un autre modèle pour découvrir davantage de designs.','Sans étiquette','Retirer l’étiquette','Étiquettes compatibles','Page précédente','Page suivante','Page','sur','Focale','Face','Dos','Gauche','Droite','Vue 3/4','Vue plongeante','Arrière-plan','Blanc','Gris','Sombre','Couleur','Dégradé','Transparent','Couleur de fond','Couleur finale du dégradé','Mouvement','Immobile','Tourner le produit','Mode site','Lancer l’animation','Mettre en pause','Vitesse','Zoom avant','Zoom arrière','Réinitialiser la vue','Glissez pour explorer · Faites défiler pour zoomer','Utilisez les flèches pour orbiter, + ou − pour zoomer et R pour réinitialiser.','Exporter l’image','Format de l’image','Carré','Portrait','Paysage','Résolution','Télécharger le PNG','Votre vue actuelle, prête à partager.','Le PNG aura un fond transparent, sans le décor du studio.','Préparation de la scène…','Chargement du modèle…','Application de l’étiquette…','Prêt à exporter','Création du PNG…','Impossible de charger la bibliothèque.','Impossible de préparer cette scène.','La 3D n’est pas disponible dans ce navigateur. Essayez un autre navigateur ou retournez au site.','Impossible d’exporter l’image. Essayez 1024 px ou réessayez.','Réessayer','Votre PNG est prêt. Le téléchargement a démarré.','Le design demandé n’est pas disponible. Un design publié a été sélectionné.','Cette étiquette ne convient pas à cet emballage. Choisissez une étiquette compatible.','La bibliothèque Mockup n’est pas encore disponible.','Visitez le site pour découvrir la collection publiée.','Une nouvelle bibliothèque est disponible.','Charger la bibliothèque','Bibliothèque publique','Modèle','Étiquette','Sélectionné','Commandes de la vue','Dernière image exportée','Télécharger à nouveau le PNG','Ouvrir le PNG exporté',

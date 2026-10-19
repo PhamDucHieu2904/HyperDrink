@@ -1,4 +1,4 @@
-import type { CatalogData, MediaAsset } from './contracts';
+import type { BannerPlacement, CatalogData, MediaAsset } from './contracts';
 import type { CollectionSection } from './collection';
 import type { StorefrontProduct } from './storefront';
 import { mediaUrl } from './resolve';
@@ -52,13 +52,13 @@ export function featuredBannerSlides(catalog: CatalogData, sections: CollectionS
   }).slice(0, 5);
 }
 
-export const FEATURED_SLIDE_INTERVAL = 3000;
+export const FEATURED_SLIDE_INTERVAL = 4500;
 export const featuredSlideIndex = (position: number, count: number) => count > 0 ? ((position % count) + count) % count : 0;
 
 export interface ManagedBannerSlide { id: string; image: string; alt: string }
 /** Published banner records take precedence over generated product artwork. */
-export function managedBannerSlides(catalog: CatalogData): ManagedBannerSlide[] {
-  return (catalog.banners ?? []).filter(banner => banner.lifecycle === 'active' && banner.enabled).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)).flatMap(banner => {
+export function managedBannerSlides(catalog: CatalogData, placement: BannerPlacement = 'home-1'): ManagedBannerSlide[] {
+  return (catalog.banners ?? []).filter(banner => banner.lifecycle === 'active' && banner.enabled && (banner.placement ?? 'home-1') === placement).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)).flatMap(banner => {
     const media = banner.mediaId ? catalog.media.find(item => item.id === banner.mediaId && item.role === 'banner' && item.status === 'ready' && item.url) : null;
     return media ? [{ id: banner.id, image: mediaUrl(media), alt: banner.alt || banner.name }] : [];
   });

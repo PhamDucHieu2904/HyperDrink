@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { collectionSections } = require('../../lib/catalog/collection.ts');
-const { featuredBannerSlides, featuredSlideIndex } = require('../../lib/catalog/featured-banner.ts');
+const { featuredBannerSlides, featuredSlideIndex, managedBannerSlides } = require('../../lib/catalog/featured-banner.ts');
 const { featuredBannerCopy } = require('../../lib/i18n/featured-banner.ts');
 const published = () => JSON.parse(fs.readFileSync(path.join(__dirname, '../../public/catalog/current.json'), 'utf8')).data.catalog;
 
@@ -68,4 +68,16 @@ test('slide indexing wraps in both directions and all languages preserve product
     assert.ok(copy.description.includes('{collection}') && copy.description.includes('{flavor}'));
     assert.ok(copy.pause && copy.play && copy.slide.includes('{flavor}'));
   }
+});
+
+test('managed banners are isolated by placement while legacy records remain Home Banner 1', () => {
+  const catalog = published();
+  assert.equal(managedBannerSlides(catalog, 'home-1').length, 4);
+  assert.equal(managedBannerSlides(catalog, 'home-2').length, 0);
+  assert.equal(managedBannerSlides(catalog, 'catalog').length, 0);
+  catalog.banners[0].placement = 'catalog';
+  catalog.banners[1].placement = 'home-2';
+  assert.equal(managedBannerSlides(catalog, 'home-1').length, 2);
+  assert.equal(managedBannerSlides(catalog, 'home-2')[0].id, catalog.banners[1].id);
+  assert.equal(managedBannerSlides(catalog, 'catalog')[0].id, catalog.banners[0].id);
 });

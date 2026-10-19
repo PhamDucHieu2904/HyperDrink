@@ -1,6 +1,7 @@
 import type { Locale } from './catalog';
 
 const titles: Record<Locale, readonly [string, string]> = {
+  vi: ['Mọi hương vị.', 'Một bộ sưu tập.'],
   en: ['Every flavor.', 'One collection.'],
   fr: ['Toutes les saveurs.', 'Une collection.'],
   zh: ['每一种风味。', '同一个系列。'],

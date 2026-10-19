@@ -1,6 +1,7 @@
 'use client';
 
 import { CupSoda, GlassWater, LayoutGrid, Search } from 'lucide-react';
+import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import LanguageSelector from '../LanguageSelector';
 import { LanguageProvider, useLanguage } from '../LanguageProvider';
@@ -16,6 +17,8 @@ import ProductDialog from './ProductDialog';
 import { CollectionPager } from './CollectionRows';
 import CatalogBackground from './CatalogBackground';
 import FeaturedBanner from './FeaturedBanner';
+import FavoritesPanel from '../favorites/FavoritesPanel';
+import FavoritesTrigger from '../favorites/FavoritesTrigger';
 
 export default function ProductsClient() { return <LanguageProvider><ProductsCatalog /></LanguageProvider>; }
 
@@ -36,6 +39,7 @@ function ProductsCatalog() {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [detailId, setDetail] = useState('');
   const selectedGroup = products.find(product => product.group.id === groupId)?.group;
   const activeDrink = types.some(type => type.id === drinkId) ? drinkId : selectedGroup?.drinkTypeId || '';
@@ -62,8 +66,8 @@ function ProductsCatalog() {
     <CatalogBackground />
     <a className="skip-link" href="#products-results">{t('nav.skip')}</a>
     <div className="products-masthead">
-      <header className="products-header"><a className="products-brand" href={publicUrl('/')} aria-label={copy.back}><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M9 28.8C12.1 12.3 22.3 7.8 33.8 7.3c-1.7 10.7-7.5 19.2-19.2 21.3 3.4-4.4 6.6-7.4 12.4-10.9" stroke="currentColor" strokeWidth="4.4" strokeLinecap="round" strokeLinejoin="round" /></svg><strong>VINUT</strong></a><nav aria-label={t('nav.label')}><a href={publicUrl('/')}>{t('nav.home')}</a><a href={publicUrl('/mockup/')}>Mockup Side</a><a href={publicUrl('/products/')} aria-current="page">{t('nav.products')}</a><a href={`${publicUrl('/')}#contact`}>{t('nav.contact')}</a></nav><a className="products-search-shortcut" href="#catalog-search" aria-label={t('search.open')}><Search size={20} aria-hidden="true" /></a><LanguageSelector open={languageOpen} onOpenChange={setLanguageOpen} /></header>
-      {data && (bannerSections.length > 0 || (data.banners ?? []).some(banner => banner.lifecycle === 'active' && banner.enabled)) ? <FeaturedBanner catalog={data} sections={bannerSections} surface="catalog" /> : <div className="products-intro"><p className="collection-kicker">{t('collection.kicker')}</p><h1>{copy.browse}</h1></div>}
+      <header className="products-header"><a className="products-brand" href={publicUrl('/')} aria-label={copy.back}><Image src={publicUrl('/assets/branding/vinut-logo.svg')} alt="VINUT" width={126} height={64} priority unoptimized /></a><nav aria-label={t('nav.label')}><a href={publicUrl('/')}>{t('nav.home')}</a><a href={publicUrl('/mockup/')}>Mockup Side</a><a href={publicUrl('/products/')} aria-current="page">{t('nav.products')}</a><a href={`${publicUrl('/')}#contact`}>{t('nav.contact')}</a></nav><FavoritesTrigger className="icon-btn" open={favoritesOpen} onOpen={() => { setLanguageOpen(false); setFavoritesOpen(true); }} /><a className="products-search-shortcut" href="#catalog-search" aria-label={t('search.open')}><Search size={20} aria-hidden="true" /></a><LanguageSelector open={languageOpen} onOpenChange={setLanguageOpen} /></header>
+      {data && (bannerSections.length > 0 || (data.banners ?? []).some(banner => banner.lifecycle === 'active' && banner.enabled && (banner.placement ?? 'home-1') === 'catalog')) ? <FeaturedBanner catalog={data} sections={bannerSections} surface="catalog" placement="catalog" /> : <div className="products-intro"><p className="collection-kicker">{t('collection.kicker')}</p><h1>{copy.browse}</h1></div>}
     </div>
     <div className="products-layout">
       <section id="products-results" className="products-results" aria-label={t('nav.products')}>
@@ -79,5 +83,6 @@ function ProductsCatalog() {
     </div>
     <footer className="products-footer"><strong>VINUT</strong><p>{t('footer.copy')}</p></footer>
     {detail && data && <ProductDialog key={detail.variant.id} catalog={data} product={detail} onClose={() => setDetail('')} />}
+    {favoritesOpen && <FavoritesPanel catalog={data} products={products} onClose={() => setFavoritesOpen(false)} />}
   </main>;
 }

@@ -112,7 +112,7 @@ test('homepage layout requires authentication, detects stale drafts, survives re
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(context.staticOutputDir, 'current.json'), 'utf8')).data.catalog.homepageLayout, layout);
 }));
 
-test('liquidColor, capColor and horizontal labelOffset survive record/display API saves, preflight and backend restart across nine draft displays', async () => withBackend(async context => {
+test('liquidColor, capColor, labelOffset and label finish survive record/display API saves, preflight and backend restart across nine draft displays', async () => withBackend(async context => {
   await context.setup();
   const product = await createVisible2DProduct(context);
   const colors = [null, null, '#ff3e68', '#ff4430', '#ffb52e', '#ffb52e', '#5144ad', '#f783ad', '#f9a4be'];
@@ -122,22 +122,27 @@ test('liquidColor, capColor and horizontal labelOffset survive record/display AP
     const variant = await context.save('productVariants', { ...product.variant, ...newEntity(`Liquid product ${index}`, `liquid-product-${index}`), flavorId: flavor.id, code: `LIQUID-${index}`, enabled: false });
     const capColor = index === 0 ? '#008b28' : null;
     const labelOffset = index * 2.5;
-    const display = await context.save('displays3d', { ...newEntity(`Liquid display ${index}`, `liquid-display-${index}`), productVariantId: variant.id, modelId: null, labelId: null, enabled: false, liquidColor, capColor, labelOffset });
+    const labelSmoothness = index / 8, labelMetalness = 1 - index / 8;
+    const display = await context.save('displays3d', { ...newEntity(`Liquid display ${index}`, `liquid-display-${index}`), productVariantId: variant.id, modelId: null, labelId: null, enabled: false, liquidColor, capColor, labelOffset, labelSmoothness, labelMetalness });
     assert.equal(display.liquidColor, liquidColor);
     assert.equal(display.capColor, capColor);
     assert.equal(display.labelOffset, labelOffset);
+    assert.equal(display.labelSmoothness, labelSmoothness);
+    assert.equal(display.labelMetalness, labelMetalness);
     displays.push({ variant, display });
   }
   const target = displays[2];
   const saved = await context.request('/api/admin/v1/display', { method: 'POST', body: {
     mode: '3d', variant: target.variant, expectedVariantRevision: target.variant.revision,
-    display: { ...target.display, liquidColor: '#ef315f', capColor: '#008b28', labelOffset: -12.5 }, expectedDisplayRevision: target.display.revision,
+    display: { ...target.display, liquidColor: '#ef315f', capColor: '#008b28', labelOffset: -12.5, labelSmoothness: .62, labelMetalness: .34 }, expectedDisplayRevision: target.display.revision,
     slot: null, expectedSlotRevision: null,
   } });
   assert.equal(saved.response.status, 200, JSON.stringify(saved.payload));
   assert.equal(saved.payload.data.display.liquidColor, '#ef315f');
   assert.equal(saved.payload.data.display.capColor, '#008b28');
   assert.equal(saved.payload.data.display.labelOffset, -12.5);
+  assert.equal(saved.payload.data.display.labelSmoothness, .62);
+  assert.equal(saved.payload.data.display.labelMetalness, .34);
   const before = await context.repository.readDraft();
   const invalid = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'displays3d', record: { ...saved.payload.data.display, liquidColor: 'pink' }, expectedRevision: saved.payload.data.display.revision } });
   assert.equal(invalid.response.status, 422);
@@ -145,6 +150,11 @@ test('liquidColor, capColor and horizontal labelOffset survive record/display AP
   assert.equal(invalidCap.response.status, 422);
   const invalidOffset = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'displays3d', record: { ...saved.payload.data.display, labelOffset: 51 }, expectedRevision: saved.payload.data.display.revision } });
   assert.equal(invalidOffset.response.status, 422);
+  for (const [field, value] of [['labelSmoothness', -1], ['labelMetalness', 101]]) {
+    const variant = saved.payload.data.catalog.productVariants.find(item => item.id === saved.payload.data.display.productVariantId);
+    const rejected = await context.request('/api/admin/v1/display', { method: 'POST', body: { mode: '3d', variant, expectedVariantRevision: variant.revision, display: { ...saved.payload.data.display, [field]: value }, expectedDisplayRevision: saved.payload.data.display.revision, slot: null, expectedSlotRevision: null } });
+    assert.equal(rejected.response.status, 422);
+  }
   assert.deepEqual(await context.repository.readDraft(), before);
   context.reopen();
   assert.deepEqual(await context.repository.readDraft(), before);
@@ -583,6 +593,36 @@ test('draft CRUD persists across database reopen and stale changes produce HTTP 
   assert.equal(archive.response.status, 200);
   context.reopen();
   assert.equal((await context.repository.readDraft()).drinkTypes.find(item => item.id === record.id).lifecycle, 'archived');
+}));
+
+test('banner API saves all placements, persists edits and supports usage and archive', async () => withBackend(async context => {
+  await context.setup();
+  const { media } = await context.upload('banner');
+  const banners = [];
+  for (const [position, placement] of ['home-1', 'home-2', 'catalog'].entries()) {
+    const banner = await context.save('banners', { ...newEntity(`Banner ${placement}`, `banner-${placement}`), mediaId: media.id, placement, position, enabled: true, alt: `Banner for ${placement}` });
+    assert.equal(banner.placement, placement);
+    banners.push(banner);
+  }
+  const edited = await context.save('banners', { ...banners[1], alt: 'Updated Home Banner 2' }, banners[1].revision);
+  const stale = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'banners', record: banners[1], expectedRevision: banners[1].revision } });
+  assert.equal(stale.response.status, 409);
+  const invalidPlacement = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'banners', record: { ...edited, placement: 'unknown' }, expectedRevision: edited.revision } });
+  assert.equal(invalidPlacement.response.status, 422);
+  const invalidCollection = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'unknown', record: edited, expectedRevision: edited.revision } });
+  assert.equal(invalidCollection.response.status, 422);
+  context.reopen();
+  const reload = await context.request('/api/admin/v1/catalog');
+  assert.equal(reload.response.status, 200);
+  for (const banner of [banners[0], edited, banners[2]]) {
+    assert.deepEqual(reload.payload.data.catalog.banners.find(item => item.id === banner.id), banner);
+  }
+  const usage = await context.request(`/api/admin/v1/usage?collection=banners&id=${edited.id}`);
+  assert.equal(usage.response.status, 200, JSON.stringify(usage.payload));
+  const archive = await context.request('/api/admin/v1/archive', { method: 'POST', body: { collection: 'banners', id: edited.id, expectedRevision: edited.revision } });
+  assert.equal(archive.response.status, 200, JSON.stringify(archive.payload));
+  context.reopen();
+  assert.equal((await context.repository.readDraft()).banners.find(item => item.id === edited.id).lifecycle, 'archived');
 }));
 
 test('trusted media metadata must come from file inspection and cannot be forged through CRUD', async () => withBackend(async context => {

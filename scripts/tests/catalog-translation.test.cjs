@@ -182,8 +182,8 @@ test('English default also translates Vietnamese descriptions while keeping Engl
   assert.match(translated.flavors[0].description, /^en:Cam mọng nước/);
   assert.ok(native.calls.every(call => call.sourceLanguage === 'vi' && call.targetLanguage === 'en'));
 });
-test('all eight selected locales are forwarded to the native translator and have curated progress copy', async () => {
-  for (const locale of ['en', 'fr', 'zh', 'es', 'ar', 'ru', 'ko', 'de']) {
+test('all nine selected locales are forwarded to the native translator and have curated progress copy', async () => {
+  for (const locale of ['en', 'fr', 'zh', 'es', 'ar', 'ru', 'ko', 'de', 'vi']) {
     const native = nativeEnvironment();
     await run(new BrowserCatalogTranslator(() => native.environment), fixture(), locale);
     assert.ok(native.calls.some(call => call.targetLanguage === locale), locale);

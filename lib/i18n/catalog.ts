@@ -6,6 +6,7 @@ import arabic from './locales/ar.json';
 import russian from './locales/ru.json';
 import korean from './locales/ko.json';
 import german from './locales/de.json';
+import vietnamese from './locales/vi.json';
 
 export const DEFAULT_LOCALE = 'en' as const;
 export const LANGUAGE_STORAGE_KEY = 'vinut.language';
@@ -18,9 +19,10 @@ export const languages = [
   { code: 'ru', name: 'Russian', nativeName: 'Русский', direction: 'ltr', searchNames: 'tiếng Nga russe ruso russisch الروسية русский 러시아어 俄语' },
   { code: 'ko', name: 'Korean', nativeName: '한국어', direction: 'ltr', searchNames: 'tiếng Hàn coréen coreano koreanisch الكورية корейский 한국어 조선말 韩语' },
   { code: 'de', name: 'German', nativeName: 'Deutsch', direction: 'ltr', searchNames: 'tiếng Đức allemand alemán german الألمانية немецкий 독일어 德语' },
+  { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt', direction: 'ltr', searchNames: 'Việt Nam Vietnam Viet Nam vietnamien vietnamita vietnamesisch 越南语 베트남어 вьетнамский الفيتنامية' },
 ] as const;
 export type Locale = typeof languages[number]['code'];
-export const dictionaries: Record<Locale, Messages> = { en: english, fr: french, zh: chinese, es: spanish, ar: arabic, ru: russian, ko: korean, de: german };
+export const dictionaries: Record<Locale, Messages> = { en: english, fr: french, zh: chinese, es: spanish, ar: arabic, ru: russian, ko: korean, de: german, vi: vietnamese };
 
 export function localeDirection(locale: Locale) {
   return languages.find(language => language.code === locale)?.direction ?? 'ltr';

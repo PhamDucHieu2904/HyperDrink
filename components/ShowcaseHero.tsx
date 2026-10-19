@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ChevronRight, Heart, Layers3, Leaf, Play, Rotate3D, Sparkles, Waves, X } from 'lucide-react';
+import { ArrowRight, ChevronRight, Leaf, Play, Rotate3D, Sparkles, Waves, X } from 'lucide-react';
 import FlavorBackground from './FlavorBackground';
 import { BackgroundRenderState } from '@/lib/background-render-state';
 import { backgroundConfig, normalizeBackgroundConfig } from '@/lib/background-config';
@@ -21,9 +21,11 @@ import { mockupCopy } from '@/lib/i18n/mockup';
 import GraphicsToggle, { useGraphicsMode } from './GraphicsToggle';
 import SceneEffectsToggle, { useSceneEffects } from './SceneEffectsToggle';
 import useSceneResources from './catalog-hero/useSceneResources';
+import FavoritesTrigger from './favorites/FavoritesTrigger';
 
 const backgroundSettings = normalizeBackgroundConfig(backgroundConfig);
 const glassStyle = { backdropFilter: 'blur(28px) saturate(148%) brightness(1.04)', WebkitBackdropFilter: 'blur(28px) saturate(148%) brightness(1.04)' } as React.CSSProperties;
+const infoGlassStyle = { backdropFilter: 'var(--hero-info-backdrop, blur(28px) saturate(148%) brightness(1.04))', WebkitBackdropFilter: 'var(--hero-info-backdrop, blur(28px) saturate(148%) brightness(1.04))' } as React.CSSProperties;
 const featureGlassStyle = { backdropFilter: 'blur(32px) saturate(152%) brightness(1.04)', WebkitBackdropFilter: 'blur(32px) saturate(152%) brightness(1.04)' } as React.CSSProperties;
 
 export interface ShowcaseHeroProps {
@@ -33,9 +35,11 @@ export interface ShowcaseHeroProps {
   onSelectGroup: (id: string) => void;
   onSelectVariant: (id: string) => void;
   onExplore?: () => void;
+  onFavoritesOpen: () => void;
+  favoritesOpen: boolean;
 }
 
-export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGroup, onSelectVariant, onExplore }: ShowcaseHeroProps) {
+export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGroup, onSelectVariant, onExplore, onFavoritesOpen, favoritesOpen }: ShowcaseHeroProps) {
   const { locale, t } = useLanguage();
   const copy = heroCopy(locale);
   const graphicsMode = useGraphicsMode();
@@ -45,6 +49,7 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
   const sceneEffects = useSceneEffects();
   const { groups, group, slot, variants, variant, flavor, packaging } = resolved;
   const product = products.find(item => item.variant.id === variant?.id && item.slot.id === slot?.id);
+  const productDetail = product?.label ? catalog.productDetails?.find(item => item.labelId === product.label?.id && item.lifecycle === 'active' && item.enabled) : undefined;
   const resourceDisplays = useMemo(() => {
     if (!slot || slot.mode === '2d') return [];
     const productsByVariant = new Map(products.filter(item => item.slot.id === slot.id).map(item => [item.variant.id, item]));
@@ -63,7 +68,6 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
     return state;
   });
   const [sessionSeed, setSessionSeed] = useState('public');
-  const [likedVariant, setLikedVariant] = useState<string | null>(null);
   const [failedVisual, setFailedVisual] = useState('');
   const [detail, setDetail] = useState<'flavor' | 'collection' | null>(null);
   const [productDetailOpen, setProductDetailOpen] = useState(false);
@@ -123,7 +127,6 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
     {groups.length > 0 && productPicker}
   </section>;
 
-  const liked = likedVariant === variant.id;
   const productMessages = localizedHeroMessages(group, locale);
   return <section ref={heroRef} className="showcase-hero catalog-showcase" data-flavor={flavor.id} data-variant={variant.id} data-release={releaseId} aria-labelledby="showcase-title" style={{
     '--flavor-accent': flavor.accentColor,
@@ -135,7 +138,7 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
     <div className="quick-rail glass-surface" style={glassStyle} aria-label={t('hero.shortcuts')}>
       <button type="button" aria-label={t('hero.discoverFlavor')} onClick={() => openDetail('flavor')} className="is-selected"><Leaf /></button>
       <button type="button" aria-label={t('hero.viewCollection')} onClick={explore}><Waves /></button>
-      <button type="button" aria-label={t('hero.likeFlavor')} aria-pressed={liked} onClick={() => { if(!liked)trackUsage('favorite',variant.id); setLikedVariant(liked ? null : variant.id); }}><Heart fill={liked ? 'currentColor' : 'none'} /></button>
+      <FavoritesTrigger onOpen={onFavoritesOpen} open={favoritesOpen} />
     </div>
     <div className="showcase-copy showcase-intro">
       <p className="eyebrow"><bdi>{drink?.name || group.name}</bdi></p>
@@ -151,18 +154,21 @@ export default function ShowcaseHero({ catalog, releaseId, selection, onSelectGr
     <FlavorCarousel items={carouselItems} selectedId={variant.id} onSelect={onSelectVariant} />
     <div className="showcase-details">
       <div className="notes-stack">
-        <button type="button" className="notes-card glass-surface" style={glassStyle} onClick={() => openDetail('flavor')}>
+        <button type="button" className="notes-card glass-surface" style={infoGlassStyle} onClick={() => openDetail('flavor')}>
           <CatalogImage media={product?.thumbnail} size={88} priority />
           <span><strong>{t('hero.notes')}</strong><span>{flavor.description || flavor.name}</span></span><ChevronRight />
         </button>
-        <button type="button" className="notes-card glass-surface" style={glassStyle} onClick={() => openDetail('collection')}>
-          <span className="catalog-notes-symbol" aria-hidden="true"><Layers3 size={38} strokeWidth={1.2} /></span>
-          <span><strong><bdi>{group.name}</bdi></strong><span>{group.description || drink?.description || drink?.name}</span></span><ChevronRight />
-        </button>
+        <div className="showcase-text-info" aria-label="Product certifications and storage information">
+          <p className="showcase-certifications"><span>FDA Registered</span><span>HALAL Certified</span><span>ISO 22000</span><span>HACCP</span><span>BSCI</span><span>GMP</span></p>
+          <div className="showcase-product-facts">
+            <span><strong>Shelf Life</strong><bdi>{productDetail?.shelfLife || '24 Months'}</bdi></span>
+            <span><strong>Storage Conditions</strong><bdi>{productDetail?.storage || 'dry place, Keep in a cool'}</bdi></span>
+          </div>
+        </div>
       </div>
       <div className="showcase-stats">
-        <div className="glass-surface" style={glassStyle}><Sparkles /><span><strong dir="ltr">{packaging.volumeMl ?? '—'}<small> ml</small></strong><span>{copy.volume}</span></span></div>
-        <a className="glass-surface showcase-mockup-link" style={glassStyle} href={publicUrl(`/mockup/${product?.display3d ? `?display=${encodeURIComponent(product.display3d.id)}` : ''}`)} aria-label={mockupCopy[locale].open}><Rotate3D aria-hidden="true" /><span><strong dir="ltr">{mode === '3D' ? '360°' : '2D'}</strong><span>{mode === '3D' ? t('hero.freeExplore') : copy.image}</span></span><ChevronRight className="showcase-mockup-arrow" size={16} aria-hidden="true" /></a>
+        <div className="glass-surface" style={infoGlassStyle}><Sparkles /><span><strong dir="ltr">{packaging.volumeMl ?? '—'}<small> ml</small></strong><span>{copy.volume}</span></span></div>
+        <a className="glass-surface showcase-mockup-link" style={infoGlassStyle} href={publicUrl(`/mockup/${product?.display3d ? `?display=${encodeURIComponent(product.display3d.id)}` : ''}`)} aria-label={mockupCopy[locale].open}><Rotate3D aria-hidden="true" /><span><strong dir="ltr">{mode === '3D' ? '360°' : '2D'}</strong><span>{mode === '3D' ? t('hero.freeExplore') : copy.image}</span></span><ChevronRight className="showcase-mockup-arrow" size={16} aria-hidden="true" /></a>
       </div>
     </div>
     <aside className="showcase-feature glass-surface" style={featureGlassStyle} aria-label={t('hero.featured')}>

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { ArrowUpRight, Leaf, MapPin, X } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import type { CatalogData, ProductDetail } from '@/lib/catalog/contracts';
+import { getNutritionTemplate } from '@/lib/catalog/nutrition-templates';
 import type { StorefrontProduct } from '@/lib/catalog/storefront';
 import { mediaUrl, resolveDisplay3D, resolveFlavorFruitImage } from '@/lib/catalog/resolve';
 import { productDetailPoster, resolveProductDetail } from '@/lib/catalog/product-detail';
@@ -17,6 +18,15 @@ import styles from './product-detail.module.css';
 
 type DetailTab = 'story' | 'ingredients' | 'nutrition';
 const tabs: DetailTab[] = ['story', 'ingredients', 'nutrition'];
+function NutritionTable({ detail, rows, title, nutrientLabel }: { detail: ProductDetail | undefined; rows: ProductDetail['nutrition']; title: string; nutrientLabel: string }) {
+  const template = getNutritionTemplate(detail?.nutritionTemplate);
+  const twoColumn = Boolean(template.secondaryAmountHeading);
+  return <table className={`${styles.nutrition} ${twoColumn ? styles.nutritionTwoColumn : ''}`}>
+    <caption><strong>{title}</strong>{detail?.servingSize && <span>{detail.servingSize}</span>}</caption>
+    <thead><tr><th scope="col">{nutrientLabel}</th><th scope="col">{template.amountHeading}</th>{template.dailyHeading && <th scope="col">{template.dailyHeading}</th>}{twoColumn && <><th scope="col">{template.secondaryAmountHeading}</th><th scope="col">{template.secondaryDailyHeading ?? template.dailyHeading ?? '% DV*'}</th></>}</tr></thead>
+    <tbody>{rows.map((row, index) => <tr key={index}><th scope="row">{row.label}</th><td><bdi>{row.amount || '—'}</bdi></td>{template.dailyHeading && <td><bdi>{row.dailyValue || '—'}</bdi></td>}{twoColumn && <><td><bdi>{row.secondaryAmount || '—'}</bdi></td><td><bdi>{row.secondaryDailyValue || '—'}</bdi></td></>}</tr>)}</tbody>
+  </table>;
+}
 const ProductViewer = dynamic(() => import('../ProductViewer'), { ssr: false, loading: () => <div className="scene-shell product-detail-viewer-loading"><ViewerLoading /></div> });
 
 export default function ProductDetailPanel({ catalog, product, onClose, preview, catalogImage = false }: { catalog: CatalogData; product: StorefrontProduct; onClose: () => void; preview?: ProductDetail; catalogImage?: boolean }) {
@@ -36,7 +46,9 @@ export default function ProductDetailPanel({ catalog, product, onClose, preview,
   const [fruitFailed, setFruitFailed] = useState(false);
   const title = detail?.headline || (catalogImage ? product.variant.name : product.flavor.name);
   const volume = detail?.netContent || (product.packaging.volumeMl ? `${product.packaging.volumeMl} ml` : product.packaging.name);
-  const rows = detail?.nutrition.filter(row => row.label.trim()) ?? [];
+  const rows = detail?.nutrition.filter(row => row.label.trim() && [row.amount, row.dailyValue, row.secondaryAmount, row.secondaryDailyValue].some(value => value?.trim())) ?? [];
+  const storage = detail?.storage || 'dry place, Keep in a cool';
+  const shelfLife = detail?.shelfLife || '24 Months';
   const resolved3d = useMemo(() => {
     if (!catalogImage || !product.display3d) return null;
     return resolveDisplay3D(catalog, product.display3d, `catalog-detail:${product.display3d.id}:${product.variant.id}`);
@@ -103,11 +115,11 @@ export default function ProductDetailPanel({ catalog, product, onClose, preview,
         <div className={styles.tabContent} id={`${id}-${tab}-panel`} role="tabpanel" aria-labelledby={`${id}-${tab}`} tabIndex={0}>
           {tab === 'story' && <><p className={styles.sectionIndex} dir="ltr">01 / {copy.story}</p><p className={styles.story}>{detail?.introduction || (!catalogImage && (product.flavor.description || product.variant.description)) || copy.notProvided}</p>{detail?.sections.filter(section => section.title.trim() || section.body.trim()).map((section, index) => <section className={styles.extraSection} key={index}>{section.title && <h3>{section.title}</h3>}<p>{section.body}</p></section>)}</>}
           {tab === 'ingredients' && <><p className={styles.sectionIndex} dir="ltr">02 / {copy.ingredients}</p><h3>{copy.ingredients}</h3><p className={styles.paragraph}>{detail?.ingredients || copy.notProvided}</p>{detail?.allergens && <div className={styles.callout}><h4>{copy.allergens}</h4><p>{detail.allergens}</p></div>}</>}
-          {tab === 'nutrition' && <><p className={styles.sectionIndex} dir="ltr">03 / {copy.nutrition}</p>{rows.length ? <table className={styles.nutrition}><caption><strong>{copy.nutrition}</strong>{detail?.servingSize && <span>{detail.servingSize}</span>}</caption><thead><tr><th scope="col">{copy.nutrient}</th><th scope="col">{copy.amount}</th><th scope="col">{copy.daily}</th></tr></thead><tbody>{rows.map((row, index) => <tr key={index}><th scope="row">{row.label}</th><td><bdi>{row.amount || '—'}</bdi></td><td><bdi>{row.dailyValue || '—'}</bdi></td></tr>)}</tbody></table> : <><h3>{copy.nutrition}</h3><p className={styles.paragraph}>{copy.notProvided}</p></>}</>}
+          {tab === 'nutrition' && <><p className={styles.sectionIndex} dir="ltr">03 / {copy.nutrition}</p>{rows.length ? <NutritionTable detail={detail} rows={rows} title={copy.nutrition} nutrientLabel={copy.nutrient} /> : <><h3>{copy.nutrition}</h3><p className={styles.paragraph}>{copy.notProvided}</p></>}</>}
         </div>
         <section className={styles.productInfo} aria-labelledby={`${id}-info`}>
           <h3 id={`${id}-info`}>{copy.productInfo}</h3>
-          <dl className={styles.facts}><div><dt>{copy.volume}</dt><dd dir="auto">{volume}</dd></div>{detail?.countryOfOrigin && <div><dt>{copy.origin}</dt><dd>{detail.countryOfOrigin}</dd></div>}{detail?.storage && <div className={styles.wideFact}><dt>{copy.storage}</dt><dd>{detail.storage}</dd></div>}{detail?.shelfLife && <div className={styles.wideFact}><dt>{copy.shelfLife}</dt><dd>{detail.shelfLife}</dd></div>}</dl>
+          <dl className={styles.facts}><div><dt>{copy.volume}</dt><dd dir="auto">{volume}</dd></div>{detail?.countryOfOrigin && <div><dt>{copy.origin}</dt><dd>{detail.countryOfOrigin}</dd></div>}<div className={styles.wideFact}><dt>{copy.storage}</dt><dd>{storage}</dd></div><div className={styles.wideFact}><dt>{copy.shelfLife}</dt><dd>{shelfLife}</dd></div></dl>
           {(detail?.companyName || detail?.companyAddress) && <div className={styles.company}><MapPin size={20} strokeWidth={1.4} aria-hidden="true" /><div><p>{copy.manufacturer}</p>{detail.companyName && <strong>{detail.companyName}</strong>}{detail.companyAddress && <address>{detail.companyAddress}</address>}</div></div>}
         </section>
         <footer className={styles.footer}><span dir="ltr">VINUT</span><span>{product.category.name} <span aria-hidden="true">/</span> {volume}</span></footer>

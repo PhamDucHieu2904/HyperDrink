@@ -36,10 +36,20 @@ export function resolveLabelAppearance(data: CatalogData, label: Label, appearan
 }
 
 /** Sales and Studio use the same liquid tint; imported PET/cloudiness settings stay intact. */
-export function resolveModelLabelAppearance(data: CatalogData, model: Model3D, label: Label, flavor?: Pick<Flavor, 'accentColor'>, liquidColor?: string | null, appearanceId = `${label.id}:${label.revision}`, capColor?: string | null, labelOffset = 0): ProductAppearance | null {
+export function resolveModelLabelAppearance(data: CatalogData, model: Model3D, label: Label, flavor?: Pick<Flavor, 'accentColor'>, liquidColor?: string | null, appearanceId = `${label.id}:${label.revision}`, capColor?: string | null, labelOffset = 0, finish?: Pick<Display3D, 'labelSmoothness' | 'labelMetalness'>): ProductAppearance | null {
   const appearance = resolveLabelAppearance(data, label, appearanceId);
   if (!appearance) return null;
   appearance.slots ??= {};
+  if (Number.isFinite(finish?.labelSmoothness)) {
+    const smoothness = Math.max(0, Math.min(1, finish!.labelSmoothness!));
+    appearance.id += `:smoothness:${smoothness}`;
+    appearance.slots.label.roughness = 1 - smoothness;
+  }
+  if (Number.isFinite(finish?.labelMetalness)) {
+    const metalness = Math.max(0, Math.min(1, finish!.labelMetalness!));
+    appearance.id += `:metalness:${metalness}`;
+    appearance.slots.label.metalness = metalness;
+  }
   if (Number.isFinite(labelOffset) && labelOffset !== 0) {
     const offset = Math.max(-50, Math.min(50, labelOffset));
     appearance.id += `:offset:${offset}`;
@@ -117,7 +127,7 @@ export function resolveDisplay3D(data: CatalogData, display: Display3D, seed = '
   const labelMedia = data.media.find(item => item.id === label?.mediaId);
   if (!variant || !model || !flavor || !packaging || !modelMedia || !labelMedia || modelMedia.status!=='ready'||labelMedia.status!=='ready'||modelMedia.lifecycle!=='active'||labelMedia.lifecycle!=='active'||modelMedia.role!=='model'||labelMedia.role!=='label') return null;
   const asset = resolveModelAsset(data, model);
-  const appearance = label && resolveModelLabelAppearance(data, model, label, flavor, display.liquidColor, `${display.id}:${label.id}:${label.revision}`, display.capColor, display.labelOffset);
+  const appearance = label && resolveModelLabelAppearance(data, model, label, flavor, display.liquidColor, `${display.id}:${label.id}:${label.revision}`, display.capColor, display.labelOffset, display);
   if (!asset || !appearance) return null;
   return {
     variant, flavor,

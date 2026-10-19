@@ -1,6 +1,7 @@
 import type { Locale } from '@/lib/i18n/catalog';
 
 const copy = {
+  vi: { previous: 'Hương vị trước', next: 'Hương vị tiếp theo', pause: 'Tạm dừng trình chiếu hương vị', resume: 'Tiếp tục trình chiếu hương vị', empty: 'Không có sản phẩm cho lựa chọn này.', unavailable: 'Hình ảnh sản phẩm không khả dụng.', image: 'Hình ảnh sản phẩm', poster: 'Hình bao bì tham khảo · chưa có nhãn sản phẩm', volume: 'Dung tích' },
   en: { previous: 'Previous flavor', next: 'Next flavor', pause: 'Pause flavor carousel', resume: 'Resume flavor carousel', empty: 'No product is available for this selection.', unavailable: 'The product image is unavailable.', image: 'Product image', poster: 'Packaging reference · product label unavailable', volume: 'Volume' },
   fr: { previous: 'Saveur précédente', next: 'Saveur suivante', pause: 'Mettre le carrousel en pause', resume: 'Reprendre le carrousel', empty: 'Aucun produit disponible pour cette sélection.', unavailable: 'L’image du produit est indisponible.', image: 'Image du produit', poster: 'Référence de l’emballage · étiquette du produit indisponible', volume: 'Volume' },
   zh: { previous: '上一种口味', next: '下一种口味', pause: '暂停口味轮播', resume: '继续口味轮播', empty: '此选择暂无可展示的产品。', unavailable: '产品图片暂不可用。', image: '产品图片', poster: '包装参考图 · 产品标签暂不可用', volume: '容量' },
@@ -12,6 +13,7 @@ const copy = {
 } as const;
 
 const badges: Record<Locale, { bestSeller: string; hot: string }> = {
+  vi: { bestSeller: 'BÁN CHẠY', hot: 'Nổi bật' },
   en: { bestSeller: 'BEST SELLER', hot: 'Hot' }, fr: { bestSeller: 'MEILLEURES VENTES', hot: 'Populaire' },
   zh: { bestSeller: '热销系列', hot: '热门' }, es: { bestSeller: 'MÁS VENDIDOS', hot: 'Popular' },
   ar: { bestSeller: 'الأكثر مبيعًا', hot: 'رائج' }, ru: { bestSeller: 'ЛИДЕРЫ ПРОДАЖ', hot: 'Хит' },

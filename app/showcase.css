@@ -1,5 +1,5 @@
 /* Reference composition: viewport-based art direction */
-.site-shell { background: #dff6fa; }
+.site-shell { background: #fff; }
 .site-shell::before { display:none; }
 .site-header { position:absolute; top:0; left:2.4%; width:95.2%; max-width:none; padding-top:24px; grid-template-columns:4.5% 25% minmax(0,1fr) auto; gap:1.6%; }
 .main-nav { justify-self:start; width:100%; gap:0; }
@@ -243,4 +243,28 @@
  .model-options button:focus-visible { outline-offset:-3px; }
  .showcase-details { order:4; width:100%; margin-top:8px; }
  .showcase-feature { order:5; }
+}
+.showcase-text-info { width:100%; margin-top:0; color:#fff; }
+.showcase-certifications { display:flex; flex-wrap:wrap; gap:8px 18px; margin:0; padding:12px 0 13px; border-top:1px solid rgba(255,255,255,.48); border-bottom:1px solid rgba(255,255,255,.34); font-size:10px; line-height:1.5; letter-spacing:.04em; }
+.showcase-certifications span { white-space:nowrap; }
+.showcase-certifications span::after { content:'·'; margin-inline-start:18px; opacity:.6; }
+.showcase-certifications span:last-child::after { display:none; }
+.showcase-product-facts { display:grid; gap:10px; padding-top:13px; }
+.showcase-product-facts span { display:grid; grid-template-columns:minmax(110px,auto) minmax(0,1fr); align-items:baseline; gap:12px; min-width:0; padding-bottom:9px; border-bottom:1px solid rgba(255,255,255,.25); }
+.showcase-product-facts span:last-child { padding-bottom:0; border-bottom:0; }
+.showcase-product-facts strong { font-size:10px; font-weight:650; letter-spacing:.08em; text-transform:uppercase; opacity:.78; }
+.showcase-product-facts bdi { font-size:12px; line-height:1.45; }
+@media(max-width:760px) {
+  .catalog-showcase .notes-stack { grid-template-columns:1fr; }
+  .catalog-showcase .notes-card { padding-block:9px; }
+  .catalog-showcase .showcase-stats { gap:14px; }
+  .catalog-showcase .showcase-stats > div,
+  .catalog-showcase .showcase-stats > .showcase-mockup-link { padding-block:12px 4px; }
+  .showcase-text-info { width:100%; margin-top:0; }
+  .showcase-certifications { gap:5px 12px; font-size:9px; }
+  .showcase-certifications span::after { margin-inline-start:12px; }
+  .showcase-product-facts { gap:10px; padding-top:12px; }
+  .showcase-product-facts span { grid-template-columns:minmax(96px,auto) minmax(0,1fr); gap:9px; padding-bottom:8px; }
+  .showcase-product-facts strong { font-size:9px; }
+  .showcase-product-facts bdi { font-size:11px; }
 }

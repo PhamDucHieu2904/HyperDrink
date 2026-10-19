@@ -1,4 +1,4 @@
-import type { CatalogData, CatalogRecord, CollectionName, ValidationIssue } from './contracts';
+import { BANNER_PLACEMENTS, type CatalogData, type CatalogRecord, type CollectionName, type ValidationIssue } from './contracts';
 import { catalogWithDefaults } from './contracts';
 import { checkDisplay2DCompatibility, checkDisplay3DCompatibility, collectPublicCatalog } from './compatibility';
 import { isImageMedia } from './media-roles';
@@ -24,13 +24,13 @@ const fields: Record<CollectionName, readonly string[]> = {
   productVariants: ['groupId', 'packagingVariantId', 'flavorId', 'code', 'description', 'enabled'],
   packagingSlots: ['groupId', 'packagingVariantId', 'regionKey', 'position', 'buttonLabel', 'mode', 'defaultVariantId', 'enabled'],
   media: ['role', 'status', 'url', 'storageKey', 'mime', 'bytes', 'sha256', 'width', 'height', 'imageBounds', 'error'],
-  banners: ['mediaId', 'position', 'enabled', 'alt'],
+  banners: ['mediaId', 'position', 'enabled', 'alt', 'placement'],
   labels: ['drinkTypeId', 'flavorId', 'mediaId', 'compatibilities', 'mockupVisible', 'mockupPosition'],
   models3d: ['packagingVariantId', 'mediaId', 'posterId', 'layoutProfile', 'materialSlots', 'orientation', 'mockupVisible', 'mockupPosition', 'mockupFrontYaw'],
   assets2d: ['packagingVariantId', 'drinkTypeId', 'flavorId', 'mediaId', 'galleryIds', 'description'],
-  displays3d: ['productVariantId', 'modelId', 'labelId', 'liquidColor', 'capColor', 'labelOffset', 'enabled'],
+  displays3d: ['productVariantId', 'modelId', 'labelId', 'liquidColor', 'capColor', 'labelOffset', 'labelSmoothness', 'labelMetalness', 'enabled'],
   displays2d: ['productVariantId', 'assetId', 'alt', 'enabled'],
-  productDetails: ['labelId', 'posterId', 'eyebrow', 'headline', 'subtitle', 'introduction', 'ingredients', 'allergens', 'servingSize', 'nutrition', 'companyName', 'companyAddress', 'countryOfOrigin', 'netContent', 'storage', 'shelfLife', 'sections', 'enabled'],
+  productDetails: ['labelId', 'posterId', 'eyebrow', 'headline', 'subtitle', 'introduction', 'ingredients', 'allergens', 'servingSize', 'nutritionTemplate', 'nutrition', 'companyName', 'companyAddress', 'countryOfOrigin', 'netContent', 'storage', 'shelfLife', 'sections', 'enabled'],
 };
 
 /** Shared structural validation. Empty business fields are saveable in a draft; malformed values are not. */
@@ -141,9 +141,12 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
     }
     case 'catalogCollections': ref('drinkTypeId', false, publishing); bool('homeVisible'); bool('enabled'); num('position', 0, 100000, true); break;
     case 'catalogItems': ref('collectionId', false, publishing); ref('mediaId', true, publishing); ref('productDetailId', true, publishing); ref('packagingVariantId', false, publishing); num('position', 0, 100000, true); bool('enabled'); break;
-    case 'banners': ref('mediaId', true, publishing); num('position', 0, 100000, true); bool('enabled'); str('alt', 200); break;
+    case 'banners': ref('mediaId', true, publishing); num('position', 0, 100000, true); bool('enabled'); str('alt', 200); if (record.placement !== undefined) oneOf('placement', BANNER_PLACEMENTS); break;
     case 'assets2d': ref('packagingVariantId', false, publishing); ref('drinkTypeId', false, publishing); ref('flavorId', true); ref('mediaId', true, publishing); refsArray('galleryIds'); str('description', 5000); break;
     case 'displays3d':
+      for (const field of ['labelSmoothness', 'labelMetalness']) {
+        if (record[field] !== undefined && (typeof record[field] !== 'number' || !Number.isFinite(record[field]) || record[field] < 0 || record[field] > 1)) add(field, 'Thông số bề mặt nhãn phải là số từ 0 đến 1.');
+      }
       if (record.labelOffset !== undefined && (typeof record.labelOffset !== 'number' || !Number.isFinite(record.labelOffset) || record.labelOffset < -50 || record.labelOffset > 50)) add('labelOffset', 'Offset nhãn phải là số từ -50 đến 50%.');
       ref('productVariantId', false, publishing); ref('modelId', true, publishing); ref('labelId', true, publishing); bool('enabled');
       if (record.liquidColor !== undefined && record.liquidColor !== null && (typeof record.liquidColor !== 'string' || record.liquidColor.length !== 7 || !/^#[0-9a-f]{6}$/i.test(record.liquidColor))) add('liquidColor', 'Màu nước phải có định dạng #RRGGBB, hoặc dùng màu hương vị.');
@@ -152,11 +155,12 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
     case 'displays2d': ref('productVariantId', false, publishing); ref('assetId', true, publishing); str('alt', 300, publishing); bool('enabled'); break;
     case 'productDetails': {
       ref('labelId', false, publishing); ref('posterId', true); bool('enabled');
+      if (record.nutritionTemplate !== undefined) oneOf('nutritionTemplate', ['basic', 'basic-dv', 'us-serving', 'us-container', 'canada']);
       for (const field of ['eyebrow', 'headline', 'subtitle', 'allergens', 'servingSize', 'companyName', 'companyAddress', 'countryOfOrigin', 'netContent', 'storage', 'shelfLife']) str(field, 1000);
       for (const field of ['introduction', 'ingredients']) str(field, 10000);
       if (!Array.isArray(record.nutrition) || record.nutrition.length > 40) add('nutrition', 'Tối đa 40 dòng dinh dưỡng.');
       else for (const [index, row] of record.nutrition.entries()) {
-        if (!plain(row) || Object.keys(row).some(key => !['label', 'amount', 'dailyValue'].includes(key)) || ['label', 'amount', 'dailyValue'].some(key => typeof row[key] !== 'string' || (row[key] as string).length > 160 || /[\u0000-\u001f]/.test(row[key] as string))) add(`nutrition.${index}`, 'Mỗi dòng cần tên chỉ tiêu, hàm lượng và % giá trị hàng ngày dạng text.');
+        if (!plain(row) || Object.keys(row).some(key => !['label', 'amount', 'dailyValue', 'secondaryAmount', 'secondaryDailyValue'].includes(key)) || ['label', 'amount', 'dailyValue'].some(key => typeof row[key] !== 'string' || (row[key] as string).length > 160 || /[\u0000-\u001f]/.test(row[key] as string)) || ['secondaryAmount', 'secondaryDailyValue'].some(key => row[key] !== undefined && (typeof row[key] !== 'string' || (row[key] as string).length > 160 || /[\u0000-\u001f]/.test(row[key] as string)))) add(`nutrition.${index}`, 'Mỗi dòng cần tên chỉ tiêu, hàm lượng và % giá trị hàng ngày dạng text.');
       }
       if (!Array.isArray(record.sections) || record.sections.length > 20) add('sections', 'Tối đa 20 mục thông tin bổ sung.');
       else for (const [index, section] of record.sections.entries()) {

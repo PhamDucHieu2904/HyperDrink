@@ -5,6 +5,7 @@ import { graphicsModeSnapshot, graphicsModeServerSnapshot, setGraphicsMode, subs
 import { useLanguage } from './LanguageProvider';
 
 const labels = {
+  vi: ['Đồ họa nâng cao', 'Bật · Khúc xạ trong suốt', 'Tắt · Hiệu suất mượt mà'],
   en: ['Enhanced graphics', 'On · Transparent refraction', 'Off · Smooth performance'],
   fr: ['Graphismes améliorés', 'Activé · Réfraction transparente', 'Désactivé · Fluidité'],
   zh: ['增强画质', '开启 · 透明折射', '关闭 · 流畅性能'],

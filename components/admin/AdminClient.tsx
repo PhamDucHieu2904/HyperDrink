@@ -3,7 +3,8 @@
 import { mergeFlavorPoolAsset } from '@/lib/catalog/flavor-pool-library';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, Leaf, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
+import Image from 'next/image';
+import { ArrowRight, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 import AdminApp from './AdminApp';
 import DisplayWorkspace from './display/DisplayWorkspace';
 import CollectionWorkspace from './display/CollectionWorkspace';
@@ -102,7 +103,7 @@ export default function AdminClient() {
   }}/>;
 
   return <main className={styles.shell}>
-    <section className={styles.story}><a href={publicUrl('/')} className={styles.brand}><Leaf size={26}/><strong>VINUT <span>PRODUCT STUDIO</span></strong></a><div><p className={styles.eyebrow}>DỮ LIỆU · TÀI NGUYÊN · TRẢI NGHIỆM</p><h1>Một nơi cho toàn bộ<br/>thế giới sản phẩm.</h1><p>Quản lý hương vị, bao bì, artwork và mô hình. Xem trước từng tổ hợp trước khi đưa lên website.</p><div className={styles.steps}><span>01 <strong>Nhập dữ liệu</strong></span><span>02 <strong>Ghép & xem trước</strong></span><span>03 <strong>Phát hành</strong></span></div></div><small>Bản demo local · Dữ liệu lưu trên máy · Chưa thay đổi website đang chạy</small></section>
+    <section className={styles.story}><a href={publicUrl('/')} className={styles.brand}><Image className={styles.brandLogo} src={publicUrl('/assets/branding/vinut-logo.svg')} alt="VINUT" width={968} height={492} unoptimized priority /></a><div><p className={styles.eyebrow}>DỮ LIỆU · TÀI NGUYÊN · TRẢI NGHIỆM</p><h1>Một nơi cho toàn bộ<br/>thế giới sản phẩm.</h1><p>Quản lý hương vị, bao bì, artwork và mô hình. Xem trước từng tổ hợp trước khi đưa lên website.</p><div className={styles.steps}><span>01 <strong>Nhập dữ liệu</strong></span><span>02 <strong>Ghép & xem trước</strong></span><span>03 <strong>Phát hành</strong></span></div></div><small>Bản demo local · Dữ liệu lưu trên máy · Chưa thay đổi website đang chạy</small></section>
     <section className={styles.loginArea} aria-label="Đăng nhập quản trị"><div className={styles.card}>
       <span className={styles.icon}><ShieldCheck size={27}/></span><p className={styles.eyebrow}>KHÔNG GIAN QUẢN TRỊ</p><h2>{loading?'Đang kết nối…':bootstrap?.needsSetup?'Thiết lập chủ quản trị':'Chào mừng trở lại'}</h2><p>{bootstrap?.needsSetup?'Tạo tài khoản đầu tiên để quản lý bản demo.':'Đăng nhập để tiếp tục xây dựng danh mục sản phẩm.'}</p>
       {error&&<p className={styles.error} role="alert">{error}</p>}

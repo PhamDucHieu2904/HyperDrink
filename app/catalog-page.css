@@ -11,7 +11,7 @@
   margin:0; gap:32px; border:0; background:rgb(239 247 243 / 85%);
 }
 .products-brand { gap:10px; margin-inline-end:32px; font-size:23px; letter-spacing:.08em; }
-.products-brand svg { width:42px; height:42px; }
+.products-brand img { display:block; width:126px; height:auto; }
 .products-header nav { gap:32px; margin-inline-end:auto; font-size:14px; }
 .products-header nav a { position:relative; padding:0 3px; }
 .products-header nav a[aria-current] { color:var(--catalog-green); }
@@ -86,7 +86,7 @@
 @media(max-width:850px) { .products-card-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }.products-header { flex-wrap:wrap; gap:12px; min-height:72px; }.products-brand { margin-inline-end:auto; }.products-header nav { flex-basis:100%; order:3; margin:0; justify-content:center; gap:26px; font-size:13px; }.products-header nav a { min-height:44px; }.products-header nav a:nth-child(2) { display:flex; }.featured-banner-catalog .featured-copy { width:63%; padding-block:30px; }.featured-banner-catalog .featured-slide { min-height:340px; }.catalog-banner-title { font-size:42px; }.featured-banner-catalog .featured-tagline { font-size:14px; }.featured-banner-catalog .featured-description { font-size:13px; }.featured-banner-catalog .featured-art { left:59%; }.featured-banner-catalog .featured-can { height:84%; left:51%; bottom:-7%; } }
 @media(max-width:600px) {
   .products-page { --catalog-gutter:16px; }
-  .products-brand { font-size:20px; gap:8px; }.products-brand svg { width:34px; height:34px; }
+  .products-brand { gap:8px; }.products-brand img { width:112px; }
   .products-header { padding-block:11px 0; gap:10px; }.products-header nav { gap:20px; }.products-header nav a { min-height:44px; }
   .products-layout { padding-top:18px; }.products-types { display:grid; grid-template-columns:minmax(120px,.9fr) minmax(0,1.3fr); gap:8px; }.products-types button { flex:1 1 calc(50% - 8px); padding:10px 12px; min-height:50px; gap:9px; font-size:12px; }.products-types button:first-child { grid-column:1/-1; }
   .products-filters { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }.products-search { grid-column:1/-1; }.products-filters label>span { font-size:11px; }.products-filters select,.products-search input { font-size:12px; }

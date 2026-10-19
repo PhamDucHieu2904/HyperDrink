@@ -5,7 +5,7 @@
   background:#fce6e6; overflow:hidden;
 }
 .featured-viewport { overflow:hidden; }
-.featured-track { display:flex; transition:transform 680ms cubic-bezier(.22,.68,.22,1); }
+.featured-track { display:flex; transition:transform 1200ms cubic-bezier(.22,.68,.22,1); }
 .featured-track-snap { transition:none; }
 .featured-slide { position:relative; isolation:isolate; flex:0 0 100%; min-width:0; min-height:390px; background:radial-gradient(ellipse at 18% 15%,#fff9 0%,transparent 48%),linear-gradient(110deg,#fff3ed,var(--featured-color)); overflow:hidden; }
 .featured-slide::after { content:''; position:absolute; inset:0; z-index:-1; background:linear-gradient(100deg,#fff4edbb 0%,#fff4ed66 32%,transparent 57%); pointer-events:none; }

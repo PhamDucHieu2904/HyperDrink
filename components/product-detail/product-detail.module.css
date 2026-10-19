@@ -65,6 +65,9 @@
 .nutrition tbody th { font-weight: 500; }
 .nutrition tbody td { white-space: nowrap; padding-inline-start: 10px; font-variant-numeric: tabular-nums; }
 .nutrition tbody tr:first-child { font-weight: 750; border-bottom: 2px solid var(--ink); }
+.nutritionTwoColumn { font-size: 11px; }
+.nutritionTwoColumn th, .nutritionTwoColumn td { padding-inline: 5px; }
+.nutritionTwoColumn caption strong { font-size: 25px; }
 .productInfo { border-top: 1px solid var(--line); padding-top: 23px; }
 .productInfo h3 { font-size: 10px; text-transform: uppercase; letter-spacing: .14em; margin-bottom: 20px; }
 .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 20px; margin: 0; }
@@ -82,7 +85,19 @@
 @media (max-width: 1000px) { .panel { width: calc(100vw - 40px); height: calc(100dvh - 40px); } .content { padding: 36px 28px 22px; } .tabs { top: -36px; } .composedPoster { padding: 26px; } .posterFooter { inset-inline: 26px; } }
 @media (max-width: 760px) { .panel { width: calc(100vw - 24px); height: calc(100dvh - 24px); border-radius: 20px; overflow: auto; overscroll-behavior: contain; } .layout { height: auto; grid-template-columns: 1fr; } .poster { height: 340px; } .composedPoster { padding: 24px; } .posterBrand { font-size: 15px; } .posterEyebrow { margin-top: 26px; font-size: 8px; max-width: 45%; } .posterHeadline { font-size: 27px; max-width: 42%; padding-bottom: 90px; } .posterHeadline span { font-size: 10px; line-height: 1.4; } .can { top: 7%; bottom: 6%; left: 30%; width: 70%; } .posterHalo { width: 63%; left: 37%; top: 18%; } .fruit { bottom: 8%; right: 0; width: 30%; max-height: 40%; } .posterFooter { bottom: 20px; inset-inline: 24px; padding-top: 12px; font-size: 10px; } .posterFooter svg { visibility: hidden; } .content { height: auto; overflow: visible; padding: 28px 24px 22px; } .header { padding-inline-end: 0; } .header h2 { font-size: 36px; } .subtitle { font-size: 15px; } .eyebrow { font-size: 9px; margin-bottom: 12px; } .close { position: sticky; float: right; top: 14px; right: auto; margin-right: 14px; margin-bottom: -58px; margin-top: 14px; } .tabs { top: 0; margin-inline: -4px; } .tabs button { font-size: 11px; padding-inline: 3px; } .story { font-size: 15px; line-height: 1.85; } .meta { margin: 18px 0; } .tabContent { min-height: 190px; } }
 @media (max-width: 370px) { .content { padding-inline: 18px; } .poster { height: 300px; } .posterHeadline { font-size: 23px; } }
-@media (max-width: 760px) { .posterHeadline { font-size: clamp(18px, 5.1vw, 23px); max-width: 44%; } }
-.tabs { padding-right: 48px; }
+@media (max-width: 760px) {
+  .poster:has(.composedPoster) { height: auto; }
+  .composedPoster { height: auto; gap: 0; }
+  .posterBrand { padding-inline-end: 44px; }
+  .posterEyebrow { max-width: none; margin: 24px 0 10px; font-size: 9px; line-height: 1.5; }
+  .posterHeadline { max-width: none; padding: 0; font-size: clamp(24px, 6.5vw, 32px); line-height: 1.15; }
+  .posterHeadline span { margin-top: 8px; font-size: 12px; }
+  .can { position: relative; inset: auto; width: 100%; height: clamp(210px, 62vw, 280px); margin-top: 20px; }
+  .can :global(.collection-card-image img) { border-radius: 14px; filter: none; }
+  .posterHalo, .fruit { display: none; }
+  .posterFooter { position: static; margin-top: 20px; font-size: 11px; line-height: 1.5; }
+  .tabs { padding-right: 0; }
+}
+@media (min-width: 761px) { .tabs { padding-right: 48px; } }
 @media (max-width: 760px) { .modeSwitch { top:14px; left:14px; } }
 @media (prefers-reduced-motion: reduce) { .modeButton { transition:none; } }

@@ -112,6 +112,8 @@ export function DisplayEditor({ catalog, mode, selectedId, initialVariantId, foc
   const [labelId, setLabelId] = useState(mode === '3d' ? (selected as Display3D | undefined)?.labelId ?? '' : '');
   const [liquidColor, setLiquidColor] = useState<string | null>(mode === '3d' ? (selected as Display3D | undefined)?.liquidColor ?? null : null);
   const [labelOffset, setLabelOffset] = useState(mode === '3d' ? (selected as Display3D | undefined)?.labelOffset ?? 0 : 0);
+  const [labelSmoothness, setLabelSmoothness] = useState(mode === '3d' ? (selected as Display3D | undefined)?.labelSmoothness ?? .85 : .85);
+  const [labelMetalness, setLabelMetalness] = useState(mode === '3d' ? (selected as Display3D | undefined)?.labelMetalness ?? 0 : 0);
   const [offsetDraft, setOffsetDraft] = useState<string | null>(null);
   const [capColor, setCapColor] = useState<string | null>(mode === '3d' ? (selected as Display3D | undefined)?.capColor ?? null : null);
   const [assetId, setAssetId] = useState(mode === '2d' ? (selected as Display2D | undefined)?.assetId ?? '' : '');
@@ -157,7 +159,7 @@ export function DisplayEditor({ catalog, mode, selectedId, initialVariantId, foc
   const labels = catalog.labels.filter(item => active(item) && item.drinkTypeId === group?.drinkTypeId && (!item.flavorId || item.flavorId === flavorId) && item.compatibilities.some(entry => entry.packagingVariantId === packagingId && (!model || entry.layoutProfile === model.layoutProfile)));
   const assets = catalog.assets2d.filter(item => active(item) && item.packagingVariantId === packagingId && item.drinkTypeId === group?.drinkTypeId && (!item.flavorId || item.flavorId === flavorId));
   const previewVariant: ProductVariant = { ...previewEntity, id: 'preview-variant', groupId, packagingVariantId: packagingId, flavorId, code, description, enabled: true };
-  const preview3d: Display3D = { ...previewEntity, id: selectedId || 'preview-display', productVariantId: previewVariant.id, modelId: modelId || null, labelId: labelId || null, liquidColor: hasLiquid && validLiquidColor ? liquidColor : null, capColor: hasCap && validCapColor ? capColor : null, labelOffset, enabled };
+  const preview3d: Display3D = { ...previewEntity, id: selectedId || 'preview-display', productVariantId: previewVariant.id, modelId: modelId || null, labelId: labelId || null, liquidColor: hasLiquid && validLiquidColor ? liquidColor : null, capColor: hasCap && validCapColor ? capColor : null, labelOffset, labelSmoothness, labelMetalness, enabled };
   const preview2d: Display2D = { ...previewEntity, id: selectedId || 'preview-display', productVariantId: previewVariant.id, assetId: assetId || null, alt, enabled };
   const previewCatalog: CatalogData = { ...catalog, productVariants: [...catalog.productVariants, previewVariant] };
   const issues = mode === '3d' ? checkDisplay3DCompatibility(previewCatalog, preview3d) : checkDisplay2DCompatibility(previewCatalog, preview2d);
@@ -181,7 +183,7 @@ export function DisplayEditor({ catalog, mode, selectedId, initialVariantId, foc
       const base = entity((name || defaultName).slice(0, 160), selected);
       if (hasLiquid && !validLiquidColor) throw new Error('Màu nước phải có định dạng #RRGGBB.');
       if (hasCap && !validCapColor) throw new Error('Màu nắp phải có định dạng #RRGGBB.');
-      const display: Display3D | Display2D = mode === '3d' ? { ...base, productVariantId: variant.id, modelId: modelId || null, labelId: labelId || null, liquidColor: hasLiquid ? liquidColor : null, capColor: hasCap ? capColor : null, labelOffset, enabled } : { ...base, productVariantId: variant.id, assetId: assetId || null, alt, enabled };
+      const display: Display3D | Display2D = mode === '3d' ? { ...base, productVariantId: variant.id, modelId: modelId || null, labelId: labelId || null, liquidColor: hasLiquid ? liquidColor : null, capColor: hasCap ? capColor : null, labelOffset, labelSmoothness, labelMetalness, enabled } : { ...base, productVariantId: variant.id, assetId: assetId || null, alt, enabled };
       let slot: PackagingSlot | null = null;
       if (createSlot) {
         slot = { ...entity(`${group?.buttonLabel || group?.name} · ${pack?.name}`.slice(0, 160), existingSlot), groupId, packagingVariantId: packagingId, regionKey: 'packaging-picker',
@@ -242,6 +244,6 @@ export function DisplayEditor({ catalog, mode, selectedId, initialVariantId, foc
         <div className={styles.editorActions}><span className={styles.help}>Lưu vào danh sách nháp, chưa phát hành.</span><div><button type="button" className={styles.secondary} disabled={busy} onClick={close}>Hủy</button><button type="submit" className={styles.button} disabled={!groupId || !packagingId || !flavorId || busy}><Save size={17} />{busy ? 'Đang lưu…' : selected ? 'Lưu thay đổi' : 'Thêm vào danh sách'}</button></div></div>
       </fieldset>
     </form>
-    <DisplayPreview catalog={previewCatalog} display3d={mode === '3d' ? preview3d : undefined} display2d={mode === '2d' ? preview2d : undefined} />
+    <DisplayPreview catalog={previewCatalog} display3d={mode === '3d' ? preview3d : undefined} display2d={mode === '2d' ? preview2d : undefined} finishDisabled={busy} onLabelFinishChange={finish => { if (finish.labelSmoothness !== undefined) setLabelSmoothness(finish.labelSmoothness); if (finish.labelMetalness !== undefined) setLabelMetalness(finish.labelMetalness); setDirty(true); }} />
   </div></div></dialog>;
 }

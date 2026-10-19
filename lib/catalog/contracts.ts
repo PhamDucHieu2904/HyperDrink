@@ -141,6 +141,9 @@ export interface Display3D extends Entity {
   capColor?: string | null;
   /** Horizontal label alignment, percent of one UV wrap (-50…50). */
   labelOffset?: number;
+  /** Label finish, normalized 0…1. Absent keeps the existing artwork defaults. */
+  labelSmoothness?: number;
+  labelMetalness?: number;
   enabled: boolean;
 }
 export interface Display2D extends Entity {
@@ -149,7 +152,15 @@ export interface Display2D extends Entity {
   alt: string;
   enabled: boolean;
 }
-export interface NutritionRow { label: string; amount: string; dailyValue: string }
+export type NutritionTemplateId = 'basic' | 'basic-dv' | 'us-serving' | 'us-container' | 'canada';
+export interface NutritionRow {
+  label: string;
+  amount: string;
+  dailyValue: string;
+  /** Used by the US two-column template; optional for legacy rows. */
+  secondaryAmount?: string;
+  secondaryDailyValue?: string;
+}
 export interface ProductDetail extends Entity {
   labelId: EntityId;
   posterId: EntityId | null;
@@ -160,6 +171,8 @@ export interface ProductDetail extends Entity {
   ingredients: string;
   allergens: string;
   servingSize: string;
+  /** Optional so releases created before reusable nutrition forms remain valid. */
+  nutritionTemplate?: NutritionTemplateId;
   nutrition: NutritionRow[];
   companyName: string;
   companyAddress: string;
@@ -185,11 +198,15 @@ export interface CatalogItem extends Entity {
   position: number;
   enabled: boolean;
 }
+export const BANNER_PLACEMENTS = ['home-1', 'home-2', 'catalog'] as const;
+export type BannerPlacement = typeof BANNER_PLACEMENTS[number];
 export interface Banner extends Entity {
   mediaId: string | null;
   position: number;
   enabled: boolean;
   alt: string;
+  /** Where the published banner is rendered. Older records default to home-1. */
+  placement?: BannerPlacement;
 }
 export interface CatalogData {
   schemaVersion: 1;
@@ -215,7 +232,14 @@ export interface CatalogData {
 }
 /** New editorial data does not invalidate immutable releases created before this collection existed. */
 export function catalogWithDefaults(data: CatalogData): CatalogData {
-  return { ...data, productDetails: data.productDetails ?? [], catalogCollections: data.catalogCollections ?? [], catalogItems: data.catalogItems ?? [], banners: data.banners ?? [] };
+  return {
+    ...data,
+    productDetails: data.productDetails ?? [],
+    catalogCollections: data.catalogCollections ?? [],
+    catalogItems: data.catalogItems ?? [],
+    // Releases created before banner placements existed remain Home Banner 1.
+    banners: (data.banners ?? []).map(banner => banner.placement ? banner : { ...banner, placement: 'home-1' as const }),
+  };
 }
 export type CollectionName = Exclude<keyof CatalogData, 'schemaVersion' | 'homepageLayout'>;
 export type CatalogRecord = CatalogData[CollectionName][number];

@@ -13,6 +13,7 @@ function translated(values: string[]): MockupMaterialCopy {
   return Object.fromEntries(keys.map((key, i) => [key, values[i]])) as MockupMaterialCopy;
 }
 export const mockupMaterialCopy: Record<Locale, MockupMaterialCopy> = {
+  vi: { title: 'Điều chỉnh mô hình', offset: 'Vị trí nhãn', offsetHint: 'Căn ngang · 0% là vị trí gốc', lid: 'Nắp', water: 'Màu chất lỏng', body: 'Bề mặt thân', label: 'Bề mặt nhãn', color: 'Màu sắc', metallic: 'Độ kim loại', smoothness: 'Độ nhẵn', reset: 'Đặt lại vật liệu', unavailable: 'Mô hình này không có vật liệu riêng cho bộ phận này.' },
   en: english,
   fr: translated(['Réglages du modèle','Décalage de l’étiquette','Alignement horizontal · 0% est la position initiale','Bouchon','Couleur du liquide','Finition du corps','Finition de l’étiquette','Couleur','Métallique','Lissage','Réinitialiser les matériaux','Ce modèle ne possède pas de matériau séparé pour cette partie.']),
   zh: translated(['模型调整','标签偏移','水平对齐 · 0% 为原始位置','瓶盖','液体颜色','瓶身表面','标签表面','颜色','金属度','光滑度','重置材质','此模型没有此部分的独立材质。']),

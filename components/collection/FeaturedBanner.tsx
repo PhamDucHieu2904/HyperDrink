@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { ArrowRight, ChevronLeft, ChevronRight, Droplets, Leaf } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import type { CatalogData, MediaAsset } from '@/lib/catalog/contracts';
+import type { BannerPlacement, CatalogData, MediaAsset } from '@/lib/catalog/contracts';
 import type { CollectionSection } from '@/lib/catalog/collection';
 import { FEATURED_SLIDE_INTERVAL, featuredBannerSlides, featuredSlideIndex, managedBannerSlides, type FeaturedSlide, type ManagedBannerSlide } from '@/lib/catalog/featured-banner';
 import { featuredBannerCopy } from '@/lib/i18n/featured-banner';
@@ -121,20 +121,31 @@ function ManagedCarousel({ slides }: { slides: ManagedBannerSlide[] }) {
   const [cursor, setCursor] = useState(0);
   const [snap, setSnap] = useState(false);
   const count = slides.length;
-  useEffect(() => { if (count < 2) return; const timer = window.setInterval(() => setCursor(value => value >= count ? 1 : value + 1), FEATURED_SLIDE_INTERVAL); return () => window.clearInterval(timer); }, [count]);
+  useEffect(() => { if (count < 2) return; const timer = window.setInterval(() => setCursor(value => value + 1), FEATURED_SLIDE_INTERVAL); return () => window.clearInterval(timer); }, [count]);
+  useEffect(() => {
+    if (cursor !== count) return;
+    const timer = window.setTimeout(() => {
+      setSnap(true);
+      setCursor(0);
+      window.requestAnimationFrame(() => setSnap(false));
+    }, 1250);
+    return () => window.clearTimeout(timer);
+  }, [cursor, count]);
   if (!count) return null;
   const track = count > 1 ? [...slides, slides[0]] : slides;
   const active = cursor % count;
   return <section ref={root} className="featured-banner featured-banner-managed" aria-label="Banner" aria-roledescription="carousel" data-slide={active}>
-    <div className="featured-viewport"><div className={`featured-track${snap ? ' featured-track-snap' : ''}`} style={{ transform: `translate3d(${-cursor * 100}%,0,0)` }} onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform' && cursor === count) { setSnap(true); requestAnimationFrame(() => requestAnimationFrame(() => { setCursor(0); setSnap(false); })); } }}>
+    <div className="featured-viewport"><div className={`featured-track${snap ? ' featured-track-snap' : ''}`} style={{ transform: `translate3d(${-cursor * 100}%,0,0)` }}>
       {track.map((slide, index) => <article className="featured-slide featured-slide-image" key={`${slide.id}-${index}`} aria-hidden={index !== cursor} inert={index !== cursor}><Image src={slide.image} alt={slide.alt} fill sizes="100vw" priority={index === 0} unoptimized /></article>)}
     </div></div>
   </section>;
 }
 
-export default function FeaturedBanner({ catalog, sections, surface = 'home' }: { catalog: CatalogData; sections: CollectionSection[]; surface?: 'home' | 'catalog' }) {
-  const managed = useMemo(() => managedBannerSlides(catalog), [catalog]);
+export default function FeaturedBanner({ catalog, sections, surface = 'home', placement = 'home-1' }: { catalog: CatalogData; sections: CollectionSection[]; surface?: 'home' | 'catalog'; placement?: BannerPlacement }) {
+  const managed = useMemo(() => managedBannerSlides(catalog, placement), [catalog, placement]);
   const slides = useMemo(() => featuredBannerSlides(catalog, sections), [catalog, sections]);
   if (managed.length) return <ManagedCarousel key={managed.map(slide => slide.id).join('|')} slides={managed} />;
+  // Home Banner 2 is an optional editorial slot; keep it empty until an admin assigns artwork.
+  if (placement === 'home-2') return null;
   return slides.length ? <Carousel key={slides.map(slide => slide.product.variant.id).join('|')} slides={slides} surface={surface} /> : null;
 }

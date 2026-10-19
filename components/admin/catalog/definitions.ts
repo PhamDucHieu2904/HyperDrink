@@ -32,8 +32,9 @@ export const definitions: Partial<Record<CollectionName, CollectionDefinition>> 
     { key: 'productDetailId', label: 'Product Detail', kind: 'select', relation: 'productDetails', nullable: true },
     packaging, position, { key: 'enabled', label: 'Hiển thị sản phẩm', kind: 'checkbox' },
   ] },
-  banners: { title: 'Banner trang chủ', singular: 'banner', description: 'Ảnh banner toàn màn hình. Chỉ ảnh được hiển thị; thứ tự và trạng thái có thể chỉnh trước khi phát hành.', fields: [
+  banners: { title: 'Thư viện banner theo vị trí', singular: 'banner', description: 'Quản lý ảnh banner theo từng khu vực hiển thị. Chỉ ảnh được hiển thị; thứ tự và trạng thái có thể chỉnh trước khi phát hành.', fields: [
     { key: 'mediaId', label: 'Ảnh banner', kind: 'media', roles: ['banner'], nullable: true, required: true, help: 'Tỷ lệ khuyến nghị 2458×640 hoặc tương đương. Không thêm chữ hay nút phủ lên ảnh.' },
+    { key: 'placement', label: 'Vị trí hiển thị', kind: 'select', options: [{ value: 'home-1', label: 'Home Banner 1' }, { value: 'home-2', label: 'Home Banner 2' }, { value: 'catalog', label: 'Banner Catalog' }], required: true, help: 'Chọn đúng khu vực để banner xuất hiện trên website.' },
     { key: 'alt', label: 'Mô tả ảnh (alt)', kind: 'text', help: 'Dùng cho khả năng tiếp cận.' }, position, { key: 'enabled', label: 'Hiển thị banner', kind: 'checkbox' },
   ] },
   productDetails: { title: 'Product Detail', singular: 'chi tiết sản phẩm', description: 'Poster và nội dung giới thiệu gắn với một nhãn. Dùng lại cho các sản phẩm mang nhãn này; lưu nháp rồi phát hành để cập nhật website.', fields: [
@@ -42,7 +43,7 @@ export const definitions: Partial<Record<CollectionName, CollectionDefinition>> 
     { key: 'posterId', label: 'Poster lớn', kind: 'media', roles: ['poster', ...IMAGE_MEDIA_ROLES.filter(role => role !== 'poster')], nullable: true, help: 'Ưu tiên poster dọc. Giữ nguyên tỷ lệ ảnh; để trống sẽ dùng bố cục poster từ ảnh lon và trái cây tương ứng.' },
     { key: 'eyebrow', label: 'Dòng dẫn', kind: 'text' }, { key: 'headline', label: 'Tiêu đề lớn', kind: 'text' }, { key: 'subtitle', label: 'Câu giới thiệu ngắn', kind: 'text' },
     { key: 'introduction', label: 'Giới thiệu sản phẩm', kind: 'textarea' }, { key: 'ingredients', label: 'Ingredients · Thành phần', kind: 'textarea' }, { key: 'allergens', label: 'Thông tin dị ứng', kind: 'textarea' },
-    { key: 'servingSize', label: 'Khẩu phần / cơ sở tính dinh dưỡng', kind: 'text', help: 'Ví dụ: Per 100 ml. Không tự suy diễn số liệu nếu nhãn chưa cung cấp.' }, { key: 'nutrition', label: 'Nutrition Facts · Bảng dinh dưỡng', kind: 'nutrition' },
+    { key: 'servingSize', label: 'Khẩu phần / cơ sở tính dinh dưỡng', kind: 'text', help: 'Có thể dùng gợi ý từ mẫu đã chọn; không tự suy diễn số liệu nếu nhãn chưa cung cấp.' }, { key: 'nutrition', label: 'Nutrition Facts · Bảng dinh dưỡng', kind: 'nutrition' },
     { key: 'netContent', label: 'Thể tích thực', kind: 'text', help: 'Để trống để lấy dung tích từ quy cách bao bì đang chọn.' }, { key: 'countryOfOrigin', label: 'Xuất xứ', kind: 'text' },
     { key: 'companyName', label: 'Tên công ty / nhà sản xuất', kind: 'text' }, { key: 'companyAddress', label: 'Địa chỉ công ty', kind: 'textarea' },
     { key: 'storage', label: 'Hướng dẫn bảo quản và sử dụng', kind: 'textarea' }, { key: 'shelfLife', label: 'Hạn sử dụng', kind: 'text' }, { key: 'sections', label: 'Các mục thông tin bổ sung', kind: 'detail-sections', help: 'Thêm mục riêng để mở rộng thông tin mà không cần thay cấu trúc panel.' },
@@ -73,7 +74,7 @@ export function newRecord(collection: CollectionName, context: Record<string, un
   const defaults: Partial<Record<CollectionName, Record<string, unknown>>> = {
     catalogCollections: { drinkTypeId: '', homeVisible: true, enabled: true, position: 0 },
     catalogItems: { collectionId: '', mediaId: null, productDetailId: null, packagingVariantId: '', position: 0, enabled: true },
-    productDetails: { labelId: '', posterId: null, eyebrow: '', headline: '', subtitle: '', introduction: '', ingredients: '', allergens: '', servingSize: '', nutrition: [], companyName: '', companyAddress: '', countryOfOrigin: '', netContent: '', storage: '', shelfLife: '', sections: [], enabled: true },
+    productDetails: { labelId: '', posterId: null, eyebrow: '', headline: '', subtitle: '', introduction: '', ingredients: '', allergens: '', servingSize: '', nutritionTemplate: 'basic', nutrition: [], companyName: '', companyAddress: '', countryOfOrigin: '', netContent: '', storage: '', shelfLife: '', sections: [], enabled: true },
     drinkTypes: { description: '', position: 0 },
     packagingCategories: { viewerKind: 'other', position: 0 },
     packagingVariants: { categoryId: '', volumeMl: null, shape: '', position: 0 },
@@ -84,7 +85,7 @@ export function newRecord(collection: CollectionName, context: Record<string, un
     labels: { drinkTypeId: '', flavorId: null, mediaId: null, compatibilities: [], mockupVisible: false },
     models3d: { packagingVariantId: '', mediaId: null, posterId: null, layoutProfile: '', materialSlots: { label: [] }, orientation: [0, 0, 0], mockupVisible: false },
     assets2d: { packagingVariantId: '', drinkTypeId: '', flavorId: null, mediaId: null, galleryIds: [], description: '' },
-    banners: { mediaId: null, alt: '', position: 0, enabled: true },
+    banners: { mediaId: null, placement: 'home-1', alt: '', position: 0, enabled: true },
   };
   return { ...base, ...defaults[collection], ...context } as CatalogRecord;
 }
@@ -101,5 +102,9 @@ export function recordDetails(collection: CollectionName, record: CatalogRecord,
   if (collection === 'labels') return `${ref('drinkTypes', value.drinkTypeId)} · ${(value.compatibilities as unknown[]).length} quy cách tương thích`;
   if (collection === 'models3d') return `${ref('packagingVariants', value.packagingVariantId)} · ${value.layoutProfile ? 'Tự khớp nhãn theo model' : 'Chưa có kiểu trải nhãn'}`;
   if (collection === 'packagingSlots') return `${ref('productGroups', value.groupId)} · ${ref('packagingVariants', value.packagingVariantId)} · ${String(value.mode).toUpperCase()}`;
+  if (collection === 'banners') {
+    const placement = value.placement === 'home-2' ? 'Home Banner 2' : value.placement === 'catalog' ? 'Banner Catalog' : 'Home Banner 1';
+    return `${placement} · ${value.enabled ? 'Đang hiển thị' : 'Đã tắt'} · ${value.alt || 'Chưa có mô tả alt'}`;
+  }
   return typeof value.description === 'string' && value.description ? value.description : record.slug;
 }

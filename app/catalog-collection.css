@@ -5,7 +5,8 @@
 .collection-see-all { display:inline-flex; align-items:center; gap:12px; min-height:44px; color:#1d5b58; font-weight:600; font-size:13px; border-bottom:1px solid transparent; }
 .collection-see-all:hover { border-bottom-color:currentColor; }
 .collection-section .section-heading { margin-bottom:32px; }
-.collection-rows { display:grid; gap:58px; }
+.collection-rows { display:grid; grid-template-columns:minmax(0,1fr); gap:58px; }
+.collection-row-block { min-width:0; }
 .collection-row-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
 .collection-row-heading h3 { min-width:0; margin:0; font:700 clamp(28px,3vw,42px)/1.1 'Space Grotesk',sans-serif; letter-spacing:-.04em; }
 .collection-row-tools { display:flex; align-items:center; gap:26px; flex-wrap:wrap; }
@@ -41,7 +42,7 @@
 .products-page :focus-visible,.collection-section :focus-visible { outline-color:#28674e; }
 .products-header { max-width:1480px; min-height:94px; margin:auto; display:flex; align-items:center; gap:30px; border-bottom:1px solid #d4e2da; position:relative; z-index:5; }
 .products-brand { display:flex; align-items:center; gap:12px; margin-inline-end:auto; color:#165c40; letter-spacing:.1em; }
-.products-brand svg { width:38px; height:38px; }
+.products-brand img { display:block; width:126px; height:auto; }
 .products-header nav { display:flex; gap:28px; font-size:13px; }
 .products-header nav a { min-height:44px; display:flex; align-items:center; }
 .products-header nav a[aria-current] { color:#176342; font-weight:700; border-bottom:2px solid #176342; }

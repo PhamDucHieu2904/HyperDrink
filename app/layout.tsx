@@ -13,13 +13,20 @@ import './catalog-background.css';
 import './catalog-product-cards.css';
 import './catalog-page.css';
 import './contact.css';
+import './why-choose.css';
+import './favorites.css';
+import './mobile-storefront.css';
 
 export const metadata: Metadata = {
-  title: 'Vinut — Taste the extraordinary',
+  title: 'Vinut — We make your trust',
   description: 'Discover Vinut beverages, real fruit flavors and refreshing drinks from Vietnam.',
   keywords: ['Vinut', 'beverages', 'refreshments', 'fruit drinks', 'Vietnam'],
+  icons: {
+    icon: { url: publicUrl('/vinut-icon.svg'), type: 'image/svg+xml' },
+    apple: { url: publicUrl('/vinut-apple-icon.png'), sizes: '180x180', type: 'image/png' },
+  },
   openGraph: {
-    title: 'Vinut — Taste the extraordinary',
+    title: 'Vinut — We make your trust',
     description: 'Discover flavors in a whole new way.',
     type: 'website'
   }

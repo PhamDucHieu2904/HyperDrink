@@ -8,7 +8,7 @@ import type { MediaAsset } from '@/lib/catalog/contracts';
 import { useLanguage } from '../LanguageProvider';
 import styles from './inspect-image.module.css';
 
-const hints = { en: 'Hold to inspect · Release to return', fr: 'Maintenez pour agrandir · Relâchez pour revenir', zh: '按住查看细节 · 松开还原', es: 'Mantén pulsado para ampliar · Suelta para volver', ar: 'اضغط مطولاً للتكبير · اترك للعودة', ru: 'Удерживайте для увеличения · Отпустите для возврата', ko: '길게 눌러 확대 · 놓으면 돌아갑니다', de: 'Gedrückt halten zum Vergrößern · Loslassen zum Zurücksetzen' };
+const hints = { vi: 'Nhấn giữ để xem chi tiết · Thả để trở lại', en: 'Hold to inspect · Release to return', fr: 'Maintenez pour agrandir · Relâchez pour revenir', zh: '按住查看细节 · 松开还原', es: 'Mantén pulsado para ampliar · Suelta para volver', ar: 'اضغط مطولاً للتكبير · اترك للعودة', ru: 'Удерживайте для увеличения · Отпустите для возврата', ko: '길게 눌러 확대 · 놓으면 돌아갑니다', de: 'Gedrückt halten zum Vergrößern · Loslassen zum Zurücksetzen' };
 
 export default function InspectableProductImage({ image, name }: { image: MediaAsset; name: string }) {
   const frame = useRef<HTMLButtonElement>(null);
