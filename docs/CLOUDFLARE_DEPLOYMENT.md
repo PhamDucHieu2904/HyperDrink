@@ -13,9 +13,9 @@ This project publishes its static storefront on Cloudflare Pages. Cloudflare's G
 | Build output directory | `.next-cloudflare` |
 | Root directory | Repository root |
 | Build environment variable | `NODE_VERSION=22` |
-| Production URL | `https://vinutproducts.pages.dev` once this project name is assigned |
+| Production URL | `https://vinutproducts.pages.dev` |
 
-Enable production deployments and automatic preview deployments in the Pages project's Git integration. Pushes to `main` update production; other selected branches receive preview URLs. Connect the repository in Cloudflare **Workers & Pages → Create → Pages → Connect to Git** if the project has not yet been linked, and authorize the Cloudflare GitHub App for this repository.
+The Pages project is linked to this repository, with production deployments and automatic preview deployments enabled. Pushes to `main` update production; other branches receive preview URLs. No GitHub Actions deployment secret or local Wrangler command is needed for normal updates. To recreate the project in another account, use Cloudflare **Workers & Pages → Create → Pages → Connect to Git** and authorize the Cloudflare GitHub App for this repository.
 
 The build runner enables Next.js static export, disables local API rewrites, and clears the GitHub Pages `/HyperDrink` prefix. With this Next.js version, the custom `distDir` is also the final static export directory, so upload `.next-cloudflare`, not `.next` or `out`. `wrangler.jsonc` records the same Pages project and output directory for local tooling.
 

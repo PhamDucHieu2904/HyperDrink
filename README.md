@@ -15,7 +15,9 @@ The storefront reads the committed public catalog and images, so it works withou
 
 ## Cloudflare Pages
 
-Cloudflare builds the storefront from GitHub with `npm run build:cloudflare` and publishes `.next-cloudflare` at the site root. The project name is `vinutproducts`; automatic production deployments follow pushes to `main` once the repository is linked in Cloudflare. See [Cloudflare setup and publishing](docs/CLOUDFLARE_DEPLOYMENT.md) for the exact settings and local Admin workflow.
+Production website: https://vinutproducts.pages.dev
+
+Cloudflare Pages is connected to `PhamDucHieu2904/HyperDrink`. Every push to `main` builds the storefront with `npm run build:cloudflare` and publishes `.next-cloudflare` at the site root. Other branches receive preview deployments. See [Cloudflare setup and publishing](docs/CLOUDFLARE_DEPLOYMENT.md) for the exact settings and local Admin workflow.
 
 ## GitHub Pages
 
