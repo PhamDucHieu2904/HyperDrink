@@ -115,3 +115,46 @@ test('local and Pages storefronts default to standalone data; an explicitly conf
     if (previousPages === undefined) delete process.env.GITHUB_PAGES; else process.env.GITHUB_PAGES = previousPages;
   }
 });
+
+test('Cloudflare exports root URLs separately while Pages and local Admin keep their own routing', async () => {
+  const keys = ['GITHUB_PAGES', 'CLOUDFLARE_PAGES', 'ADMIN_DEMO', 'NEXT_PUBLIC_BASE_PATH', 'NEXT_PUBLIC_ADMIN_API_URL', 'NEXT_PUBLIC_TELEMETRY_URL'];
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  const configUrl = pathToFileURL(path.resolve('next.config.mjs')).href;
+  try {
+    process.env.GITHUB_PAGES = 'true'; process.env.CLOUDFLARE_PAGES = 'true'; process.env.ADMIN_DEMO = 'true';
+    process.env.NEXT_PUBLIC_BASE_PATH = '/HyperDrink'; delete process.env.NEXT_PUBLIC_ADMIN_API_URL; delete process.env.NEXT_PUBLIC_TELEMETRY_URL;
+    const { default: cloudflare } = await import(`${configUrl}?deployment=cloudflare`);
+    assert.equal(cloudflare.output, 'export');
+    assert.equal(cloudflare.distDir, '.next-cloudflare');
+    assert.equal(cloudflare.basePath, '');
+    assert.equal(cloudflare.trailingSlash, true);
+    assert.equal(cloudflare.rewrites, undefined);
+    assert.equal(cloudflare.env.NEXT_PUBLIC_CATALOG_MODE, 'static');
+    assert.equal(cloudflare.env.NEXT_PUBLIC_TELEMETRY_MODE, 'disabled');
+    const wrangler = JSON.parse(fs.readFileSync(path.resolve('wrangler.jsonc'), 'utf8'));
+    assert.equal(wrangler.pages_build_output_dir, cloudflare.distDir);
+    assert.equal(wrangler.name, 'vinutproducts');
+
+    process.env.NEXT_PUBLIC_ADMIN_API_URL = 'https://catalog.example.test';
+    process.env.NEXT_PUBLIC_TELEMETRY_URL = 'https://events.example.test';
+    const { default: hosted } = await import(`${configUrl}?deployment=cloudflare-hosted-services`);
+    assert.equal(hosted.env.NEXT_PUBLIC_CATALOG_MODE, 'api');
+    assert.equal(hosted.env.NEXT_PUBLIC_TELEMETRY_MODE, 'enabled');
+
+    process.env.CLOUDFLARE_PAGES = 'false';
+    const { default: pages } = await import(`${configUrl}?deployment=github-pages`);
+    assert.equal(pages.distDir, '.next-pages');
+    assert.equal(pages.basePath, '/HyperDrink');
+    assert.equal(pages.rewrites, undefined);
+
+    process.env.GITHUB_PAGES = 'false'; process.env.NEXT_PUBLIC_BASE_PATH = '';
+    const { default: admin } = await import(`${configUrl}?deployment=local-admin`);
+    assert.equal(admin.output, undefined);
+    assert.equal(admin.distDir, '.next-admin');
+    assert.equal(typeof admin.rewrites, 'function');
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
+    }
+  }
+});

@@ -15,6 +15,7 @@
     "test:carousel": "node scripts/tests/flavor-carousel.test.cjs",
     "test:featured": "node scripts/tests/featured-banner.test.cjs",
     "build": "next build",
+    "build:cloudflare": "node scripts/build-cloudflare.cjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

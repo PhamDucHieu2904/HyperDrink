@@ -13,6 +13,10 @@ Open `http://localhost:3000`.
 
 The storefront reads the committed public catalog and images, so it works without running or signing in to admin. Run `npm run dev:admin` for the local product studio at `http://localhost:3100/admin`. Publishing or restoring a release synchronizes the standalone catalog automatically; draft edits remain private.
 
+## Cloudflare Pages
+
+Cloudflare builds the storefront from GitHub with `npm run build:cloudflare` and publishes `.next-cloudflare` at the site root. The project name is `vinutproducts`; automatic production deployments follow pushes to `main` once the repository is linked in Cloudflare. See [Cloudflare setup and publishing](docs/CLOUDFLARE_DEPLOYMENT.md) for the exact settings and local Admin workflow.
+
 ## GitHub Pages
 
 Live website: https://phamduchieu2904.github.io/HyperDrink/

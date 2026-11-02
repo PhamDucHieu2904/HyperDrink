@@ -5,7 +5,9 @@
 # Next.js output and local build caches
 /.next/
 /.next-pages/
+/.next-cloudflare/
 /.next-admin/
+/.wrangler/
 /out/
 /build/
 *.tsbuildinfo
