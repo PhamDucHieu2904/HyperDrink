@@ -65,6 +65,8 @@ export interface ProductGroup extends Entity {
   heroOriginText?: string;
   position: number;
   visible: boolean;
+  /** Opt in to the homepage entry pool; missing or false keeps the normal default. */
+  randomOnLoad?: boolean;
   /** Collection settings are independent of the Best seller buttons; old releases inherit visible/position. */
   collectionVisible?: boolean;
   collectionTitle?: string;

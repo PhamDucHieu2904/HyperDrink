@@ -89,6 +89,29 @@ async function createVisible2DProduct(context) {
   return { media, bytes, group, flavor, variant, asset, display, slot };
 }
 
+test('random entry flags save through API, survive SQLite restart and publish true and false', async () => withBackend(async context => {
+  await context.setup();
+  const product = await createVisible2DProduct(context);
+  let group = product.group;
+  let expectedReleaseId = null;
+  for (const randomOnLoad of [true, false]) {
+    group = await context.save('productGroups', { ...group, randomOnLoad }, group.revision);
+    context.reopen();
+    const draft = await context.repository.readDraft();
+    assert.equal(draft.productGroups.find(item => item.id === group.id).randomOnLoad, randomOnLoad);
+    const release = await context.repository.publish(draft, owner.email, `Random entry ${randomOnLoad}`, expectedReleaseId);
+    expectedReleaseId = release.id;
+    context.reopen();
+    const published = await context.repository.readActiveRelease();
+    assert.equal(published.data.productGroups.find(item => item.id === group.id).randomOnLoad, randomOnLoad);
+    const { randomStorefrontEntry } = require('../../lib/catalog/storefront.ts');
+    const entry = randomStorefrontEntry(published.data, {}, 0.99);
+    assert.deepEqual(entry, randomOnLoad ? { groupId: group.id, slotId: product.slot.id, variantId: product.variant.id } : {});
+  }
+  const invalid = await context.request('/api/admin/v1/record', { method: 'POST', body: { collection: 'productGroups', record: { ...group, randomOnLoad: 'yes' }, expectedRevision: group.revision } });
+  assert.equal(invalid.response.status, 422);
+}));
+
 test('homepage layout requires authentication, detects stale drafts, survives restart and publishes to static catalog', async () => withBackend(async context => {
   const layout = { splash: false, droplet: false, leaf: true, fruit: false, ice: false };
   const endpoint = '/api/admin/v1/homepage-layout';

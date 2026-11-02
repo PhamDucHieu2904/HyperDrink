@@ -316,6 +316,7 @@ test('the advertising banner restores all ten beverage labels as noninteractive 
 
 test('the page initializes a stable random entry then group selection resets the SKU without filtering the collection', async () => {
   const data = fixture();
+  data.productGroups.find(item => item.id === 'other-line').randomOnLoad = true;
   pagePublished = { catalog: data, releaseId: 'committed-release-7', schemaVersion: 1, publishedAt: '2026-10-01T04:00:00Z', source: 'api' };
   pageHeroCalls = []; pageStateWrites = []; pageStateValues = []; pageEffects = []; pageStateIndex = 0;
   renderToStaticMarkup(React.createElement(HomePage));

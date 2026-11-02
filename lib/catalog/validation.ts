@@ -20,7 +20,7 @@ const fields: Record<CollectionName, readonly string[]> = {
   packagingVariants: ['categoryId', 'volumeMl', 'shape', 'position'],
   flavors: ['shortName', 'description', 'accentColor', 'backgroundColor', 'textColor', 'icon', 'iconId', 'thumbnailId', 'icePoolConfigured', 'position'],
   flavorAssets: ['flavorId', 'mediaId', 'role', 'position', 'enabled'],
-  productGroups: ['drinkTypeId', 'description', 'buttonLabel', 'heroVolumeCaption', 'heroFlavorText', 'heroOriginText', 'position', 'visible', 'collectionVisible', 'collectionTitle', 'collectionPosition'],
+  productGroups: ['drinkTypeId', 'description', 'buttonLabel', 'heroVolumeCaption', 'heroFlavorText', 'heroOriginText', 'position', 'visible', 'randomOnLoad', 'collectionVisible', 'collectionTitle', 'collectionPosition'],
   productVariants: ['groupId', 'packagingVariantId', 'flavorId', 'code', 'description', 'enabled'],
   packagingSlots: ['groupId', 'packagingVariantId', 'regionKey', 'position', 'buttonLabel', 'mode', 'defaultVariantId', 'enabled'],
   media: ['role', 'status', 'url', 'storageKey', 'mime', 'bytes', 'sha256', 'width', 'height', 'imageBounds', 'error'],
@@ -87,6 +87,7 @@ export function validateRecord(collection: CollectionName, input: unknown, optio
       ref('drinkTypeId', false, publishing); str('description', 5000); str('buttonLabel', 100, publishing); position(); bool('visible');
       for (const field of ['heroVolumeCaption', 'heroFlavorText', 'heroOriginText']) if (record[field] !== undefined) str(field, 100);
       if (record.collectionVisible !== undefined) bool('collectionVisible');
+      if (record.randomOnLoad !== undefined) bool('randomOnLoad');
       if (record.collectionTitle !== undefined) str('collectionTitle', 100);
       if (record.collectionPosition !== undefined) num('collectionPosition', 0, 100000, true);
       break;

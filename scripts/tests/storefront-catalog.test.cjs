@@ -150,13 +150,22 @@ test('stale and foreign selection IDs never cross a group or packaging boundary'
   assert.equal(resolveStorefrontSelection(data, { groupId: 'group-a', slotId: 'a330-slot' }).variant.id, 'a330-orange');
 });
 
-test('random entry chooses an enabled flavor in the initial slot and preserves an explicit choice', () => {
+test('random entry opts in explicitly, weights groups uniformly and preserves requests', () => {
   const data = fixture();
+  assert.deepEqual(randomStorefrontEntry(data, {}, 0.9), {});
+  data.productGroups.forEach(item => { item.randomOnLoad = true; });
+  assert.equal(randomStorefrontEntry(data, {}, 0.49).groupId, 'group-b');
+  assert.equal(randomStorefrontEntry(data, {}, 0.5).variantId, 'a500-banana');
+  for (const request of [{ groupId: 'group-a' }, { slotId: 'a330-slot' }, { variantId: 'a330-mango' }]) assert.equal(randomStorefrontEntry(data, request, 0), request);
+  data.productGroups.find(item => item.id === 'group-b').randomOnLoad = false;
   data.productGroups.find(item => item.id === 'group-a').position = 0;
   data.packagingSlots.find(item => item.id === 'a330-slot').position = -1;
   assert.equal(randomStorefrontEntry(data, {}, 0).variantId, 'a330-orange');
+  for (const sample of [-1, NaN, Infinity]) assert.equal(randomStorefrontEntry(data, {}, sample).variantId, 'a330-orange');
   const entry = randomStorefrontEntry(data, {}, 0.999);
-  assert.deepEqual(entry, { groupId: 'group-a', slotId: 'a330-slot', variantId: 'a330-mango' });
+  assert.deepEqual(entry, { groupId: 'group-a', slotId: 'a500-slot', variantId: 'a500-banana' });
+  data.packagingSlots.find(item => item.id === 'a500-slot').enabled = false;
+  assert.equal(randomStorefrontEntry(data, {}, 1).variantId, 'a330-mango');
   assert.deepEqual(randomStorefrontEntry(data, entry, 0), entry);
   data.productVariants.find(item => item.id === 'a330-mango').enabled = false;
   assert.equal(randomStorefrontEntry(data, {}, 0.999).variantId, 'a330-orange');
@@ -164,6 +173,27 @@ test('random entry chooses an enabled flavor in the initial slot and preserves a
   assert.deepEqual(randomStorefrontEntry(data, {}, 0.999), {});
   data.productGroups.forEach(item => { item.visible = false; });
   assert.deepEqual(randomStorefrontEntry(data, {}, 0.5), {});
+});
+
+test('random candidates require playable displays and flags remain optional booleans', () => {
+  const data = fixture();
+  data.productGroups[0].randomOnLoad = true;
+  assert.equal(collectPublicCatalog(data).productGroups.find(item => item.id === data.productGroups[0].id).randomOnLoad, true);
+  data.productGroups[0].randomOnLoad = 'yes';
+  assert.ok(validateCatalog(data, { mode: 'publish' }).some(issue => issue.field === 'randomOnLoad'));
+  data.productGroups.forEach(item => { item.randomOnLoad = true; });
+  data.productGroups.find(item => item.id === 'group-b').lifecycle = 'archived';
+  data.packagingSlots.find(item => item.id === 'a500-slot').enabled = false;
+  data.packagingSlots.find(item => item.id === 'a330-slot').mode = '3d';
+  assert.equal(randomStorefrontEntry(data, {}, 0.99).variantId, 'a330-orange');
+  data.displays3d.forEach(item => { item.enabled = false; });
+  assert.deepEqual(randomStorefrontEntry(data, {}, 0), {});
+  data.packagingSlots.find(item => item.id === 'a330-slot').mode = '2d';
+  data.displays2d.forEach(item => { item.enabled = false; });
+  assert.deepEqual(randomStorefrontEntry(data, {}, 0), {});
+  data.displays2d.forEach(item => { item.enabled = true; });
+  data.assets2d.forEach(item => { item.packagingVariantId = 'can-500'; });
+  assert.deepEqual(randomStorefrontEntry(data, {}, 0), {}, 'Foreign packaging images cannot become random entry products');
 });
 
 test('release refresh keeps valid choices and falls back after the selected flavor or package is disabled', () => {

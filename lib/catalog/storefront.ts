@@ -75,13 +75,18 @@ export function resolveStorefrontSelection(data: CatalogData, request: Storefron
   return { groups, group, slots, slot, variants, variant, flavor, packaging, category };
 }
 
-/** Pick an entry flavor once; persist these IDs so refreshes and translations keep the same choice. */
+/** Pick an opted-in group uniformly, then a playable product within it, once per entry. */
 export function randomStorefrontEntry(data: CatalogData, request: StorefrontSelectionRequest, sample: number): StorefrontSelectionRequest {
-  if (request.variantId) return request;
-  const { group, slot, variants } = resolveStorefrontSelection(data, request);
-  if (!group || !slot || !variants.length) return request;
+  if (request.groupId || request.slotId || request.variantId) return request;
+  const products = catalogProducts(data).filter(item => item.group.randomOnLoad === true && (item.slot.mode === '3d' ? !!item.display3d : item.slot.mode === '2d' ? !!item.image2d : !!item.display3d || !!item.image2d));
+  const groups = storefrontGroups(data).filter(group => products.some(item => item.group.id === group.id));
+  if (!groups.length) return request;
   const fraction = Number.isFinite(sample) ? Math.max(0, Math.min(sample, 1 - Number.EPSILON)) : 0;
-  return { groupId: group.id, slotId: slot.id, variantId: variants[Math.floor(fraction * variants.length)].id };
+  const scaled = fraction * groups.length;
+  const groupIndex = Math.min(Math.floor(scaled), groups.length - 1);
+  const candidates = products.filter(item => item.group.id === groups[groupIndex].id);
+  const product = candidates[Math.min(Math.floor((scaled - groupIndex) * candidates.length), candidates.length - 1)];
+  return { groupId: product.group.id, slotId: product.slot.id, variantId: product.variant.id };
 }
 
 /** Collection cards and the hero share one reachable graph and the same compatibility rules. */

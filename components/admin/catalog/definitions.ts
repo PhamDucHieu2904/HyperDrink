@@ -80,7 +80,7 @@ export function newRecord(collection: CollectionName, context: Record<string, un
     packagingVariants: { categoryId: '', volumeMl: null, shape: '', position: 0 },
     flavors: { shortName: '', description: '', accentColor: '#58a66a', backgroundColor: '#e8f3eb', textColor: '#18392a', icon: 'leaf', iconId: null, thumbnailId: null, icePoolConfigured: true, position: 0 },
     flavorAssets: { flavorId: '', mediaId: '', role: 'fruit', position: 0, enabled: true },
-    productGroups: { drinkTypeId: '', description: '', buttonLabel: '', ...HERO_PRODUCT_DEFAULTS, position: 0, visible: true, collectionVisible: false, collectionTitle: '', collectionPosition: 0 },
+    productGroups: { drinkTypeId: '', description: '', buttonLabel: '', ...HERO_PRODUCT_DEFAULTS, position: 0, visible: true, randomOnLoad: false, collectionVisible: false, collectionTitle: '', collectionPosition: 0 },
     packagingSlots: { groupId: '', packagingVariantId: '', regionKey: 'packaging-picker', position: 0, buttonLabel: '', mode: 'auto', defaultVariantId: null, enabled: true },
     labels: { drinkTypeId: '', flavorId: null, mediaId: null, compatibilities: [], mockupVisible: false },
     models3d: { packagingVariantId: '', mediaId: null, posterId: null, layoutProfile: '', materialSlots: { label: [] }, orientation: [0, 0, 0], mockupVisible: false },

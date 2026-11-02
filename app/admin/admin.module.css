@@ -166,6 +166,16 @@
 .statusArchived { color: #929b95; background: #f3f5f3; border-color: #e7ebe8; }
 .statusPending { color: #9f823d; background: #fcf7e8; border-color: #f2e7c6; }
 .statusFailed { color: #b46560; background: #fdf0ef; border-color: #f4dedc; }
+.statusControls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.randomHelp { max-width: 900px; margin: -10px 0 18px !important; color: #60796a; font-size: 12px; line-height: 1.7; }
+.randomSwitch { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 4px 6px; border: 0; border-radius: 8px; background: transparent; color: #60776a; font-size: 11px !important; font-weight: 600 !important; }
+.randomSwitch:hover:not(:disabled) { background: #edf5ef; }
+.randomSwitch[aria-checked='true'] { color: #176a43; }
+.randomSwitchTrack { display: flex; align-items: center; width: 34px; height: 20px; flex: none; padding: 3px; border-radius: 999px; background: #82958a; transition: background .18s ease; }
+.randomSwitchTrack > span { display: block; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #0002; transition: transform .18s ease; }
+.randomSwitch[aria-checked='true'] .randomSwitchTrack { background: #1e6945; }
+.randomSwitch[aria-checked='true'] .randomSwitchTrack > span { transform: translateX(14px); }
+@media (prefers-reduced-motion: reduce) { .randomSwitchTrack, .randomSwitchTrack > span { transition: none; } }
 .rowActions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .smallButton.deleteButton { color: #922d25; border-color: #e7b8b2; background: #fff; min-width: 58px; min-height: 44px; }
 .deleteButton:hover:not(:disabled) { background: #ffebe7; }
