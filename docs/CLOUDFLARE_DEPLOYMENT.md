@@ -1,6 +1,6 @@
 # Cloudflare Pages deployment
 
-This project publishes its static storefront on Cloudflare Pages. Cloudflare's GitHub integration builds the `main` branch after each push; no Cloudflare token needs to be committed or stored in GitHub Actions.
+This project publishes its static storefront on Cloudflare Pages. A push to `main` starts `.github/workflows/cloudflare.yml`, which calls a Cloudflare Pages deploy hook. Cloudflare pulls the GitHub repository, builds the latest `main`, and deploys it to `https://vinutproducts.pages.dev`.
 
 ## Project settings
 
@@ -15,7 +15,11 @@ This project publishes its static storefront on Cloudflare Pages. Cloudflare's G
 | Build environment variable | `NODE_VERSION=22` |
 | Production URL | `https://vinutproducts.pages.dev` |
 
-The Pages project is linked to this repository, with production deployments and automatic preview deployments enabled. Pushes to `main` update production; other branches receive preview URLs. No GitHub Actions deployment secret or local Wrangler command is needed for normal updates. To recreate the project in another account, use Cloudflare **Workers & Pages → Create → Pages → Connect to Git** and authorize the Cloudflare GitHub App for this repository.
+The Pages project's Git source remains linked to this repository. Automatic Git-triggered builds in Cloudflare are disabled to prevent duplicate deployments; GitHub Actions triggers the production deploy hook instead. Other branches are not automatically deployed by this workflow. You can also run the workflow manually from GitHub Actions.
+
+The deploy hook is named `github-main` and targets `main`. Its private URL is stored only in the encrypted GitHub repository secret `CLOUDFLARE_DEPLOY_HOOK_URL`. The workflow sends a POST request without printing the URL or response body. A successful workflow means Cloudflare accepted the build request; check the Pages deployment status to confirm the subsequent build and release succeeded.
+
+To recreate the connection, link the repository through Cloudflare **Workers & Pages → Create → Pages → Connect to Git**, create a `main` deploy hook in the Pages project's settings, and save its URL as the GitHub Actions repository secret above. Keep Cloudflare's automatic production and preview Git deployments disabled when using this workflow. No Cloudflare account-wide API token or local Wrangler command is needed for routine pushes.
 
 The build runner enables Next.js static export, disables local API rewrites, and clears the GitHub Pages `/HyperDrink` prefix. With this Next.js version, the custom `distDir` is also the final static export directory, so upload `.next-cloudflare`, not `.next` or `out`. `wrangler.jsonc` records the same Pages project and output directory for local tooling.
 
@@ -26,7 +30,7 @@ The `pages.dev` address is supplied by Cloudflare and uses lowercase. A separate
 1. Run `npm run dev:admin` and edit products locally.
 2. Use **Phát hành** in Admin. This exports only the active public release to `public/catalog/current.json` and `public/catalog/media/`.
 3. Commit the code, public catalog and new public media, then push to `main`.
-4. Cloudflare builds and deploys the pushed revision automatically. Drafts and the private SQLite database remain on the local machine.
+4. GitHub Actions requests a Cloudflare build through the deploy hook. Cloudflare builds and deploys the latest `main`. Drafts and the private SQLite database remain on the local machine.
 
 Do not run `npm run catalog:export` in Cloudflare's build: the private local database is deliberately absent from GitHub. The committed public snapshot already contains everything needed to display the published products.
 

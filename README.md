@@ -17,7 +17,7 @@ The storefront reads the committed public catalog and images, so it works withou
 
 Production website: https://vinutproducts.pages.dev
 
-Cloudflare Pages is connected to `PhamDucHieu2904/HyperDrink`. Every push to `main` builds the storefront with `npm run build:cloudflare` and publishes `.next-cloudflare` at the site root. Other branches receive preview deployments. See [Cloudflare setup and publishing](docs/CLOUDFLARE_DEPLOYMENT.md) for the exact settings and local Admin workflow.
+Every push to `main` runs the Cloudflare GitHub Actions workflow, which calls a protected Cloudflare Pages deploy hook. Cloudflare then pulls `PhamDucHieu2904/HyperDrink`, builds with `npm run build:cloudflare`, and publishes `.next-cloudflare` at the site root. The hook URL is stored in the encrypted `CLOUDFLARE_DEPLOY_HOOK_URL` repository secret. See [Cloudflare setup and publishing](docs/CLOUDFLARE_DEPLOYMENT.md) for the exact settings and local Admin workflow.
 
 ## GitHub Pages
 

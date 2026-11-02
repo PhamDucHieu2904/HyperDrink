@@ -1,0 +1,38 @@
+name: Deploy website to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request Cloudflare production build
+        env:
+          CLOUDFLARE_DEPLOY_HOOK_URL: ${{ secrets.CLOUDFLARE_DEPLOY_HOOK_URL }}
+        shell: bash
+        run: |
+          if [[ -z "$CLOUDFLARE_DEPLOY_HOOK_URL" ]]; then
+            echo "::error::Missing repository secret CLOUDFLARE_DEPLOY_HOOK_URL. Add the main-branch Cloudflare Pages deploy hook."
+            exit 1
+          fi
+          if ! status=$(curl --fail --silent --show-error --connect-timeout 15 --max-time 60 --request POST \
+            --output /dev/null --write-out '%{http_code}' \
+            "$CLOUDFLARE_DEPLOY_HOOK_URL" 2>"$RUNNER_TEMP/cloudflare-hook-error.txt"); then
+            echo "::error::Cloudflare rejected the deployment request. Check the deploy hook in Cloudflare and the repository secret."
+            exit 1
+          fi
+          if [[ "$status" != 2?? ]]; then
+            echo "::error::Cloudflare returned HTTP $status instead of accepting the deployment request."
+            exit 1
+          fi
+          echo "Cloudflare accepted the production build request. Check Workers & Pages for build progress and deployment status."
