@@ -28,7 +28,7 @@ jobs:
           if ! status=$(curl --fail --silent --show-error --connect-timeout 15 --max-time 60 --request POST \
             --output /dev/null --write-out '%{http_code}' \
             "$CLOUDFLARE_DEPLOY_HOOK_URL" 2>"$RUNNER_TEMP/cloudflare-hook-error.txt"); then
-            echo "::error::Cloudflare rejected the deployment request. Check the deploy hook in Cloudflare and the repository secret."
+            echo "::error::Cloudflare deployment request failed (HTTP ${status:-unavailable}). Check the deploy hook in Cloudflare and the repository secret."
             exit 1
           fi
           if [[ "$status" != 2?? ]]; then
